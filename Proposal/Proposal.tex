@@ -7,6 +7,10 @@
 
 \documentclass[12pt]{article}
 
+\usepackage{graphicx}
+
+\graphicspath{{./images}}
+
 % This line sets the text as sans-serif
 \renewcommand{\familydefault}{\sfdefault}
 
@@ -28,8 +32,6 @@
 		\item Group Bys
 	\end{itemize}
 
-	% Add more detail, UML diagram, what each section of the proposed solution will do
-	
 	As part of the role I performed on my placement year, I had to spend a significant time actually executing the models we had written, as the data regularly changed format, slowing down the data ingestion process. Therefore, I would also like to build some tools into the framework to automate the following workflow:
 	\begin{itemize}
 		\item Ingesting new data
@@ -37,10 +39,32 @@
 		\item Providing alerts for any execution issues
 		\item Outputting the results
 	\end{itemize}
+	Based on the above description, the planned system will feature a number of core components. A UML diagram is included below showing how these will link together, followed by further information on each component:
 	
+	\begin{center}
+		\makebox[\textwidth]{\includegraphics[width=\textwidth]{HighLevelDiagram}}
+	\end{center}
+	
+	\paragraph{Orchestration Node}
+	An orchestration node will be the main access point for the system, and will provide functionality over a REST API. It will take all data processing instructions (workflows), and the location of all files to execute on. This node will perform all activities related to starting, managing, and collating the results of the calculation. \medskip
+	
+	More specifically, it will send instructions to each worker node on what processing to perform on which parts of the full dataset, it will handle restarting any failed nodes and ensuring calculations are fully complete in this case, and it will combine the partial results from all worker nodes to produce the final output. The orchestration node will also need access to an on-disk database in order to store and update the results of workflow executions.
+	
+	Furthermore, the orchestration node will feature a submodule that will allow it to perform scheduled and repeated executions of workflows, and potentially watch a given file location for changes to initiate a workflow automatically.
+	
+	\paragraph{Worker Nodes}
+	The system will feature a number of worker nodes. Each node will be provided the instructions to execute, and a subset of the entire dataset. It will execute the instructions on the data, then send the results back to the orchestration node to compile them. Dynamic load balancing can be implemented here, as each node will be provided only a small subset of data to execute, then request more work as required.
+	
+	The worker nodes will be managed using a Kubernetes or Docker Swarm cluster.
+	
+	\paragraph{File Storage}
+	The system will feature a distributed file storage component. This will aim to provide resiliency against hard drive failure, while also improving file access times by storing data in locations close to the worker nodes. I haven't yet decided whether this will use an existing solution like HDFS, or if I will implement my own. My main goal with this component is to provide quick access times to data that can be grouped by a unique key, which means some kind of index might be the only thing that is necessary.
+	
+	\paragraph{Dashboard}
+	The dashboard will provide a convenient frontend for the user to access workflows they have created, including information on previous executions, and will allow the user to initiate instant and scheduled executions.
 	
 	\section{Previous Work}
-	
+
 	This area is well researched, and many solutions already exist with varying advantages and disadvantages:
 	
 	\paragraph{MapReduce}
@@ -81,10 +105,17 @@
 	
 	I will also use either Kubernetes or Docker Swarm to handle the cluster management, and I have yet to decide whether I will be using an existing distributed file system for retaining the data on disk.
 	
-	% Agile methodology, etc
+	I will be following an Agile methodology when creating my project, splitting development into sprints. These will likely be broken down by week
 	
 	\section{Major Milestones}
-	Included below is a table showing each week of this year, and what I aim to have completed during this week:
+	Some key milestones for my project include:
+	\begin{itemize}
+		\item \textbf{Project Inspection/End of Term 1:} Storage solution for data implemented, early Orchestration + Worker Nodes setup created, user able to make simple requests and collate the results. Written up first draft of 'Motivation \& Aims' section of project report.
+		\item \textbf{End of December:} Full Orchestration + Worker Nodes setup implemented, including resilience measures for failed nodes. Written up first draft of 'Methodology' section of project report.
+		\item \textbf{End of February:} Dashboard and Scheduled Execution Submodule written
+		\item \textbf{Project Demonstrations:} Code bugfixes, performed performance and user testing. Written up first draft of 'Results' section of project report.
+		\item \textbf{Project Submission Date:} Written up 'Evaluation' section and final editing of project report.
+	\end{itemize}
 	
 	% 5 bullets on major milestones for the project (both code and documentation)
 	%should link in with proposed structure
@@ -117,9 +148,9 @@
 		I will make use of Git for version control, and if possible use CI/CD pipelines for building and deploying test environments of my project. I will also aim to use CI/CD to automatically run my unit tests on each commit.
 		\item \textbf{How to operate at all stages of the software development lifecycle:}
 		I will follow Agile methodology while developing my project, but will also spend some time before beginning development to investigate existing solutions and create a high-level design of the architecture.
-		\item \textbf{How teams work effectively to develop software solutions embracing agile and other development approaches:} \textit{TODO}
-		\item \textbf{How to apply software analysis and design approaches:} \textit{TODO}
-		\item \textbf{How to interpret and implement a design, compliant with functional, non-functional and security requirements:} \textit{TODO}
+		\item \textbf{How teams work effectively to develop software solutions embracing agile and other development approaches:} \textit{While I will be working on my own during this project, I have had previous experience with this competency during the Team Project module during second year, and I will also maintain contact with the team I worked with during my placement year to gain advice and feedback on the system I am building.}
+		\item \textbf{How to apply software analysis and design approaches:} \textit{I have previous experience of this competency from the Software Engineering module in second year, and I will apply the skills I gained to this project to design a maintainable system.}
+		\item \textbf{How to interpret and implement a design, compliant with functional, non-functional and security requirements:} \textit{I will be writing functional and non-functional requirements before beginning development, and I will use the requirements I write in order to aid my implementation.}
 		\item \textbf{How to perform functional and unit testing:} I will use automated test frameworks to write and execute unit tests.
 		\item \textbf{How to use and apply the range of software tools used in Software Engineering:} I will make use of many tools used in Software Engineering, including Git, automated test frameworks and CI/CD pipelines.
 	\end{enumerate}
