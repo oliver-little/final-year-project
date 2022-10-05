@@ -27,6 +27,8 @@
 		\item Joins
 		\item Group Bys
 	\end{itemize}
+
+	% Add more detail, UML diagram, what each section of the proposed solution will do
 	
 	As part of the role I performed on my placement year, I had to spend a significant time actually executing the models we had written, as the data regularly changed format, slowing down the data ingestion process. Therefore, I would also like to build some tools into the framework to automate the following workflow:
 	\begin{itemize}
@@ -55,9 +57,9 @@
 		\item Setting up and managing the cluster
 		\begin{itemize}
 			\item I expect to use an existing framework for initialising and managing both the main and worker nodes, like Kubernetes or Docker Swarm.
-			\item However, while this means I will not have to consider challenges like restarting failed nodes from a container perspective, there will still be other resilience considerations like ensuring the task completes successfully when a node fails.
+			\item However, while this means I will not have to consider challenges like restarting failed nodes from a container perspective, there will still be other resilience considerations like ensuring the task completes successfully when a node fails. % make this clearer (i.e.: recalculating data for failed nodes)
 		\end{itemize}
-		\item Storage of Data
+		\item Storage of Data % need to change this to mention that this needs to be investigated further
 		\begin{itemize}
 			\item I haven't yet decided whether I will be using an existing distributed file storage solution like HDFS or developing my own, as there are a number of interesting problems to solve here, and it could result in significant performance benefits for the framework.
 			\item However, including this as a task to complete will be a significant amount of work on its own.
@@ -79,14 +81,27 @@
 	
 	I will also use either Kubernetes or Docker Swarm to handle the cluster management, and I have yet to decide whether I will be using an existing distributed file system for retaining the data on disk.
 	
+	% Agile methodology, etc
+	
 	\section{Major Milestones}
 	Included below is a table showing each week of this year, and what I aim to have completed during this week:
+	
+	% 5 bullets on major milestones for the project (both code and documentation)
+	%should link in with proposed structure
+	% e.g: create cluster instantiation
+	% sending data to nodes
+	% storage solution
+	% collating results from nodes
+	% orchestration node
+	%maybe some milestones include going back to others
 	
 	\section{Specialism and Competencies}
 	\small{\textit{This section is specific to the degree apprenticeship requirements.}} \medskip
 	
 	I have selected the Software Engineer specialism to complete as part of my project. While my project contains some networking and data analysis elements, the majority of it is focused around creating a large piece of software, following best software engineering practices.
 	Included below is a list of the competencies required as part of the Software Engineer specialism, and how I intend to meet each one:
+	
+	% can link in with team project, speaking back to pwc, etc
 	
 	\begin{enumerate}
 		\item \textbf{Create effective and secure software solutions using contemporary software development languages to deliver the full range of functional and non-functional requirements using relevant development methodologies:} 

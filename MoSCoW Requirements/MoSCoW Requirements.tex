@@ -7,22 +7,43 @@
 
 \documentclass[12pt]{article}
 
+\usepackage{longtable}
+
 % This line sets the text as sans-serif
 \renewcommand{\familydefault}{\sfdefault}
 
 \begin{document}
 	\maketitle
 		
-	\begin{center}
-		\begin{tabular}{ |p{3cm}|p{3cm}|p{6cm}| } 
-			\hline
-		 	Functional / Non-Functional & Must (M) / Should (S) / Could (C) & Requirement Description \\
-			\hline
-			\multicolumn{3}{|c|}{Title} \\
-			\hline
-			cell1 & cell2 & cell3 \\
-			\hline
-		\end{tabular}
-	\end{center}
-	
+	\begin{longtable}{ |p{.20\textwidth}|p{.20\textwidth}|p{.60\textwidth}|} 
+		\hline
+	 	Functional / Non-Functional & Must (M) / Should (S) / Could (C) & Requirement Description \\ \hline
+		\multicolumn{3}{|c|}{Data Processing} \\ \hline
+		F & M & The system must allow users to filter datasets according to custom criteria. \\ \hline
+		F & M & The system must allow users to join two datasets together according to custom criteria. \\ \hline
+		F & M & The system must allow users to group portions of datasets together by unique keys. \\ \hline
+		F & M & The system must allow users to apply custom functions to each row of a dataset. \\ \hline
+		F & M & The system must allow users to apply a reducer function to a dataset. \\ \hline 
+		NF & S & The complexities of the system should be hidden from the user; the operation of the system should be identical whether the user is running the code locally or over a cluster. \\ \hline
+		\multicolumn{3}{|c|}{Cluster} \\ \hline
+		F & M & The user should be able to index specific columns of the data to allow these rows to be accessed more quickly by the cluster. \\ \hline
+		F & S & The cluster should be able to handle node failures by restarting them and requesting new work. \\ \hline
+		NF & S & The cluster should feature some form of load balancing to ensure that nodes are not idling if there is still work to be performed. \\ \hline
+		\multicolumn{3}{|c|}{Main Nodes} \\ \hline
+		F & M & The main node must delegate work to the cluster nodes to perform the calculation efficiently. \\ \hline
+		F & M & The main node must collect the results from the cluster nodes to produce the final output for the user. \\ \hline
+		F & M & The main node must handle cluster node failures to ensure that the calculation completes successfully anyway. \\ \hline
+		\multicolumn{3}{|c|}{Automated ETL Workflows} \\ \hline
+		F & S & The user should be able to define workflows, defined as the below requirements in this section \textit{(Automated ETL)}, using some kind of configuration file. \\ \hline
+		F & S & The system should receive files sent from the user, ingest them into the system automatically, and start a calculation when the files are sent. \\ \hline
+		F & S & The user should start calculations manually, schedule them for a specific time, or schedule them at a regular interval. \\ \hline
+		F & S & The system should output the results of a calculation to a user-defined location. \\ \hline
+		F & S & The system should raise alerts when an unrecoverable failure occurs during a calculation. \\ \hline
+		F & C & The system could send alerts via email to the user when an unrecoverable failure occurs during a calculation. \\ \hline
+		F & C & The system could monitor a specific folder location for changes, then initiate a calculation when files in that location are changed. \\ \hline
+		\multicolumn{3}{|c|}{Dashboard} \\ \hline
+		F & S & The system should have a dashboard to display basic information about user-created workflows \textit{(from Automated ETL)}, including source and destination files, and previous executions. \\ \hline
+		F & C & The system could allow the user to start or schedule workflows from the dashboard. \\
+		\hline
+	\end{longtable}
 \end{document}
