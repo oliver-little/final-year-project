@@ -48,12 +48,12 @@
 	\paragraph{Orchestration Node}
 	An orchestration node will be the main access point for the system, and will provide functionality over a REST API. It will take all data processing instructions (workflows), and the location of all files to execute on. This node will perform all activities related to starting, managing, and collating the results of the calculation. \medskip
 	
-	More specifically, it will send instructions to each worker node on what processing to perform on which parts of the full dataset, it will handle restarting any failed nodes and ensuring calculations are fully complete in this case, and it will combine the partial results from all worker nodes to produce the final output. The orchestration node will also need access to an on-disk database in order to store and update the results of workflow executions.
+	More specifically, it will send instructions to each worker node (using RPC) on what processing to perform on which parts of the full dataset, it will handle restarting any failed nodes and ensuring calculations are fully complete in this case, and it will combine the partial results from all worker nodes to produce the final output. The orchestration node will also need access to an on-disk database in order to store and update the results of workflow executions.
 	
 	Furthermore, the orchestration node will feature a submodule that will allow it to perform scheduled and repeated executions of workflows, and potentially watch a given file location for changes to initiate a workflow automatically.
 	
 	\paragraph{Worker Nodes}
-	The system will feature a number of worker nodes. Each node will be provided the instructions to execute, and a subset of the entire dataset. It will execute the instructions on the data, then send the results back to the orchestration node to compile them. Dynamic load balancing can be implemented here, as each node will be provided only a small subset of data to execute, then request more work as required.
+	The system will feature a number of worker nodes. Each node will be provided the instructions to execute, and a subset of the entire dataset. It will execute the instructions on the data, persist the results to disk, then send the location of the results to the orchestration node. Dynamic load balancing can be implemented here, as each node will be provided only a small subset of data to execute, then request more work as required.
 	
 	The worker nodes will be managed using a Kubernetes or Docker Swarm cluster.
 	
