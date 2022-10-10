@@ -81,12 +81,12 @@
 		\item Setting up and managing the cluster
 		\begin{itemize}
 			\item I expect to use an existing framework for initialising and managing both the main and worker nodes, like Kubernetes or Docker Swarm.
-			\item However, while this means I will not have to consider challenges like restarting failed nodes from a container perspective, there will still be other resilience considerations like ensuring the task completes successfully when a node fails. % make this clearer (i.e.: recalculating data for failed nodes)
+			\item However, while this means I will not have to consider challenges like restarting failed nodes from a container perspective, there will still be other resilience considerations like ensuring the workflow recalculates any data for failed nodes. % make this clearer (i.e.: recalculating data for failed nodes)
 		\end{itemize}
 		\item Storage of Data % need to change this to mention that this needs to be investigated further
 		\begin{itemize}
-			\item I haven't yet decided whether I will be using an existing distributed file storage solution like HDFS or developing my own, as there are a number of interesting problems to solve here, and it could result in significant performance benefits for the framework.
-			\item However, including this as a task to complete will be a significant amount of work on its own.
+			\item I haven't yet decided whether I will be using an existing distributed file storage solution like HDFS or developing my own, as there are a number of problems to solve here, and it could result in significant performance benefits for the framework.
+			\item I need to spend further time investigating this as soon as I begin work on my project, as including this as a task to complete will be a significant amount of work on its own.
 		\end{itemize}
 		\item Loan balancing and optimisation
 		\begin{itemize}
@@ -101,20 +101,18 @@
 	\end{enumerate}
 	
 	\section{Methodology}
-	I plan to implement the tool in Scala. This is because it features the structured object-orientation that Java also provides, but includes some features from functional languages which might prove useful. 
+	I plan to implement the tool in Scala. This is because it features the structured object-orientation that Java also provides, but includes some features from functional languages which might prove useful.  I will also use either Kubernetes or Docker Swarm to handle the cluster management, and I have yet to decide whether I will be using an existing distributed file system for retaining the data on disk, or implementing my own solution. \medskip
 	
-	I will also use either Kubernetes or Docker Swarm to handle the cluster management, and I have yet to decide whether I will be using an existing distributed file system for retaining the data on disk.
-	
-	I will be following an Agile methodology when creating my project, splitting development into sprints. These will likely be broken down by week
+	I will be following Agile methodology when creating my project, splitting development into weekly sprints. This will allow me to ensure my goals for each week are achievable, and that I am making consistent progress.
 	
 	\section{Major Milestones}
 	Some key milestones for my project include:
 	\begin{itemize}
-		\item \textbf{Project Inspection/End of Term 1:} Storage solution for data implemented, early Orchestration + Worker Nodes setup created, user able to make simple requests and collate the results. Written up first draft of 'Motivation \& Aims' section of project report.
-		\item \textbf{End of December:} Full Orchestration + Worker Nodes setup implemented, including resilience measures for failed nodes. Written up first draft of 'Methodology' section of project report.
-		\item \textbf{End of February:} Dashboard and Scheduled Execution Submodule written
-		\item \textbf{Project Demonstrations:} Code bugfixes, performed performance and user testing. Written up first draft of 'Results' section of project report.
-		\item \textbf{Project Submission Date:} Written up 'Evaluation' section and final editing of project report.
+		\item \textbf{Project Inspection/End of Term 1:} Storage solution for data implemented, initial setup of Orchestration and Worker Nodes, features implemented to be able to make simple requests and collate the results. Written up first draft of 'Motivation \& Aims' section of project report.
+		\item \textbf{End of December:} Full setup of Orchestration and Worker Nodes completed, including resilience measures for failed nodes. Written up first draft of 'Methodology' section of project report.
+		\item \textbf{End of February:} Frontend Dashboard and Scheduled Execution Submodule written, completed further editing of project report based on recent changes to the system.
+		\item \textbf{Project Demonstration/End of Term 2:} Code bugfixes complete, performed performance and user testing. Written up first draft of 'Results' section of project report.
+		\item \textbf{Project Submission Date:} Written up 'Evaluation' section, complete final editing of project report.
 	\end{itemize}
 	
 	% 5 bullets on major milestones for the project (both code and documentation)
