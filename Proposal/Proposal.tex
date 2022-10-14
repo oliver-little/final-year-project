@@ -6,6 +6,7 @@
 \date{\today}
 
 \documentclass[12pt]{article}
+\usepackage[a4paper,margin=.75in]{geometry}
 
 \usepackage{graphicx}
 
@@ -19,9 +20,9 @@
 	
 	\section{General Topic}
 	
-	My project topic falls within the field of distributed systems. I would like to find ways of increasing data processing speed for large datasets (at least 100GB). This sort of processing is generally best applied to ETL \textit{(extract-transform-load)} workflows, where some large dataset needs to be imported, processed in some way, then loaded elsewhere for further analysis. \medskip
+	My project topic falls within the field of distributed systems. I would like to find ways of increasing data processing speed for large datasets (at least 100GB). This sort of processing is generally best applied to ETL \textit{(extract-transform-load)} workflows, where some large dataset needs to be imported, processed in some way, then exported elsewhere for further analysis. \medskip
 	
-	Single systems begin to struggle with this volume of data, as it cannot all be loaded into memory at once. Furthermore, often the processing to be performed acts on a small number of rows of data at a time. This means that while the overall dataset is extremely large, the work to be performed lends itself quite well to parallelisation, as only a small number of rows are necessary at any one time.
+	Single systems begin to struggle with this volume of data, as it typically cannot all be loaded into memory at once. Furthermore, often the processing to be performed acts on a small number of rows of data at a time. This means that while the overall dataset is extremely large, the work to be performed lends itself quite well to parallelisation, as only a small number of rows are necessary at any one time.
 	
 	\section{Problem Definition}
 	
@@ -46,9 +47,9 @@
 	\end{center}
 	
 	\paragraph{Orchestration Node}
-	An orchestration node will be the main access point for the system, and will provide functionality over a REST API. It will take all data processing instructions (workflows), and the location of all files to execute on. This node will perform all activities related to starting, managing, and collating the results of the calculation. \medskip
+	An orchestration node will be the main access point for the system, and will provide functionality over a REST API. It will take all data processing instructions (workflows), and the location of all files to execute on. This node will perform all activities related to starting, managing, and collating the results of the calculation.
 	
-	More specifically, it will send instructions to each worker node (using RPC) on what processing to perform on which parts of the full dataset, it will handle restarting any failed nodes and ensuring calculations are fully complete in this case, and it will combine the partial results from all worker nodes to produce the final output. The orchestration node will also need access to an on-disk database in order to store and update the results of workflow executions.
+	More specifically, it will send instructions to each worker node (using RPC) on what processing to perform on which parts of the full dataset, it will handle restarting any failed nodes and ensuring calculations are fully complete in this case, and it will combine the partial results from all worker nodes to produce the final output. The orchestration node will also need access to an lightweight persistent database in order to store and update the results of workflow executions.
 	
 	Furthermore, the orchestration node will feature a submodule that will allow it to perform scheduled and repeated executions of workflows, and potentially watch a given file location for changes to initiate a workflow automatically.
 	
@@ -58,20 +59,20 @@
 	The worker nodes will be managed using a Kubernetes or Docker Swarm cluster.
 	
 	\paragraph{File Storage}
-	The system will feature a distributed file storage component. This will aim to provide resiliency against hard drive failure, while also improving file access times by storing data in locations close to the worker nodes. I haven't yet decided whether this will use an existing solution like HDFS, or if I will implement my own. My main goal with this component is to provide quick access times to data that can be grouped by a unique key, which means some kind of index might be the only thing that is necessary.
+	The system will feature a distributed file storage component. This will aim to provide resiliency against hard drive failure, while also improving file access times by storing data in locations close to the worker nodes. I haven't yet decided whether this will use an existing storage solution or database, or if I will implement my own. My main goal with this component is to provide quick access times to data that can be grouped by a unique key, which means a tool/framework that supports indexing or partitioning might be suitable.
 	
 	\paragraph{Dashboard}
-	The dashboard will provide a convenient frontend for the user to access workflows they have created, including information on previous executions, and will allow the user to initiate instant and scheduled executions.
+	I aim to implement a dashboard, which will provide a convenient frontend for the user to access workflows they have created, including information on previous executions, and will allow the user to initiate instant and scheduled executions on the orchestration node.
 	
 	\section{Previous Work}
 
 	This area is well researched, and many solutions already exist with varying advantages and disadvantages:
 	
 	\paragraph{MapReduce}
-	Google’s MapReduce is an framework designed to perform parallelised data processing using two operations - map, and reduce. It is an extremely simple framework to use, but from the research I have performed so far, contains two key weaknesses. Firstly, it performs many save and load operations to disk. This provides significant resiliency to both node and disk failure (as it utilises HDFS for resilient file storage), but it also significantly slows down processing compared to retaining data in-memory. Furthermore, the API does not transfer well to data that needs to be processed as a group according to some key.
+	Google’s MapReduce \cite{dean2008mapreduce} is an framework designed to perform parallelised data processing using two operations - map, and reduce. It is an extremely simple framework to use, but from the research I have performed so far, contains two key weaknesses. Firstly, it performs many save and load operations to disk. This provides significant resiliency to both node and disk failure (as it utilises HDFS for resilient file storage), but it also significantly slows down processing compared to retaining data in-memory. Furthermore, the API does not transfer well to data that needs to be processed as a group according to some key.
 	
-	\paragraph{Apache Spark}
-	Apache Spark is another alternative which solves problems much closer to what I'm trying to achieve. It provides higher-level API, including both Panda DataFrames, and SQL APIs. However, it again struggles with grouped data, and also has some issues with large datasets as it attempts to store as much of the data as possible in memory
+	\paragraph{Apache Spark} 
+	Apache Spark \cite{zaharia2016apache} is another alternative which solves problems much closer to what I'm trying to achieve. It provides higher-level API, including both Panda DataFrames, and SQL APIs. However, it again struggles with grouped data, and also has some issues with large datasets as it attempts to store as much of the data as possible in memory
 	
 	\section{Potential Challenges and Difficulties}
 	
@@ -81,11 +82,11 @@
 		\item Setting up and managing the cluster
 		\begin{itemize}
 			\item I expect to use an existing framework for initialising and managing both the main and worker nodes, like Kubernetes or Docker Swarm.
-			\item However, while this means I will not have to consider challenges like restarting failed nodes from a container perspective, there will still be other resilience considerations like ensuring the workflow recalculates any data for failed nodes. % make this clearer (i.e.: recalculating data for failed nodes)
+			\item However, while this means I will not have to consider challenges like restarting failed nodes from a container perspective, there will still be other resilience considerations like ensuring the workflow recalculates any results that were lost by failed nodes.
 		\end{itemize}
-		\item Storage of Data % need to change this to mention that this needs to be investigated further
+		\item Storage of Data 
 		\begin{itemize}
-			\item I haven't yet decided whether I will be using an existing distributed file storage solution like HDFS or developing my own, as there are a number of problems to solve here, and it could result in significant performance benefits for the framework.
+			\item I haven't yet decided whether I will be using an existing distributed file storage solution or developing my own, as there are a number of problems to solve here, and it could result in significant performance benefits for the framework.
 			\item I need to spend further time investigating this as soon as I begin work on my project, as including this as a task to complete will be a significant amount of work on its own.
 		\end{itemize}
 		\item Loan balancing and optimisation
@@ -101,7 +102,7 @@
 	\end{enumerate}
 	
 	\section{Methodology}
-	I plan to implement the tool in Scala. This is because it features the structured object-orientation that Java also provides, but includes some features from functional languages which might prove useful.  I will also use either Kubernetes or Docker Swarm to handle the cluster management, and I have yet to decide whether I will be using an existing distributed file system for retaining the data on disk, or implementing my own solution. \medskip
+	I plan to implement the majority of the framework in a strongly-typed object-oriented language like Java, Scala or C\#. However, the framework will target Python as the language for creating workflows, as it is widely used within the team I was part of on my placement year. I will also use either Kubernetes or Docker Swarm to handle the cluster management, and I have yet to decide whether I will be using an existing distributed file system for retaining the data on disk, or implementing my own solution. \medskip
 	
 	I will be following Agile methodology when creating my project, splitting development into weekly sprints. This will allow me to ensure my goals for each week are achievable, and that I am making consistent progress.
 	
@@ -146,11 +147,17 @@
 		I will make use of Git for version control, and if possible use CI/CD pipelines for building and deploying test environments of my project. I will also aim to use CI/CD to automatically run my unit tests on each commit.
 		\item \textbf{How to operate at all stages of the software development lifecycle:}
 		I will follow Agile methodology while developing my project, but will also spend some time before beginning development to investigate existing solutions and create a high-level design of the architecture.
-		\item \textbf{How teams work effectively to develop software solutions embracing agile and other development approaches:} \textit{While I will be working on my own during this project, I have had previous experience with this competency during the Team Project module during second year, and I will also maintain contact with the team I worked with during my placement year to gain advice and feedback on the system I am building.}
-		\item \textbf{How to apply software analysis and design approaches:} \textit{I have previous experience of this competency from the Software Engineering module in second year, and I will apply the skills I gained to this project to design a maintainable system.}
-		\item \textbf{How to interpret and implement a design, compliant with functional, non-functional and security requirements:} \textit{I will be writing functional and non-functional requirements before beginning development, and I will use the requirements I write in order to aid my implementation.}
+		\item \textbf{How teams work effectively to develop software solutions embracing agile and other development approaches:} While I will be working on my own during this project, I have had previous experience with this competency during the Team Project module during second year, and I will also maintain contact with the team I worked with during my placement year to gain advice and feedback on the system I am building.
+		\item \textbf{How to apply software analysis and design approaches:} I have previous experience of this competency from the Software Engineering module in second year, and I will apply the skills I gained to this project to design a maintainable system.
+		\item \textbf{How to interpret and implement a design, compliant with functional, non-functional and security requirements:} I will be writing functional and non-functional requirements before beginning development, and I will use the requirements I write in order to aid my implementation.
 		\item \textbf{How to perform functional and unit testing:} I will use automated test frameworks to write and execute unit tests.
 		\item \textbf{How to use and apply the range of software tools used in Software Engineering:} I will make use of many tools used in Software Engineering, including Git, automated test frameworks and CI/CD pipelines.
 	\end{enumerate}
+
+	\pagebreak
+	
+	\appendix
+	\bibliographystyle{plain}
+	\bibliography{references}
 \end{document}
 
