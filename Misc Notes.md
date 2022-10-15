@@ -19,4 +19,13 @@
 	- Main benefit of message passing is persistence - if a node fails a worker can restart to pick it up.
 	- However, in this scenario the orchestrator has control of the cluster, and will track failed nodes.
 	- Probably better for it to detect failed nodes and handle them itself by spinning up a new worker.
-	
+
+# 15/10/2022
+
+## RPC
+	- Airframe RPC
+		- Direct scala implementation, very easy to use
+		- Might not work too well if need to move out of Scala
+	- Finagle
+		- Also implemented in scala, very high level
+		- Might be better as better developed and will allow me to implement more
