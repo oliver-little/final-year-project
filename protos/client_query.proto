@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+import "table_model.proto";
+
+service TableClientService {
+    rpc SendTable(Table) returns (TableComputeResult) {}
+}
+
+message TableComputeResult {
+    string compute_uuid = 1;
+}
