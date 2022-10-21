@@ -6,6 +6,7 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import scala.math.pow
 
+/*
 object FieldExpression:
     def fromProtobuf(value : Value) : FieldExpression = {
         return (value match {
@@ -19,19 +20,22 @@ object FieldExpression:
             case _ => throw new IllegalArgumentException("Unknown type ")
         }
     }
+*/
 
-abstract class FieldExpression[T]:
+abstract class FieldExpression:
     def toProtobuf : Expression
-    def evaluate : T // Not sure if Any is correct here
+    def evaluate[T] : T
 
 
-final case class V[T](value : T) extends FieldExpression[T] {
+// V takes a value of any type, as it doesn't care what it's actually passed until it's asked to evaluate it..
+final case class V(value : Any) extends FieldExpression {
     def toProtobuf : Expression = {
         // Bit messy, this could do with cleaning up
         return Expression().withValue(
             value match {
                 case s : String => Value().withString(s)
                 case i : Int => Value().withInt(i)
+                case i : Long => Value().withInt(i)
                 case f : Double => Value().withDouble(f)
                 case f : Float => Value().withDouble(f)
                 case d : LocalDateTime => Value().withDatetime(d.format(DateTimeFormatter.ISO_INSTANT))
@@ -42,28 +46,39 @@ final case class V[T](value : T) extends FieldExpression[T] {
         )
     }
 
-    def evaluate : T = value
+    def evaluate[T](implicit t : T): T = 
+        t match {
+            case t : String => value.toString.asInstanceOf[T]
+            case _ => throw new IllegalArgumentException("Cannot resolve " + value.toString + " as " T.toString)
+        }
 }
 
-abstract class FunctionCall[T](functionName : String) extends FieldExpression[T]:
-    val arguments : Seq[FieldExpression[T]]
+// Implicit definitions used for automatic conversion of literals to Vs in the model
+implicit def stringToV(s : String) : V = new V(s)
+implicit def intToV(i : Int) : V = new V(i)
+implicit def longToV(l : Long) : V = new V(l)
+implicit def floatToV(f : Float) : V = new V(f)
+implicit def doubleToV(d : Double) : V = new V(d)
+implicit def localDateTimeToV(l : LocalDateTime) : V = new V(l)
+implicit def boolToV(b : Boolean) : V = new V(b)
+
+abstract class FunctionCall(functionName : String) extends FieldExpression:
+    val arguments : Seq[FieldExpression]
     def toProtobuf : Expression = Expression().withFunction(Expression.FunctionCall(functionName=functionName, arguments=this.arguments.map(_.toProtobuf)))
 
 // I imagine this will resolve to some type T by doing a lookup on the actual data?
 // The actual type being used will be determined when the data is loaded
-final case class F[T](fieldName : String) extends FieldExpression[T] {
+final case class F(fieldName : String) extends FieldExpression {
     def toProtobuf : Expression = Expression().withValue(Value().withField(fieldName))
 }
-/*
-final case class Add[T](left : FieldExpression[T], right : FieldExpression[T]) extends FunctionCall[T]("Add") {
-    val arguments : Seq[FieldExpression[T]] = Seq(left, right)
+
+
+final case class Add(left : FieldExpression, right : FieldExpression) extends FunctionCall("Add") {
+    val arguments : Seq[FieldExpression] = Seq(left, right)
     def evaluate : T = left + right
 }
 
-final case class Pow[Double](value : FieldExpression[Double], exponent: FieldExpression[Double]) extends FunctionCall[Double]("Pow") {
-    val arguments : Seq[FieldExpression[Double]] = Seq(left, right)
-    def evaluate : Double = pow(value, exponent)
+final case class Pow(value : FieldExpression, exponent: FieldExpression) extends FunctionCall("Pow") {
+    val arguments : Seq[FieldExpression] = Seq(left, right)
+    def evaluate : Double = pow(value., exponent)
 }
-
-val value = V("t")
-*/
