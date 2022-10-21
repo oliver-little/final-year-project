@@ -21,16 +21,15 @@ class ClientQueryManager():
 
 class InsecureClientQueryManager(ClientQueryManager):
     def __init__(self, address : str):
-        super().__init__
+        super().__init__()
         self.address = address
 
     def open(self) -> InsecureClientQueryManager:
         if self.grpc_channel is None:
             self.grpc_channel = grpc.insecure_channel(self.address)
-            self.stub = client_query.TableClientServiceStub9
+        self.stub = client_query.TableClientServiceStub(self.grpc_channel)
         return self
         
-
     def close(self) -> bool:
         try:
             self.grpc_channel.close()
@@ -40,7 +39,7 @@ class InsecureClientQueryManager(ClientQueryManager):
             return True
 
     def __enter__(self):
-        self.open()
+        return self.open()
     
     def __exit__(self, exception_type, exception_val, trace):
-        self.close()
+        return self.close()

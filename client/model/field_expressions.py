@@ -5,7 +5,7 @@ from typing import Any, Union
 
 import protobuf.table_model_pb2 as protobuf_model
 
-VALID_LITERAL_TYPES = [int, float, str, bool, datetime, NoneType]
+VALID_LITERAL_TYPES = {int, float, str, bool, datetime, NoneType}
 
 def try_convert_model_value(value) -> FieldExpression:
     """Helper function to check the type of a value and convert it to a model Value if not a FieldExpression"""

@@ -7,5 +7,5 @@ service TableClientService {
 }
 
 message TableComputeResult {
-    string compute_uuid = 1;
+    string uuid = 1;
 }

@@ -1,5 +1,3 @@
-@main def hello: Unit = 
-  println("Hello world!")
-  println(msg)
+import server.ClientQueryServer
 
-def msg = "I was compiled by Scala 3."
+@main def main: Unit = ClientQueryServer.main()
