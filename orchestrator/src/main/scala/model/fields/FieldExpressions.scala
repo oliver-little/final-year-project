@@ -7,7 +7,9 @@ import java.time.format.DateTimeFormatter
 import scala.reflect.{ClassTag, classTag}
 import scala.util.Try
 
+// Defines highest level operations on FieldExpressions 
 sealed abstract class FieldExpression:
+    // Methods and values for checking if this expression is well-typed
     val isWellTyped : Boolean
     def doesReturnType[EvalType](using tag : ClassTag[EvalType]) : Boolean
 
@@ -25,7 +27,7 @@ sealed abstract class FieldExpression:
         }
     }
 
-// V takes a value of any type, as it doesn'EvalType care what it's actually passed until it's asked to evaluate it.
+// V takes a value of any type, as it doesn't care what it's actually passed until it's asked to evaluate it.
 // Only Longs and Doubles are supported, Ints and Floats are automatically converted
 final case class V(value : Any) extends FieldExpression {
     val isWellTyped = Try{toProtobuf}.isSuccess
@@ -64,6 +66,7 @@ final case class V(value : Any) extends FieldExpression {
         else return throw new IllegalArgumentException("Cannot convert " + value.toString + " to " + clazz.toString + ".")
     }
     
+    // Helper function to convert Int to Long
     def getLong : Long = {
         return value match {
             case v : Int => return v.toLong
@@ -72,6 +75,7 @@ final case class V(value : Any) extends FieldExpression {
         }
     }
 
+    // Helper function to convert Float to Double
     def getDouble : Double = {
         return value match {
             case v : Float => return v.toDouble
@@ -90,8 +94,7 @@ implicit def doubleToV(d : Double) : V = new V(d)
 implicit def localDateTimeToV(l : LocalDateTime) : V = new V(l)
 implicit def boolToV(b : Boolean) : V = new V(b)
 
-// I imagine this will resolve to some type T by doing a lookup on the actual data?
-// The actual type being used will be determined when the data is loaded
+// F defines a field name, currently this does nothing
 final case class F(fieldName : String) extends FieldExpression {
     val isWellTyped: Boolean = true
 
@@ -106,11 +109,13 @@ final case class F(fieldName : String) extends FieldExpression {
             throw new IllegalArgumentException("Field Name does not support this type")
 }
 
+
+// Defines an abstract function call with an unknown number of parameters and a fixed return type
 abstract class FunctionCall[ReturnType](functionName : String) extends FieldExpression:
     val isWellTyped: Boolean = checkArgReturnTypes
 
-    def doesReturnType[EvalType](using tag : ClassTag[EvalType]) : Boolean = checkReturnType && checkArgReturnTypes
-    def checkReturnType[EvalType](using evidence : EvalType =:= ReturnType = null) : Boolean = evidence != null
+    def doesReturnType[EvalType](using tag : ClassTag[EvalType]) : Boolean = checkEvalTypeMatchesReturnType && checkArgReturnTypes
+    def checkEvalTypeMatchesReturnType[EvalType](using evidence : EvalType =:= ReturnType = null) : Boolean = evidence != null
     def checkArgReturnTypes: Boolean
 
     val arguments : Seq[FieldExpression]
@@ -125,16 +130,14 @@ abstract class FunctionCall[ReturnType](functionName : String) extends FieldExpr
     
     def functionCalc : ReturnType
 
-/*
-object FunctionBuilder:
-    def buildUnaryFunction[ArgumentType, ReturnType](functionName : String, function : ) : UnaryFunction = {
-        return (argument : ArgumentType) => {
-            
-        }
-    }
+// Defines a function that takes one argument and returns a value
+case class UnaryFunction[ArgType, ReturnType](functionName : String, function : (argument : ArgType) => ReturnType, argument : FieldExpression)(using tag : ClassTag[ArgType]) extends FunctionCall[ReturnType](functionName):
+    def checkArgReturnTypes : Boolean = argument.doesReturnType[ArgType]
+    val arguments = Seq(argument)
+    def functionCalc = function(argument.evaluate[ArgType])
 
-
-abstract class UnaryFunction[ArgOneType, ReturnType](argument : FieldExpression) extends FunctionCall[ReturnType](functionName):
-    val isWellTyped = 
-    val arguments
-    def functionCalc =*/ 
+// Defines a function that takes two arguments and returns a value
+case class BinaryFunction[LeftArgType, RightArgType, ReturnType](functionName : String, function : (left : LeftArgType, right : RightArgType) => ReturnType, left : FieldExpression, right : FieldExpression)(using lTag : ClassTag[LeftArgType]) (using rTag : ClassTag[RightArgType])  extends FunctionCall[ReturnType](functionName):
+    def checkArgReturnTypes : Boolean = left.doesReturnType[LeftArgType] && right.doesReturnType[RightArgType]
+    val arguments = Seq(left, right)
+    def functionCalc = function(left.evaluate[LeftArgType], right.evaluate[RightArgType])

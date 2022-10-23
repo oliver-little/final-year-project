@@ -9,30 +9,15 @@ final case class Add(left : FieldExpression, right : FieldExpression) extends Fu
     val arguments : Seq[FieldExpression] = Seq(left, right)
 }
 */
-
-final case class Concat(left : FieldExpression, right : FieldExpression) extends FunctionCall[String]("Concat") {
-    def checkArgReturnTypes = left.doesReturnType[String] && right.doesReturnType[String]
-    val arguments : Seq[FieldExpression] = Seq(left, right)
-    def functionCalc : String = left.evaluate[String] + right.evaluate[String]
-}
-
-
-final case class IntAdd(left : FieldExpression, right : FieldExpression) extends FunctionCall[Long]("IntAdd") {
-    def checkArgReturnTypes= left.doesReturnType[Long] && right.doesReturnType[Long]
-    val arguments : Seq[FieldExpression] = Seq(left, right)
-    def functionCalc : Long = left.evaluate[Long] + right.evaluate[Long]
-}
-
-final case class DoubleAdd(left : FieldExpression, right : FieldExpression) extends FunctionCall[Double]("IntAdd") {
-    def checkArgReturnTypes = left.doesReturnType[Double] && right.doesReturnType[Double]
-    val arguments : Seq[FieldExpression] = Seq(left, right)
-    def functionCalc : Double = left.evaluate[Double] + right.evaluate[Double]
-}
-
-final case class Pow(value : FieldExpression, exponent: FieldExpression) extends FunctionCall[Double]("Pow") {
-    def checkArgReturnTypes = value.doesReturnType[Double] && exponent.doesReturnType[Double]
-    val arguments : Seq[FieldExpression] = Seq(value, exponent)
-    def functionCalc : Double = pow(value.evaluate[Double], exponent.evaluate[Double])
-}
+val Concat = (l, r) => BinaryFunction[String, String, String]("Concat", (left, right) => left + right, l, r)
+val AddInt = (l, r) => BinaryFunction[Long, Long, Long]("AddInt", (left, right) => left + right, l, r)
+val AddDouble = (l, r) => BinaryFunction[Double, Double, Double]("AddDouble", (left, right) => left + right, l, r)
+val Pow = (l, r) => BinaryFunction[Double, Double, Double]("Pow", (value, exp) => pow(value, exp), l, r)
+val CastToString = (in) => UnaryFunction[Any, String]("CastToString", (i) => i.toString, in)
+// Need to investigate further how to design functions so they can be more polymorphic (infer type from arguments)
+// Might require redesigning the type system
+// Cast functions in the current state will require a new cast function for each conversion
+// Would be better to have cast take a type parameter of the type to convert to
+// val CastToInt = (in) => UnaryFunction[String | Double, String]("CastToString", (i) => i.toLong, in)
 
 //@main def main : Unit = System.out.println(Concat("a", 1).isWellTyped)
