@@ -62,7 +62,7 @@ final case class V(value : Any) extends FieldExpression {
         else if clazz == classOf[Long] then 
             return getLong.asInstanceOf[EvalType]
         else if clazz == classOf[Double] then 
-            return getLong.asInstanceOf[EvalType]
+            return getDouble.asInstanceOf[EvalType]
         else return throw new IllegalArgumentException("Cannot convert " + value.toString + " to " + clazz.toString + ".")
     }
     
@@ -121,23 +121,33 @@ abstract class FunctionCall[ReturnType](functionName : String) extends FieldExpr
     val arguments : Seq[FieldExpression]
     def toProtobuf : Expression = Expression().withFunction(Expression.FunctionCall(functionName=functionName, arguments=this.arguments.map(_.toProtobuf)))
     def topLevelEvaluate: Any = functionCalc
-    def callFunction[EvalType](using evidence : EvalType =:= ReturnType = null) : ReturnType = {
+    def callFunction[EvalType](using e : ClassTag[EvalType])(using evidence : EvalType =:= ReturnType = null) : ReturnType = {
         if evidence != null then 
             return functionCalc
         else 
-            throw new IllegalArgumentException(functionName + " does not support this type.")
+            throw new IllegalArgumentException(functionName + " does not return type " + e.toString + ".")
     }
     
     def functionCalc : ReturnType
 
 // Defines a function that takes one argument and returns a value
-case class UnaryFunction[ArgType, ReturnType](functionName : String, function : (argument : ArgType) => ReturnType, argument : FieldExpression)(using tag : ClassTag[ArgType]) extends FunctionCall[ReturnType](functionName):
+final case class UnaryFunction[ArgType, ReturnType](functionName : String, function : (argument : ArgType) => ReturnType, argument : FieldExpression)(using tag : ClassTag[ArgType]) extends FunctionCall[ReturnType](functionName):
     def checkArgReturnTypes : Boolean = argument.doesReturnType[ArgType]
     val arguments = Seq(argument)
     def functionCalc = function(argument.evaluate[ArgType])
 
 // Defines a function that takes two arguments and returns a value
-case class BinaryFunction[LeftArgType, RightArgType, ReturnType](functionName : String, function : (left : LeftArgType, right : RightArgType) => ReturnType, left : FieldExpression, right : FieldExpression)(using lTag : ClassTag[LeftArgType]) (using rTag : ClassTag[RightArgType])  extends FunctionCall[ReturnType](functionName):
+final case class BinaryFunction[LeftArgType, RightArgType, ReturnType](functionName : String, function : (left : LeftArgType, right : RightArgType) => ReturnType, left : FieldExpression, right : FieldExpression)(using lTag : ClassTag[LeftArgType]) (using rTag : ClassTag[RightArgType])  extends FunctionCall[ReturnType](functionName):
     def checkArgReturnTypes : Boolean = left.doesReturnType[LeftArgType] && right.doesReturnType[RightArgType]
     val arguments = Seq(left, right)
     def functionCalc = function(left.evaluate[LeftArgType], right.evaluate[RightArgType])
+
+final case class StringToInt(argument : FieldExpression) extends FunctionCall[Long]("StringToInt"):
+    def checkArgReturnTypes : Boolean = argument.doesReturnType[String]
+    val arguments = Seq(argument)
+    def functionCalc = argument.evaluate[String].toLong
+
+final case class StringToDouble(argument : FieldExpression) extends FunctionCall[Double]("StringToDouble"):
+    def checkArgReturnTypes : Boolean = argument.doesReturnType[String]
+    val arguments = Seq(argument)
+    def functionCalc = argument.evaluate[String].toDouble

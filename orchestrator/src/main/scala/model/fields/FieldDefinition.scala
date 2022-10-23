@@ -20,4 +20,6 @@ val CastToString = (in) => UnaryFunction[Any, String]("CastToString", (i) => i.t
 // Would be better to have cast take a type parameter of the type to convert to
 // val CastToInt = (in) => UnaryFunction[String | Double, String]("CastToString", (i) => i.toLong, in)
 
-//@main def main : Unit = System.out.println(Concat("a", 1).isWellTyped)
+// Weird bug going on here - probably something to do with java primitive types. StringToDouble is reporting that it doesn't return a double, so isn't computing.
+// If you short circuit that check it computes fine
+@main def main : Unit = System.out.println(Pow(StringToDouble("5.0"), 2.0).topLevelEvaluate)
