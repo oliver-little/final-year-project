@@ -5,23 +5,33 @@ import java.util.Date
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import scala.reflect.{ClassTag, classTag}
+import scala.util.Try
 
 sealed abstract class FieldExpression:
+    val isWellTyped : Boolean
+    def doesReturnType[EvalType](using tag : ClassTag[EvalType]) : Boolean
+
     // Convert this FieldExpression to a protobuf expression
     def toProtobuf : Expression
-    // Evaluate this FieldExpression from the top down.
+
+    // Evaluate this FieldExpression from the top down, allowing the functions to resolve their own types.
     def topLevelEvaluate : Any 
+    // Evaluate this FieldExpression with a specific type, this will throw an error if the expression cannot be computed with the given type.
     def evaluate[EvalType](using tag : ClassTag[EvalType]) : EvalType = {
         return this match {
-            case v : V => v.getValueAsType[EvalType]
-            case f : FunctionCall => f.callFunction[EvalType].asInstanceOf[EvalType]
-            case f : F => f.getFieldData[EvalType].asInstanceOf[EvalType]
+            case value : V => value.getValueAsType[EvalType]
+            case function : FunctionCall[_] => function.callFunction[EvalType].asInstanceOf[EvalType]
+            case field : F => field.getFieldData[EvalType].asInstanceOf[EvalType]
         }
     }
 
-// V takes a value of any type, as it doesn't care what it's actually passed until it's asked to evaluate it.
+// V takes a value of any type, as it doesn'EvalType care what it's actually passed until it's asked to evaluate it.
 // Only Longs and Doubles are supported, Ints and Floats are automatically converted
 final case class V(value : Any) extends FieldExpression {
+    val isWellTyped = Try{toProtobuf}.isSuccess
+    
+    def doesReturnType[EvalType](using tag : ClassTag[EvalType]) : Boolean = Try{getValueAsType[EvalType]}.isSuccess
+
     def toProtobuf : Expression = {
         // Bit messy, this could do with cleaning up
         return Expression().withValue(
@@ -83,6 +93,10 @@ implicit def boolToV(b : Boolean) : V = new V(b)
 // I imagine this will resolve to some type T by doing a lookup on the actual data?
 // The actual type being used will be determined when the data is loaded
 final case class F(fieldName : String) extends FieldExpression {
+    val isWellTyped: Boolean = true
+
+    def doesReturnType[EvalType](using tag : ClassTag[EvalType]): Boolean = true
+    
     def toProtobuf : Expression = Expression().withValue(Value().withField(fieldName))
     def topLevelEvaluate: Any = fieldName
     def getFieldData[EvalType](using evidence : EvalType =:= String = null) : String = 
@@ -92,8 +106,13 @@ final case class F(fieldName : String) extends FieldExpression {
             throw new IllegalArgumentException("Field Name does not support this type")
 }
 
-abstract class FunctionCall(functionName : String) extends FieldExpression:
-    type ReturnType
+abstract class FunctionCall[ReturnType](functionName : String) extends FieldExpression:
+    val isWellTyped: Boolean = checkArgReturnTypes
+
+    def doesReturnType[EvalType](using tag : ClassTag[EvalType]) : Boolean = checkReturnType && checkArgReturnTypes
+    def checkReturnType[EvalType](using evidence : EvalType =:= ReturnType = null) : Boolean = evidence != null
+    def checkArgReturnTypes: Boolean
+
     val arguments : Seq[FieldExpression]
     def toProtobuf : Expression = Expression().withFunction(Expression.FunctionCall(functionName=functionName, arguments=this.arguments.map(_.toProtobuf)))
     def topLevelEvaluate: Any = functionCalc
@@ -105,3 +124,17 @@ abstract class FunctionCall(functionName : String) extends FieldExpression:
     }
     
     def functionCalc : ReturnType
+
+/*
+object FunctionBuilder:
+    def buildUnaryFunction[ArgumentType, ReturnType](functionName : String, function : ) : UnaryFunction = {
+        return (argument : ArgumentType) => {
+            
+        }
+    }
+
+
+abstract class UnaryFunction[ArgOneType, ReturnType](argument : FieldExpression) extends FunctionCall[ReturnType](functionName):
+    val isWellTyped = 
+    val arguments
+    def functionCalc =*/ 
