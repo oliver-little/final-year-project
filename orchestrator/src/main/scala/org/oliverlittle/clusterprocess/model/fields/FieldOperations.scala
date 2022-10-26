@@ -1,6 +1,7 @@
 package org.oliverlittle.clusterprocess.model.fields
 
 import scala.math.pow
+import java.time.LocalDateTime
 
 val Concat = (l, r) => BinaryFunction[String, String, String]("Concat", (left, right) => left + right, l, r)
 val AddInt = (l, r) => BinaryFunction[Long, Long, Long]("AddInt", (left, right) => left + right, l, r)

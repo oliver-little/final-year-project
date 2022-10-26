@@ -1,7 +1,6 @@
 package org.oliverlittle.clusterprocess.model.fields
 
-import java.util.Date
-import java.time.LocalDateTime
+import java.time.{LocalDateTime, OffsetDateTime, ZoneOffset}
 import java.time.format.DateTimeFormatter
 import scala.reflect.{ClassTag, classTag}
 import scala.util.Try
@@ -46,7 +45,8 @@ final case class V(value : Any) extends FieldExpression {
                 case i : Long => Value().withInt(i)
                 case f : Double => Value().withDouble(f)
                 case f : Float => Value().withDouble(f.toDouble)
-                case d : LocalDateTime => Value().withDatetime(d.format(DateTimeFormatter.ISO_INSTANT))
+                case d : LocalDateTime => Value().withDatetime(d.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_DATE_TIME))
+                case d : OffsetDateTime => Value().withDatetime(d.format(DateTimeFormatter.ISO_DATE_TIME))
                 case b : Boolean => Value().withBool(b)
                 // This case should never happen
                 case _ => throw new IllegalArgumentException("Type of " + value.toString + " is invalid: " + value.getClass.toString)
@@ -54,7 +54,11 @@ final case class V(value : Any) extends FieldExpression {
         )
     }
 
-    def evaluateAny : Any = value
+    def evaluateAny : Any = value match {
+        case v : Int => v.toLong
+        case v : Float => v.toDouble
+        case v => v
+    }
 
     // Returns this value as the provided type parameter, if possible.
     def getValueAsType[EvalType](using tag : ClassTag[EvalType]) : EvalType = {
@@ -91,11 +95,11 @@ final case class V(value : Any) extends FieldExpression {
 
 // Implicit definitions used for automatic conversion of literals to Vs in the model
 implicit def stringToV(s : String) : V = new V(s)
-implicit def intToV(i : Int) : V = new V(i)
+implicit def intToV(i : Int) : V = new V(i.toLong)
 implicit def longToV(l : Long) : V = new V(l)
-implicit def floatToV(f : Float) : V = new V(f)
+implicit def floatToV(f : Float) : V = new V(f.toLong)
 implicit def doubleToV(d : Double) : V = new V(d)
-implicit def localDateTimeToV(l : LocalDateTime) : V = new V(l)
+implicit def offsetDateTimeToV(l : OffsetDateTime) : V = new V(l)
 implicit def boolToV(b : Boolean) : V = new V(b)
 
 // F defines a field name, currently this does nothing
