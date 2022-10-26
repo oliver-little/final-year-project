@@ -1,11 +1,12 @@
-package model.fields
+package org.oliverlittle.clusterprocess.model.fields
 
-import table_model._
 import java.util.Date
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import scala.reflect.{ClassTag, classTag}
 import scala.util.Try
+
+import org.oliverlittle.clusterprocess.table_model._
 
 // Defines highest level operations on FieldExpressions 
 sealed abstract class FieldExpression:

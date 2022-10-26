@@ -1,4 +1,4 @@
-package model.fields
+package org.oliverlittle.clusterprocess.model.fields
 
 import scala.math.pow
 

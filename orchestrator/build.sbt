@@ -9,8 +9,12 @@ lazy val root = project
     scalaVersion := scala3Version,
 
     libraryDependencies ++= Seq(
-    "org.scalameta" %% "munit" % "0.7.29" % Test,
+    // ScalaTest
+    "org.scalactic" %% "scalactic" % "3.2.14",
+    "org.scalatest" %% "scalatest" % "3.2.14" % "test",
+    // gRPC
     "io.grpc" % "grpc-netty" % scalapb.compiler.Version.grpcJavaVersion,
+    // Protobufs in Scala
     "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % scalapb.compiler.Version.scalapbVersion
     ),
 

@@ -1,11 +1,11 @@
-package server
+package org.oliverlittle.clusterprocess.server
 
 import io.grpc.ServerBuilder
-import client_query.TableClientServiceGrpc
 import scala.concurrent.{ExecutionContext, Future}
-import table_model.Table
-import client_query.TableComputeResult
 import java.util.logging.Logger
+
+import org.oliverlittle.clusterprocess.table_model.Table
+import org.oliverlittle.clusterprocess.client_query.{TableClientServiceGrpc, TableComputeResult}
 
 object ClientQueryServer {
     private val logger = Logger.getLogger(classOf[ClientQueryServer].getName)
