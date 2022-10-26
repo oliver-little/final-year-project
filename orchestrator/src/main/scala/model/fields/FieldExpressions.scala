@@ -9,17 +9,19 @@ import scala.util.Try
 
 // Defines highest level operations on FieldExpressions 
 sealed abstract class FieldExpression:
-    // Methods and values for checking if this expression is well-typed
+    // Represents whether this field expression is well-typed (i.e.: we are at least able to attempt computation on it, as the base types all match)
     val isWellTyped : Boolean
+    // Checks whether this FieldExpression is able to return the provided type parameter
     def doesReturnType[EvalType](using tag : ClassTag[EvalType]) : Boolean
 
     // Convert this FieldExpression to a protobuf expression
     def toProtobuf : Expression
 
     // Evaluate this FieldExpression from the top down, allowing the functions to resolve their own types.
-    def topLevelEvaluate : Any 
+    def evaluateAny : Any 
+
     // Evaluate this FieldExpression with a specific type, this will throw an error if the expression cannot be computed with the given type.
-    def evaluate[EvalType](using tag : ClassTag[EvalType]) : EvalType = {
+    def evaluate[EvalType](using tag : ClassTag[EvalType]): EvalType = {
         return this match {
             case value : V => value.getValueAsType[EvalType]
             case function : FunctionCall[_] => function.callFunction[EvalType].asInstanceOf[EvalType]
@@ -51,8 +53,9 @@ final case class V(value : Any) extends FieldExpression {
         )
     }
 
-    def topLevelEvaluate : Any = value
+    def evaluateAny : Any = value
 
+    // Returns this value as the provided type parameter, if possible.
     def getValueAsType[EvalType](using tag : ClassTag[EvalType]) : EvalType = {
         var clazz = tag.runtimeClass
         // This is pure Java code, seems to be the easiest way of doing the conversion with a generic type.
@@ -101,7 +104,7 @@ final case class F(fieldName : String) extends FieldExpression {
     def doesReturnType[EvalType](using tag : ClassTag[EvalType]): Boolean = true
     
     def toProtobuf : Expression = Expression().withValue(Value().withField(fieldName))
-    def topLevelEvaluate: Any = fieldName
+    def evaluateAny: Any = fieldName
     def getFieldData[EvalType](using evidence : EvalType =:= String = null) : String = 
         if evidence != null then 
             return fieldName
@@ -113,21 +116,23 @@ final case class F(fieldName : String) extends FieldExpression {
 // Defines an abstract function call with an unknown number of parameters and a fixed return type
 abstract class FunctionCall[ReturnType](functionName : String) extends FieldExpression:
     val isWellTyped: Boolean = checkArgReturnTypes
-
     def doesReturnType[EvalType](using tag : ClassTag[EvalType]) : Boolean = checkEvalTypeMatchesReturnType && checkArgReturnTypes
+    // Checks whether the provided type parameter matches the return type of this function
     def checkEvalTypeMatchesReturnType[EvalType](using evidence : EvalType =:= ReturnType = null) : Boolean = evidence != null
+    // Abstract function: this should validate all arguments to this function call to ensure they return an acceptable type
     def checkArgReturnTypes: Boolean
 
     val arguments : Seq[FieldExpression]
     def toProtobuf : Expression = Expression().withFunction(Expression.FunctionCall(functionName=functionName, arguments=this.arguments.map(_.toProtobuf)))
-    def topLevelEvaluate: Any = functionCalc
+    def evaluateAny: Any = functionCalc
     def callFunction[EvalType](using e : ClassTag[EvalType])(using evidence : EvalType =:= ReturnType = null) : ReturnType = {
         if evidence != null then 
             return functionCalc
         else 
-            throw new IllegalArgumentException(functionName + " does not return type " + e.toString + ".")
+            throw new IllegalArgumentException(functionName + " does not return type " + e.runtimeClass.getPackage + ".")
     }
     
+    // Abstract function: this should perform the actual function call on the FieldExpression arguments
     def functionCalc : ReturnType
 
 // Defines a function that takes one argument and returns a value
@@ -142,12 +147,38 @@ final case class BinaryFunction[LeftArgType, RightArgType, ReturnType](functionN
     val arguments = Seq(left, right)
     def functionCalc = function(left.evaluate[LeftArgType], right.evaluate[RightArgType])
 
-final case class StringToInt(argument : FieldExpression) extends FunctionCall[Long]("StringToInt"):
-    def checkArgReturnTypes : Boolean = argument.doesReturnType[String]
-    val arguments = Seq(argument)
-    def functionCalc = argument.evaluate[String].toLong
+// Defines a function that takes three arguments and returns a value
+final case class TernaryFunction[ArgOneType, ArgTwoType, ArgThreeType, ReturnType](functionName : String, function : (one : ArgOneType, two : ArgTwoType, three : ArgThreeType) => ReturnType, one : FieldExpression, two : FieldExpression, three : FieldExpression)(using oneTag : ClassTag[ArgOneType], twoTag : ClassTag[ArgTwoType], threeTag : ClassTag[ArgThreeType])  extends FunctionCall[ReturnType](functionName):
+    def checkArgReturnTypes : Boolean = one.doesReturnType[ArgOneType] && two.doesReturnType[ArgTwoType] && three.doesReturnType[ArgThreeType]
+    val arguments = Seq(one, two, three)
+    def functionCalc = function(one.evaluate[ArgOneType], two.evaluate[ArgTwoType], three.evaluate[ArgThreeType])
 
-final case class StringToDouble(argument : FieldExpression) extends FunctionCall[Double]("StringToDouble"):
+// Polymorphic cast definitions (takes any argument, and returns the type or an error)
+final case class ToString(argument: FieldExpression) extends FunctionCall[String]("ToString"):
+    def checkArgReturnTypes : Boolean = argument.doesReturnType[Any]
+    val arguments = Seq(argument)
+    def functionCalc = argument.evaluateAny.toString
+
+final case class ToInt(argument : FieldExpression) extends FunctionCall[Long]("ToInt"):
+    def checkArgReturnTypes : Boolean = argument.doesReturnType[String] || argument.doesReturnType[Double] || argument.doesReturnType[Float] || argument.doesReturnType[Long] || argument.doesReturnType[Int]
+    val arguments = Seq(argument)
+    def functionCalc = argument.evaluateAny match {
+        case v : String => v.toLong
+        case v : Double => v.toLong
+        case v : Float => v.toLong
+        case v : Long => v
+        case v : Int => v.toLong
+        case v => throw new IllegalArgumentException("Cannot convert " + v.toString + " of type " + v.getClass + " to Long.")
+    }
+
+final case class ToDouble(argument : FieldExpression) extends FunctionCall[Double]("ToDouble"):
     def checkArgReturnTypes : Boolean = argument.doesReturnType[String]
     val arguments = Seq(argument)
-    def functionCalc = argument.evaluate[String].toDouble
+    def functionCalc = argument.evaluateAny match {
+        case v : String => v.toDouble
+        case v : Long => v.toDouble
+        case v : Int => v.toDouble
+        case v : Double => v
+        case v : Float => v.toDouble
+        case v => throw new IllegalArgumentException("Cannot convert " + v.toString + " of type " + v.getClass + " to Long.")
+    }
