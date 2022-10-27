@@ -11,7 +11,9 @@ import org.oliverlittle.clusterprocess.table_model.{Expression, Value}
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 
-class ValueSpec extends AnyFlatSpec with Inside with OptionValues with AppendedClues with should.Matchers {
+abstract class UnitSpec extends AnyFlatSpec with Inside with OptionValues with AppendedClues with should.Matchers
+
+class ValueSpec extends UnitSpec {
     // Instantiation
     "A Value" should "return the same value it is given" in {
         val value = V("a")
@@ -198,5 +200,139 @@ class ValueSpec extends AnyFlatSpec with Inside with OptionValues with AppendedC
         assertThrows[IllegalArgumentException] {
             value.getDouble
         }
+    }
+}
+
+class FunctionCallSpec extends UnitSpec {
+    "A FunctionCall" should "be well-typed when its arguments are well-typed" in {
+        val func = FunctionCallImpl()
+        func.isWellTyped should be (true)
+    }
+
+    it should "calculate doesReturnType correctly based on the provided type" in {
+        val func = FunctionCallImpl()
+        func.doesReturnType[String] should be (true)
+        func.doesReturnType[Long] should be (false)
+    }
+
+    it should "check eval type matches the defined return type" in {
+        val func = FunctionCallImpl()
+        func.checkEvalTypeMatchesReturnType[String] should be (true)
+        func.checkEvalTypeMatchesReturnType[Long] should be (false)
+    }
+
+    it should "convert to a protobuf expression based on the name and arguments" in {
+        val func = FunctionCallImpl()
+        val ret = func.toProtobuf
+        inside(ret) { case Expression(expr, unknownFields) => 
+            inside(expr) { case Expression.Expr.Function(value) => 
+                inside(value) { case Expression.FunctionCall(functionName, arguments, unknownFields) =>
+                    functionName should be ("testName")
+                    arguments should have length 1
+
+                    inside (arguments.apply(0)) { case Expression(expr, unknownFields) =>
+                        inside(expr) { case Expression.Expr.Value(value) =>
+                            inside(value) { case Value(value, unknownFields) => 
+                                value.string.value should be ("a")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    it should "call the function if the type is correct" in {
+        val func = FunctionCallImpl()
+
+        func.callFunction[String] should be ("a")
+    }
+
+    it should "throw IllegalArgumentException if the type is incorrect" in {
+        val func = FunctionCallImpl()
+
+        assertThrows[IllegalArgumentException] {
+            func.callFunction[Long]
+        }
+    }
+
+    it should "throw IllegalArgumentException if the argument types are incorrect" in {
+        val func = FailFunctionCallImpl()
+        assertThrows[IllegalArgumentException] {
+            func.callFunction[String]
+        }
+    }
+
+    it should "call the function when evaluateAny is called" in {
+        val func = FunctionCallImpl()
+
+        func.evaluateAny should be ("a")
+    }
+
+    private class FunctionCallImpl extends FunctionCall[String]("testName"):
+        def checkArgReturnTypes = true
+        val arguments = Seq(V("a"))
+        def functionCalc = "a"
+
+    private class FailFunctionCallImpl extends FunctionCall[String]("testName"):
+        def checkArgReturnTypes = false
+        val arguments = Seq(V("a"))
+        def functionCalc = "a"
+}
+
+class UnaryFunctionSpec extends UnitSpec {
+    val func = (arg) => UnaryFunction[String, String]("testName", (a) => a, arg)
+
+    "A UnaryFunction" should "check the type of its argument matches the type parameter" in {
+        func(V("a")).checkArgReturnTypes should be (true)
+        func(V(1)).checkArgReturnTypes should be (false)
+    }
+
+    it should "put its argument into a Sequence for adding to a protobuf" in {
+        func(V("a")).arguments should have length 1
+        func(V("a")).arguments.apply(0) should be (V("a"))
+    }
+
+    it should "evaluate the function according to its argument" in {
+        func(V("a")).callFunction[String] should be ("a")
+    }
+}
+
+class BinaryFunctionSpec extends UnitSpec {
+    val func = (l, r) => BinaryFunction[String, String, String]("testName", (a, b) => a + b, l, r)
+
+    "A BinaryFunction" should "check the type of its argument matches the type parameter" in {
+        func(V("a"), V("a")).checkArgReturnTypes should be (true)
+        func(V(1), V(1)).checkArgReturnTypes should be (false)
+    }
+
+    it should "put its argument into a Sequence for adding to a protobuf" in {
+        func(V("a"), V("b")).arguments should have length 2
+        func(V("a"), V("b")).arguments.apply(0) should be (V("a"))
+        func(V("a"), V("b")).arguments.apply(1) should be (V("b"))
+    }
+
+    it should "evaluate the function according to its argument" in {
+        func(V("a"), V("b")).callFunction[String] should be ("ab")
+    }
+}
+
+class TernaryFunctionSpec extends UnitSpec {
+    val func = (l, r, t) => TernaryFunction[String, String, String, String]("testName", (a, b, t) => a + b + t, l, r, t)
+
+    "A TernaryFunction" should "check the type of its argument matches the type parameter" in {
+        func(V("a"), V("a"), V("a")).checkArgReturnTypes should be (true)
+        func(V(1), V(1), V(1)).checkArgReturnTypes should be (false)
+    }
+
+    it should "put its argument into a Sequence for adding to a protobuf" in {
+        func(V("a"), V("b"), V("c")).arguments should have length 3
+        func(V("a"), V("b"), V("c")).arguments.apply(0) should be (V("a"))
+        func(V("a"), V("b"), V("c")).arguments.apply(1) should be (V("b"))
+        func(V("a"), V("b"), V("c")).arguments.apply(2) should be (V("c"))
+    }
+
+    it should "evaluate the function according to its argument" in {
+        func(V("a"), V("b"), V("c")).callFunction[String] should be ("abc")
     }
 }

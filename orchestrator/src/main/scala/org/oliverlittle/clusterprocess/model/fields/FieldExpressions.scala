@@ -121,7 +121,7 @@ final case class F(fieldName : String) extends FieldExpression {
 // Defines an abstract function call with an unknown number of parameters and a fixed return type
 abstract class FunctionCall[ReturnType](functionName : String) extends FieldExpression:
     val isWellTyped: Boolean = checkArgReturnTypes
-    def doesReturnType[EvalType](using tag : ClassTag[EvalType]) : Boolean = checkEvalTypeMatchesReturnType && checkArgReturnTypes
+    def doesReturnType[EvalType](using tag : ClassTag[EvalType]) : Boolean = checkEvalTypeMatchesReturnType[EvalType] && checkArgReturnTypes
     // Checks whether the provided type parameter matches the return type of this function
     def checkEvalTypeMatchesReturnType[EvalType](using evidence : EvalType =:= ReturnType = null) : Boolean = evidence != null
     // Abstract function: this should validate all arguments to this function call to ensure they return an acceptable type
@@ -131,10 +131,13 @@ abstract class FunctionCall[ReturnType](functionName : String) extends FieldExpr
     def toProtobuf : Expression = Expression().withFunction(Expression.FunctionCall(functionName=functionName, arguments=this.arguments.map(_.toProtobuf)))
     def evaluateAny: Any = functionCalc
     def callFunction[EvalType](using e : ClassTag[EvalType])(using evidence : EvalType =:= ReturnType = null) : ReturnType = {
-        if evidence != null then 
-            return functionCalc
-        else 
+        if evidence == null then 
             throw new IllegalArgumentException(functionName + " does not return type " + e.runtimeClass.getPackage + ".")
+        else if checkArgReturnTypes == false then
+            throw new IllegalArgumentException("Arguments have invalid type, cannot compute " + functionName)
+        else
+            return functionCalc
+            
     }
     
     // Abstract function: this should perform the actual function call on the FieldExpression arguments
