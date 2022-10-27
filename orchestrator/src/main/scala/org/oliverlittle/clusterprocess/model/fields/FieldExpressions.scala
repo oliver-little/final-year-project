@@ -7,12 +7,15 @@ import scala.util.Try
 
 import org.oliverlittle.clusterprocess.table_model._
 
+enum DataType:
+    case String, Long, Double, Float, LocalDateTime, OffsetDateTime, Boolean
+
 // Defines highest level operations on FieldExpressions 
 sealed abstract class FieldExpression:
     // Represents whether this field expression is well-typed (i.e.: we are at least able to attempt computation on it, as the base types all match)
     val isWellTyped : Boolean
     // Checks whether this FieldExpression is able to return the provided type parameter
-    def doesReturnType[EvalType](using tag : ClassTag[EvalType]) : Boolean
+    def doesReturnType(evalType : DataType) : Boolean
 
     // Convert this FieldExpression to a protobuf expression
     def toProtobuf : Expression
@@ -21,11 +24,12 @@ sealed abstract class FieldExpression:
     def evaluateAny : Any 
 
     // Evaluate this FieldExpression with a specific type, this will throw an error if the expression cannot be computed with the given type.
-    def evaluate[EvalType](using tag : ClassTag[EvalType]): EvalType = {
+    def evaluate(evalType : DataType): EvalType = {
         return this match {
             case value : V => value.getValueAsType[EvalType]
-            case function : FunctionCall[_] => function.callFunction[EvalType].asInstanceOf[EvalType]
+            case function : FunctionCall[_] if function.doesReturnType(evalType) => function.functionCalc.asInstanceOf[EvalType]
             case field : F => field.getFieldData[EvalType].asInstanceOf[EvalType]
+            case _ => throw new IllegalArgumentException("Cannot evaluate to type " + tag.runtimeClass.getName)
         }
     }
 
@@ -61,7 +65,7 @@ final case class V(value : Any) extends FieldExpression {
     }
 
     // Returns this value as the provided type parameter, if possible.
-    def getValueAsType[EvalType](using tag : ClassTag[EvalType]) : EvalType = {
+    def getValueAsType(evalType : DataType) : EvalType = {
         var clazz = tag.runtimeClass
         // This is pure Java code, seems to be the easiest way of doing the conversion with a generic type.
         if clazz.isInstance(value) then 
@@ -119,26 +123,15 @@ final case class F(fieldName : String) extends FieldExpression {
 
 
 // Defines an abstract function call with an unknown number of parameters and a fixed return type
-abstract class FunctionCall[ReturnType](functionName : String) extends FieldExpression:
+abstract class FunctionCall(functionName : String, returnType : DataType) extends FieldExpression:
     val isWellTyped: Boolean = checkArgReturnTypes
-    def doesReturnType[EvalType](using tag : ClassTag[EvalType]) : Boolean = checkEvalTypeMatchesReturnType[EvalType] && checkArgReturnTypes
-    // Checks whether the provided type parameter matches the return type of this function
-    def checkEvalTypeMatchesReturnType[EvalType](using evidence : EvalType =:= ReturnType = null) : Boolean = evidence != null
+    def doesReturnType(evalType : DataType) : Boolean = evalType == returnType && checkArgReturnTypes
     // Abstract function: this should validate all arguments to this function call to ensure they return an acceptable type
     def checkArgReturnTypes: Boolean
 
     val arguments : Seq[FieldExpression]
     def toProtobuf : Expression = Expression().withFunction(Expression.FunctionCall(functionName=functionName, arguments=this.arguments.map(_.toProtobuf)))
     def evaluateAny: Any = functionCalc
-    def callFunction[EvalType](using e : ClassTag[EvalType])(using evidence : EvalType =:= ReturnType = null) : ReturnType = {
-        if evidence == null then 
-            throw new IllegalArgumentException(functionName + " does not return type " + e.runtimeClass.getPackage + ".")
-        else if checkArgReturnTypes == false then
-            throw new IllegalArgumentException("Arguments have invalid type, cannot compute " + functionName)
-        else
-            return functionCalc
-            
-    }
     
     // Abstract function: this should perform the actual function call on the FieldExpression arguments
     def functionCalc : ReturnType

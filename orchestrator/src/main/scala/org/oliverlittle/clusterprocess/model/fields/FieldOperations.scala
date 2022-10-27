@@ -26,3 +26,5 @@ def Add(left : FieldExpression, right : FieldExpression) : FieldExpression = {
         throw new IllegalArgumentException("Parameter FieldExpressions must return type (String, String), (Long, Long) or (Double, Double). (Are you missing a cast?)")
     }
 }
+
+@main def main : Unit = print(ToString(AddInt(V(1), V(2))).evaluate[String])

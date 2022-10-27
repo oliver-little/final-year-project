@@ -4,14 +4,42 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.{Inside, OptionValues, AppendedClues}
 import org.scalatest.matchers._
 import java.time.OffsetDateTime
+import java.time.LocalDateTime
+import java.time.ZoneOffset
 
 
 import org.oliverlittle.clusterprocess.model.fields.V
 import org.oliverlittle.clusterprocess.table_model.{Expression, Value}
-import java.time.LocalDateTime
-import java.time.ZoneOffset
 
 abstract class UnitSpec extends AnyFlatSpec with Inside with OptionValues with AppendedClues with should.Matchers
+
+class FieldExpressionSpec extends UnitSpec {
+    "A FieldExpression" should "evaluate Values correctly" in {
+        V(1).evaluate[Long] should be (1)
+    }
+
+    it should "evaluate FunctionCalls correctly" in {
+        AddInt(V(1), V(2)).evaluate[Long] should be (3)
+    }
+
+    // TODO: Fields once implemented
+
+    it should "evaluate nested FieldExpressions correctly" in {
+        AddInt(V(1), AddInt(V(2), V(5))).evaluate[Long] should be (8)
+    }
+
+    it should "throw IllegalArgumentException if a type is invalid within the statement" in {
+        assertThrows[IllegalArgumentException] {
+            AddInt(V(1), V("a")).evaluate[Long]
+        }
+    }
+
+    it should "throw IllegalArgumentException if the requested type is invalid" in {
+        assertThrows[IllegalArgumentException] {
+            AddInt(V(1), V(1)).evaluate[String]
+        }
+    }
+}
 
 class ValueSpec extends UnitSpec {
     // Instantiation
@@ -209,12 +237,6 @@ class FunctionCallSpec extends UnitSpec {
         func.isWellTyped should be (true)
     }
 
-    it should "calculate doesReturnType correctly based on the provided type" in {
-        val func = FunctionCallImpl()
-        func.doesReturnType[String] should be (true)
-        func.doesReturnType[Long] should be (false)
-    }
-
     it should "check eval type matches the defined return type" in {
         val func = FunctionCallImpl()
         func.checkEvalTypeMatchesReturnType[String] should be (true)
@@ -242,25 +264,10 @@ class FunctionCallSpec extends UnitSpec {
         }
     }
 
-    it should "call the function if the type is correct" in {
+    it should "call the function correctly" in {
         val func = FunctionCallImpl()
 
-        func.callFunction[String] should be ("a")
-    }
-
-    it should "throw IllegalArgumentException if the type is incorrect" in {
-        val func = FunctionCallImpl()
-
-        assertThrows[IllegalArgumentException] {
-            func.callFunction[Long]
-        }
-    }
-
-    it should "throw IllegalArgumentException if the argument types are incorrect" in {
-        val func = FailFunctionCallImpl()
-        assertThrows[IllegalArgumentException] {
-            func.callFunction[String]
-        }
+        func.functionCalc should be ("a")
     }
 
     it should "call the function when evaluateAny is called" in {
@@ -271,11 +278,6 @@ class FunctionCallSpec extends UnitSpec {
 
     private class FunctionCallImpl extends FunctionCall[String]("testName"):
         def checkArgReturnTypes = true
-        val arguments = Seq(V("a"))
-        def functionCalc = "a"
-
-    private class FailFunctionCallImpl extends FunctionCall[String]("testName"):
-        def checkArgReturnTypes = false
         val arguments = Seq(V("a"))
         def functionCalc = "a"
 }
@@ -294,7 +296,7 @@ class UnaryFunctionSpec extends UnitSpec {
     }
 
     it should "evaluate the function according to its argument" in {
-        func(V("a")).callFunction[String] should be ("a")
+        func(V("a")).functionCalc should be ("a")
     }
 }
 
@@ -313,7 +315,7 @@ class BinaryFunctionSpec extends UnitSpec {
     }
 
     it should "evaluate the function according to its argument" in {
-        func(V("a"), V("b")).callFunction[String] should be ("ab")
+        func(V("a"), V("b")).functionCalc should be ("ab")
     }
 }
 
@@ -333,6 +335,120 @@ class TernaryFunctionSpec extends UnitSpec {
     }
 
     it should "evaluate the function according to its argument" in {
-        func(V("a"), V("b"), V("c")).callFunction[String] should be ("abc")
+        func(V("a"), V("b"), V("c")).functionCalc should be ("abc")
+    }
+}
+
+class ToStringSpec extends UnitSpec {
+    "A ToString Cast" should "convert Strings" in {
+        ToString(V("a")).evaluateAny should be ("a")
+    }
+
+    it should "convert Ints" in {
+        ToString(V(1 : Int)).evaluateAny should be ("1")
+    }
+
+    it should "convert Longs" in {
+        ToString(V(1 : Long)).evaluateAny should be ("1")
+    }
+
+    it should "convert Floats" in {
+        ToString(V(1.01 : Float)).evaluateAny should be ("1.01")
+    }
+
+    it should "convert Doubles" in {
+        ToString(V(1.01 : Double)).evaluateAny should be ("1.01")
+    }
+
+    it should "convert LocalDateTimes" in {
+        ToString(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0))).evaluateAny should be (LocalDateTime.of(2000, 1, 1, 1, 0, 0).toString)
+    }
+
+    it should "convert OffsetDateTimes" in {
+        ToString(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC))).evaluateAny should be (LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toString)
+    }
+
+    it should "convert Booleans" in {
+        ToString(V(true)).evaluateAny should be ("true")
+    }
+}
+
+class ToIntSpec extends UnitSpec {
+    "A ToInt Cast" should "convert Strings" in {
+        ToInt(V("1")).evaluateAny should be (1)
+    }
+
+    it should "convert Ints" in {
+        ToInt(V(1 : Int)).evaluateAny should be (1)
+    }
+
+    it should "convert Longs" in {
+        ToInt(V(1 : Long)).evaluateAny should be (1)
+    }
+
+    it should "convert Floats" in {
+        ToInt(V(1.01 : Float)).evaluateAny should be (1)
+    }
+
+    it should "convert Doubles" in {
+        ToInt(V(1.01 : Double)).evaluateAny should be (1)
+    }
+
+    it should "fail to convert LocalDateTimes" in {
+        assertThrows[IllegalArgumentException] {
+            ToInt(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0))).evaluateAny
+        }
+    }
+
+    it should "fail to convert OffsetDateTimes" in {
+        assertThrows[IllegalArgumentException] {
+            ToInt(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC))).evaluateAny
+        }
+    }
+
+    it should "fail to convert Booleans" in {
+        assertThrows[IllegalArgumentException] {
+            ToInt(V(true)).evaluateAny
+        }
+    }
+}
+
+class ToDoubleSpec extends UnitSpec {
+    "A ToDouble Cast" should "convert Strings" in {
+        ToDouble(V("1")).evaluateAny should be (1)
+    }
+
+    it should "convert Ints" in {
+        ToDouble(V(1 : Int)).evaluateAny should be (1)
+    }
+
+    it should "convert Longs" in {
+        ToDouble(V(1 : Long)).evaluateAny should be (1)
+    }
+
+    it should "convert Floats" in {
+        ToDouble(V(1.01 : Float)).evaluate[Double] should be (1.01 +- 0.01)
+    }
+
+    it should "convert Doubles" in {
+        ToDouble(V(1.01 : Double)).evaluate[Double] should be (1.01 +- 0.01)
+    }
+
+    it should "fail to convert LocalDateTimes" in {
+        assertThrows[IllegalArgumentException] {
+            ToDouble(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0))).evaluateAny
+        }
+    }
+
+    it should "fail to convert OffsetDateTimes" in {
+        assertThrows[IllegalArgumentException] {
+            ToDouble(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC))).evaluateAny
+        }
+    }
+
+    it should "fail to convert Booleans" in {
+        assertThrows[IllegalArgumentException] {
+            ToDouble(V(true)).evaluateAny
+        }
     }
 }
