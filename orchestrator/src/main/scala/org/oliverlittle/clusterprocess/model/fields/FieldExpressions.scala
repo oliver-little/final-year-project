@@ -1,4 +1,4 @@
-package org.oliverlittle.clusterprocess.model.fields
+package org.oliverlittle.clusterprocess.model.field.expressions
 
 import java.time.{LocalDateTime, OffsetDateTime, ZoneOffset}
 import java.time.format.DateTimeFormatter

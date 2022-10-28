@@ -1,7 +1,9 @@
-package org.oliverlittle.clusterprocess.model.fields
+package org.oliverlittle.clusterprocess.model.field.expressions
 
 import scala.math.pow
 import java.time.LocalDateTime
+
+import org.oliverlittle.clusterprocess.model.field.expressions
 
 val Concat = (l, r) => BinaryFunction[String, String, String]("Concat", (left, right) => left + right, l, r)
 val AddInt = (l, r) => BinaryFunction[Long, Long, Long]("AddInt", (left, right) => left + right, l, r)
@@ -26,5 +28,3 @@ def Add(left : FieldExpression, right : FieldExpression) : FieldExpression = {
         throw new IllegalArgumentException("Parameter FieldExpressions must return type (String, String), (Long, Long) or (Double, Double). (Are you missing a cast?)")
     }
 }
-
-@main def main : Unit = print(ToString(AddInt(V(1), V(2))).evaluate[String])

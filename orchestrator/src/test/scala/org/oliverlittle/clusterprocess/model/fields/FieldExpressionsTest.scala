@@ -1,4 +1,4 @@
-package org.oliverlittle.clusterprocess.model.fields
+package org.oliverlittle.clusterprocess.model.field.expressions
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.{Inside, OptionValues, AppendedClues}
@@ -7,8 +7,6 @@ import java.time.OffsetDateTime
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 
-
-import org.oliverlittle.clusterprocess.model.fields.V
 import org.oliverlittle.clusterprocess.table_model.{Expression, Value}
 import scala.reflect.{ClassTag, classTag}
 import java.text.DecimalFormat
