@@ -1,17 +1,13 @@
 package org.oliverlittle.clusterprocess.model.field.expressions
 
-import org.scalatest.flatspec.AnyFlatSpec
-import org.scalatest.{Inside, OptionValues, AppendedClues}
-import org.scalatest.matchers._
 import java.time.OffsetDateTime
 import java.time.LocalDateTime
 import java.time.ZoneOffset
-
-import org.oliverlittle.clusterprocess.table_model.{Expression, Value}
 import scala.reflect.{ClassTag, classTag}
 import java.text.DecimalFormat
 
-abstract class UnitSpec extends AnyFlatSpec with Inside with OptionValues with AppendedClues with should.Matchers
+import org.oliverlittle.clusterprocess.table_model.{Expression, Value}
+import org.oliverlittle.clusterprocess.UnitSpec
 
 class FieldExpressionSpec extends UnitSpec {
     "A FieldExpression" should "evaluate Values correctly" in {
