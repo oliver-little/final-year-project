@@ -52,7 +52,7 @@ class ValueSpec extends UnitSpec {
     it should "convert Strings to Protobuf expressions" in {
         val literal = "a"
         val value = V(literal)
-        val expression : Expression = value.toProtobuf
+        val expression : Expression = value.protobuf
         
         inside(expression) { case Expression(expr, unknownFields) => 
             inside (expr) { case Expression.Expr.Value(value) => 
@@ -66,7 +66,7 @@ class ValueSpec extends UnitSpec {
     it should "convert Longs to Protobuf expressions" in {
         val literal : Long = 1
         val value = V(literal)
-        val expression : Expression = value.toProtobuf
+        val expression : Expression = value.protobuf
         
         inside(expression) { case Expression(expr, unknownFields) => 
             inside (expr) { case Expression.Expr.Value(value) => 
@@ -80,7 +80,7 @@ class ValueSpec extends UnitSpec {
     it should "convert Ints to Protobuf expressions" in {
         val literal : Int = 1
         val value = V(literal)
-        val expression : Expression = value.toProtobuf
+        val expression : Expression = value.protobuf
         
         inside(expression) { case Expression(expr, unknownFields) => 
             inside (expr) { case Expression.Expr.Value(value) => 
@@ -94,7 +94,7 @@ class ValueSpec extends UnitSpec {
     it should "convert Doubles to Protobuf expressions" in {
         val literal : Double = 1.01
         val value = V(literal)
-        val expression : Expression = value.toProtobuf
+        val expression : Expression = value.protobuf
         
         inside(expression) { case Expression(expr, unknownFields) => 
             inside (expr) { case Expression.Expr.Value(value) => 
@@ -108,7 +108,7 @@ class ValueSpec extends UnitSpec {
     it should "convert Floats to Protobuf expressions" in {
         val literal : Float = 1.01
         val value = V(literal)
-        val expression : Expression = value.toProtobuf
+        val expression : Expression = value.protobuf
         
         inside(expression) { case Expression(expr, unknownFields) => 
             inside (expr) { case Expression.Expr.Value(value) => 
@@ -122,7 +122,7 @@ class ValueSpec extends UnitSpec {
     it should "convert Booleans to Protobuf expressions" in {
         val literal = true
         val value = V(literal)
-        val expression : Expression = value.toProtobuf
+        val expression : Expression = value.protobuf
         
         inside(expression) { case Expression(expr, unknownFields) => 
             inside (expr) { case Expression.Expr.Value(value) => 
@@ -136,7 +136,7 @@ class ValueSpec extends UnitSpec {
     it should "convert LocalDateTimes to Protobuf strings" in {
         val literal = LocalDateTime.of(2000, 1, 1, 1, 0, 0)
         val value = V(literal)
-        val expression : Expression = value.toProtobuf
+        val expression : Expression = value.protobuf
         
         inside(expression) { case Expression(expr, unknownFields) => 
             inside (expr) { case Expression.Expr.Value(value) => 
@@ -150,7 +150,7 @@ class ValueSpec extends UnitSpec {
     it should "convert OffsetDateTimes to Protobuf strings" in {
         val literal = LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC)
         val value = V(literal)
-        val expression : Expression = value.toProtobuf
+        val expression : Expression = value.protobuf
         
         inside(expression) { case Expression(expr, unknownFields) => 
             inside (expr) { case Expression.Expr.Value(value) => 
@@ -165,7 +165,7 @@ class ValueSpec extends UnitSpec {
         Seq(Seq(1, 2, 3)) foreach {literal => 
             val value = V(literal)
             assertThrows[IllegalArgumentException] {
-                value.toProtobuf
+                value.protobuf
             }   
         }
     }
@@ -249,7 +249,7 @@ class FunctionCallSpec extends UnitSpec {
 
     it should "convert to a protobuf expression based on the name and arguments" in {
         val func = FunctionCallImpl()
-        val ret = func.toProtobuf
+        val ret = func.protobuf
         inside(ret) { case Expression(expr, unknownFields) => 
             inside(expr) { case Expression.Expr.Function(value) => 
                 inside(value) { case Expression.FunctionCall(functionName, arguments, unknownFields) =>
@@ -281,8 +281,7 @@ class FunctionCallSpec extends UnitSpec {
     }
 
     private class FunctionCallImpl extends FunctionCall[String]("testName"):
-        val returnTypeClassTag: ClassTag[String] = classTag[String]
-        def checkArgReturnTypes = true
+        lazy val isWellTyped = true
         val arguments = Seq(V("a"))
         def functionCalc = "a"
 }
@@ -291,8 +290,8 @@ class UnaryFunctionSpec extends UnitSpec {
     val func = (arg) => UnaryFunction[String, String]("testName", (a) => a, arg)
 
     "A UnaryFunction" should "check the type of its argument matches the type parameter" in {
-        func(V("a")).checkArgReturnTypes should be (true)
-        func(V(1)).checkArgReturnTypes should be (false)
+        func(V("a")).isWellTyped should be (true)
+        func(V(1)).isWellTyped should be (false)
     }
 
     it should "put its argument into a Sequence for adding to a protobuf" in {
@@ -309,8 +308,8 @@ class BinaryFunctionSpec extends UnitSpec {
     val func = (l, r) => BinaryFunction[String, String, String]("testName", (a, b) => a + b, l, r)
 
     "A BinaryFunction" should "check the type of its argument matches the type parameter" in {
-        func(V("a"), V("a")).checkArgReturnTypes should be (true)
-        func(V(1), V(1)).checkArgReturnTypes should be (false)
+        func(V("a"), V("a")).isWellTyped should be (true)
+        func(V(1), V(1)).isWellTyped should be (false)
     }
 
     it should "put its argument into a Sequence for adding to a protobuf" in {
@@ -328,8 +327,8 @@ class TernaryFunctionSpec extends UnitSpec {
     val func = (l, r, t) => TernaryFunction[String, String, String, String]("testName", (a, b, t) => a + b + t, l, r, t)
 
     "A TernaryFunction" should "check the type of its argument matches the type parameter" in {
-        func(V("a"), V("a"), V("a")).checkArgReturnTypes should be (true)
-        func(V(1), V(1), V(1)).checkArgReturnTypes should be (false)
+        func(V("a"), V("a"), V("a")).isWellTyped should be (true)
+        func(V(1), V(1), V(1)).isWellTyped should be (false)
     }
 
     it should "put its argument into a Sequence for adding to a protobuf" in {
