@@ -5,7 +5,15 @@ import math.Ordered.orderingToOrdered
 
 import org.oliverlittle.clusterprocess.table_model._
 import org.oliverlittle.clusterprocess.model.field.expressions.{FieldExpression, V}
+import scala.util.Try
 
+object FieldComparison:
+    def fromProtobuf(f : Filter.FilterExpression) : FieldComparison = f.filterType match {
+        case u @ (Filter.FilterType.IS_NULL | Filter.FilterType.NULL | Filter.FilterType.IS_NOT_NULL | Filter.FilterType.NOT_NULL) => UnaryFieldComparison(V(1), UnaryComparator.valueOf(f.filterType.name))
+        case e @ (Filter.FilterType.EQ | Filter.FilterType.EQUAL | Filter.FilterType.NE | Filter.FilterType.NOT_EQUAL) => EqualityFieldComparison[Long](V(1), EqualsComparator.valueOf(f.filterType.name), V(1))
+        case o @ (Filter.FilterType.LESS_THAN | Filter.FilterType.LT | Filter.FilterType.LESS_THAN_EQUAL | Filter.FilterType.LTE | Filter.FilterType.GREATER_THAN | Filter.FilterType.GT | Filter.FilterType.GREATER_THAN_EQUAL | Filter.FilterType.GTE) => OrderedFieldComparison[Long](V(1), OrderedComparator.valueOf(f.filterType.name), V(1))
+        case s @ (Filter.FilterType.CONTAINS | Filter.FilterType.ICONTAINS | Filter.FilterType.STARTS_WITH | Filter.FilterType.ISTARTS_WITH | Filter.FilterType.ENDS_WITH | Filter.FilterType.IENDS_WITH) => StringFieldComparison(V("a"), StringComparator.valueOf(f.filterType.name), V("a"))
+    }
 sealed abstract class FieldComparison:
     lazy val protobuf : Filter.FilterExpression
 
