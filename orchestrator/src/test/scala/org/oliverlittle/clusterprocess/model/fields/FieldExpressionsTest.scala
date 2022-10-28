@@ -10,6 +10,8 @@ import java.time.ZoneOffset
 
 import org.oliverlittle.clusterprocess.model.fields.V
 import org.oliverlittle.clusterprocess.table_model.{Expression, Value}
+import scala.reflect.{ClassTag, classTag}
+import java.text.DecimalFormat
 
 abstract class UnitSpec extends AnyFlatSpec with Inside with OptionValues with AppendedClues with should.Matchers
 
@@ -237,10 +239,14 @@ class FunctionCallSpec extends UnitSpec {
         func.isWellTyped should be (true)
     }
 
-    it should "check eval type matches the defined return type" in {
+    it should "return true for doesReturnType with the correct type parameter" in {
         val func = FunctionCallImpl()
-        func.checkEvalTypeMatchesReturnType[String] should be (true)
-        func.checkEvalTypeMatchesReturnType[Long] should be (false)
+        func.doesReturnType[String] should be (true)
+    }
+
+    it should "return false for doesReturnType with invalid type parameters" in {
+        val func = FunctionCallImpl()
+        func.doesReturnType[Long] should be (false)
     }
 
     it should "convert to a protobuf expression based on the name and arguments" in {
@@ -277,6 +283,7 @@ class FunctionCallSpec extends UnitSpec {
     }
 
     private class FunctionCallImpl extends FunctionCall[String]("testName"):
+        val returnTypeClassTag: ClassTag[String] = classTag[String]
         def checkArgReturnTypes = true
         val arguments = Seq(V("a"))
         def functionCalc = "a"
@@ -353,11 +360,11 @@ class ToStringSpec extends UnitSpec {
     }
 
     it should "convert Floats" in {
-        ToString(V(1.01 : Float)).evaluateAny should be ("1.01")
+        ToString(V(1.01 : Float)).evaluateAny shouldBe a [String]
     }
 
     it should "convert Doubles" in {
-        ToString(V(1.01 : Double)).evaluateAny should be ("1.01")
+        ToString(V(1.01 : Double)).evaluateAny shouldBe a [String]
     }
 
     it should "convert LocalDateTimes" in {
@@ -370,6 +377,16 @@ class ToStringSpec extends UnitSpec {
 
     it should "convert Booleans" in {
         ToString(V(true)).evaluateAny should be ("true")
+    }
+}
+
+class DoubleToStringSpec extends UnitSpec {
+    "A DoubleToString cast" should "convert Floats" in {
+        DoubleToString(V(1.01 : Float), DecimalFormat("#.##")).evaluateAny should be ("1.01")
+    }
+
+    "A DoubleToString cast" should "convert Doubles" in {
+        DoubleToString(V(1.01 : Double), DecimalFormat("#.##")).evaluateAny should be ("1.01")
     }
 }
 
