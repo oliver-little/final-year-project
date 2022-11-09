@@ -23,6 +23,43 @@ class UnaryFieldComparisonSpec extends UnitSpec {
     }
 }
 
+class EqualityFieldComparisonSpec extends UnitSpec {
+    "An EqualityFieldComparison" should "compare strings correctly" in {
+        EqualityFieldComparison(V("s"), EqualsComparator.EQ, V("s")).evaluate should be (true)
+        EqualityFieldComparison(V("s"), EqualsComparator.EQ, V("r")).evaluate should be (false)
+        EqualityFieldComparison(V("s"), EqualsComparator.NE, V("s")).evaluate should be (false)
+        EqualityFieldComparison(V("s"), EqualsComparator.NE, V("r")).evaluate should be (true)
+    }
+
+    it should "compare Longs correctly" in {
+        EqualityFieldComparison(V(1), EqualsComparator.EQ, V(1)).evaluate should be (true)
+        EqualityFieldComparison(V(1), EqualsComparator.EQ, V(2)).evaluate should be (false)
+        EqualityFieldComparison(V(1), EqualsComparator.NE, V(1)).evaluate should be (false)
+        EqualityFieldComparison(V(1), EqualsComparator.NE, V(2)).evaluate should be (true)
+    }
+
+    it should "compare Doubles correctly" in {
+        EqualityFieldComparison(V(1.01), EqualsComparator.EQ, V(1.01)).evaluate should be (true)
+        EqualityFieldComparison(V(1.01), EqualsComparator.EQ, V(1.02)).evaluate should be (false)
+        EqualityFieldComparison(V(1.01), EqualsComparator.NE, V(1.01)).evaluate should be (false)
+        EqualityFieldComparison(V(1.01), EqualsComparator.NE, V(1.02)).evaluate should be (true)
+    }
+
+    it should "compare DateTimes correctly" in {
+        EqualityFieldComparison(V(OffsetDateTime.of(2000, 1, 1, 1, 0, 0, 0, ZoneOffset.UTC)), EqualsComparator.EQ, V(OffsetDateTime.of(2000, 1, 1, 1, 0, 0, 0, ZoneOffset.UTC))).evaluate should be (true)
+        EqualityFieldComparison(V(OffsetDateTime.of(2000, 1, 1, 1, 0, 0, 0, ZoneOffset.UTC)), EqualsComparator.EQ, V(OffsetDateTime.of(2000, 1, 1, 1, 0, 1, 0, ZoneOffset.UTC))).evaluate should be (false)
+        EqualityFieldComparison(V(OffsetDateTime.of(2000, 1, 1, 1, 0, 0, 0, ZoneOffset.UTC)), EqualsComparator.NE, V(OffsetDateTime.of(2000, 1, 1, 1, 0, 0, 0, ZoneOffset.UTC))).evaluate should be (false)
+        EqualityFieldComparison(V(OffsetDateTime.of(2000, 1, 1, 1, 0, 0, 0, ZoneOffset.UTC)), EqualsComparator.NE, V(OffsetDateTime.of(2000, 1, 1, 1, 0, 1, 0, ZoneOffset.UTC))).evaluate should be (true)
+    }
+
+    it should "compare Booleans correctly" in {
+        EqualityFieldComparison(V(true), EqualsComparator.EQ, V(true)).evaluate should be (true)
+        EqualityFieldComparison(V(true), EqualsComparator.EQ, V(false)).evaluate should be (false)
+        EqualityFieldComparison(V(true), EqualsComparator.NE, V(true)).evaluate should be (false)
+        EqualityFieldComparison(V(true), EqualsComparator.NE, V(false)).evaluate should be (true)
+    }
+}
+
 class OrderedFieldComparisonSpec extends UnitSpec {
     "An OrderedFieldComparison" should "compare less than correctly" in {
         OrderedFieldComparison(V(1 : Long), OrderedComparator.LT, V(2 : Long)).evaluate should be (true)
@@ -78,5 +115,43 @@ class OrderedFieldComparisonSpec extends UnitSpec {
         OrderedFieldComparison(V(date2), OrderedComparator.GTE, V(date2)).evaluate should be (true)
         OrderedFieldComparison(V(date2), OrderedComparator.GT, V(date2)).evaluate should be (false)
         OrderedFieldComparison(V(date2), OrderedComparator.GT, V(date1)).evaluate should be (true)
+    }
+}
+
+class StringFieldComparisonSpec extends UnitSpec {
+    "A StringFieldComparison" should "calculate contains correctly" in {
+        StringFieldComparison(V("hello"), StringComparator.CONTAINS, V("ell")).evaluate should be (true)
+        StringFieldComparison(V("hello"), StringComparator.CONTAINS, V("elL")).evaluate should be (false)
+        StringFieldComparison(V("hello"), StringComparator.CONTAINS, V("elll")).evaluate should be (false)
+    }
+
+    it should "calculate case insensitive contains correctly" in {
+        StringFieldComparison(V("hello"), StringComparator.ICONTAINS, V("ell")).evaluate should be (true)
+        StringFieldComparison(V("hello"), StringComparator.ICONTAINS, V("elL")).evaluate should be (true)
+        StringFieldComparison(V("hello"), StringComparator.ICONTAINS, V("elll")).evaluate should be (false)
+    }
+
+    it should "calculate starts with correctly" in {
+        StringFieldComparison(V("hello"), StringComparator.STARTS_WITH, V("hel")).evaluate should be (true)
+        StringFieldComparison(V("hello"), StringComparator.STARTS_WITH, V("Hel")).evaluate should be (false)
+        StringFieldComparison(V("hello"), StringComparator.STARTS_WITH, V("ell")).evaluate should be (false)
+    }
+
+    it should "calculate case insensitive starts with correctly" in {
+        StringFieldComparison(V("hello"), StringComparator.ISTARTS_WITH, V("hel")).evaluate should be (true)
+        StringFieldComparison(V("hello"), StringComparator.ISTARTS_WITH, V("Hel")).evaluate should be (true)
+        StringFieldComparison(V("hello"), StringComparator.ISTARTS_WITH, V("ell")).evaluate should be (false)
+    }
+
+    it should "calculate ends with correctly" in {
+        StringFieldComparison(V("hello"), StringComparator.ENDS_WITH, V("llo")).evaluate should be (true)
+        StringFieldComparison(V("hello"), StringComparator.ENDS_WITH, V("Llo")).evaluate should be (false)
+        StringFieldComparison(V("hello"), StringComparator.ENDS_WITH, V("lllo")).evaluate should be (false)
+    }
+
+    it should "calculate case insensitive ends with correctly" in {
+        StringFieldComparison(V("hello"), StringComparator.IENDS_WITH, V("llo")).evaluate should be (true)
+        StringFieldComparison(V("hello"), StringComparator.IENDS_WITH, V("Llo")).evaluate should be (true)
+        StringFieldComparison(V("hello"), StringComparator.IENDS_WITH, V("lllo")).evaluate should be (false)
     }
 }

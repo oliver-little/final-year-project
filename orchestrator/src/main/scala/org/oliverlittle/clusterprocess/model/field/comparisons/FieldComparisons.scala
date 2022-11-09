@@ -18,11 +18,11 @@ object FieldComparison:
             }
             case o @ (Filter.FilterType.LESS_THAN | Filter.FilterType.LT | Filter.FilterType.LESS_THAN_EQUAL | Filter.FilterType.LTE | Filter.FilterType.GREATER_THAN | Filter.FilterType.GT | Filter.FilterType.GREATER_THAN_EQUAL | Filter.FilterType.GTE) => {
                 val rightFieldExpression = FieldExpression.fromProtobuf(f.rightValue.getOrElse(throw new IllegalArgumentException("Missing required right value for OrderedFieldComparison")))
-                OrderedFieldComparison(leftFieldExpression, OrderedComparator.valueOf(f.filterType.name), V(1))
+                OrderedFieldComparison(leftFieldExpression, OrderedComparator.valueOf(f.filterType.name), rightFieldExpression)
             }
             case s @ (Filter.FilterType.CONTAINS | Filter.FilterType.ICONTAINS | Filter.FilterType.STARTS_WITH | Filter.FilterType.ISTARTS_WITH | Filter.FilterType.ENDS_WITH | Filter.FilterType.IENDS_WITH) =>  {
-                val rightFieldExpression = FieldExpression.fromProtobuf(f.rightValue.getOrElse(throw new IllegalArgumentException("Missing required right value for StringFieldComparison")))
-                StringFieldComparison(leftFieldExpression, StringComparator.valueOf(f.filterType.name), V("a"))
+                val string : Value = f.rightValue.getOrElse(throw new IllegalArgumentException("Missing required right value for StringFieldComparison")).expr._value.getOrElse(throw new IllegalArgumentException("Right argument for StringFieldComparison must be a string literal."))
+                StringFieldComparison(leftFieldExpression, StringComparator.valueOf(f.filterType.name), V.fromProtobuf(string))
             }
             case _ => throw new IllegalArgumentException("Cannot process this filter type.")
         }
