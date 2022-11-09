@@ -25,58 +25,58 @@ class UnaryFieldComparisonSpec extends UnitSpec {
 
 class OrderedFieldComparisonSpec extends UnitSpec {
     "An OrderedFieldComparison" should "compare less than correctly" in {
-        OrderedFieldComparison[Long](V(1 : Long), OrderedComparator.LT, V(2 : Long)).evaluate should be (true)
-        OrderedFieldComparison[Long](V(2: Long), OrderedComparator.LT, V(2 : Long)).evaluate should be (false)
-        OrderedFieldComparison[Long](V(2 : Long), OrderedComparator.LT, V(1 : Long)).evaluate should be (false)
-        OrderedFieldComparison[Long](V(1 : Long), OrderedComparator.LESS_THAN, V(2 : Long)).evaluate should be (true)
-        OrderedFieldComparison[Long](V(2: Long), OrderedComparator.LESS_THAN, V(2 : Long)).evaluate should be (false)
-        OrderedFieldComparison[Long](V(2 : Long), OrderedComparator.LESS_THAN, V(1 : Long)).evaluate should be (false)
+        OrderedFieldComparison(V(1 : Long), OrderedComparator.LT, V(2 : Long)).evaluate should be (true)
+        OrderedFieldComparison(V(2: Long), OrderedComparator.LT, V(2 : Long)).evaluate should be (false)
+        OrderedFieldComparison(V(2 : Long), OrderedComparator.LT, V(1 : Long)).evaluate should be (false)
+        OrderedFieldComparison(V(1 : Long), OrderedComparator.LESS_THAN, V(2 : Long)).evaluate should be (true)
+        OrderedFieldComparison(V(2: Long), OrderedComparator.LESS_THAN, V(2 : Long)).evaluate should be (false)
+        OrderedFieldComparison(V(2 : Long), OrderedComparator.LESS_THAN, V(1 : Long)).evaluate should be (false)
     }
 
     it should "compare less than equals correctly" in {
-        OrderedFieldComparison[Long](V(1 : Long), OrderedComparator.LTE, V(2 : Long)).evaluate should be (true)
-        OrderedFieldComparison[Long](V(2 : Long), OrderedComparator.LTE, V(2 : Long)).evaluate should be (true)
-        OrderedFieldComparison[Long](V(2 : Long), OrderedComparator.LTE, V(1 : Long)).evaluate should be (false)
-        OrderedFieldComparison[Long](V(1 : Long), OrderedComparator.LESS_THAN_EQUAL, V(2 : Long)).evaluate should be (true)
-        OrderedFieldComparison[Long](V(2 : Long), OrderedComparator.LESS_THAN_EQUAL, V(2 : Long)).evaluate should be (true)
-        OrderedFieldComparison[Long](V(2 : Long), OrderedComparator.LESS_THAN_EQUAL, V(1 : Long)).evaluate should be (false)
+        OrderedFieldComparison(V(1 : Long), OrderedComparator.LTE, V(2 : Long)).evaluate should be (true)
+        OrderedFieldComparison(V(2 : Long), OrderedComparator.LTE, V(2 : Long)).evaluate should be (true)
+        OrderedFieldComparison(V(2 : Long), OrderedComparator.LTE, V(1 : Long)).evaluate should be (false)
+        OrderedFieldComparison(V(1 : Long), OrderedComparator.LESS_THAN_EQUAL, V(2 : Long)).evaluate should be (true)
+        OrderedFieldComparison(V(2 : Long), OrderedComparator.LESS_THAN_EQUAL, V(2 : Long)).evaluate should be (true)
+        OrderedFieldComparison(V(2 : Long), OrderedComparator.LESS_THAN_EQUAL, V(1 : Long)).evaluate should be (false)
     }
 
     it should "compare greater than  correctly" in {
-        OrderedFieldComparison[Long](V(1 : Long), OrderedComparator.GT, V(2 : Long)).evaluate should be (false)
-        OrderedFieldComparison[Long](V(2 : Long), OrderedComparator.GT, V(2 : Long)).evaluate should be (false)
-        OrderedFieldComparison[Long](V(2 : Long), OrderedComparator.GT, V(1 : Long)).evaluate should be (true)
-        OrderedFieldComparison[Long](V(1 : Long), OrderedComparator.GREATER_THAN, V(2 : Long)).evaluate should be (false)
-        OrderedFieldComparison[Long](V(2 : Long), OrderedComparator.GREATER_THAN, V(2 : Long)).evaluate should be (false)
-        OrderedFieldComparison[Long](V(2 : Long), OrderedComparator.GREATER_THAN, V(1 : Long)).evaluate should be (true)
+        OrderedFieldComparison(V(1 : Long), OrderedComparator.GT, V(2 : Long)).evaluate should be (false)
+        OrderedFieldComparison(V(2 : Long), OrderedComparator.GT, V(2 : Long)).evaluate should be (false)
+        OrderedFieldComparison(V(2 : Long), OrderedComparator.GT, V(1 : Long)).evaluate should be (true)
+        OrderedFieldComparison(V(1 : Long), OrderedComparator.GREATER_THAN, V(2 : Long)).evaluate should be (false)
+        OrderedFieldComparison(V(2 : Long), OrderedComparator.GREATER_THAN, V(2 : Long)).evaluate should be (false)
+        OrderedFieldComparison(V(2 : Long), OrderedComparator.GREATER_THAN, V(1 : Long)).evaluate should be (true)
     }
 
     it should "compare greater than equals correctly" in {
-        OrderedFieldComparison[Long](V(1 : Long), OrderedComparator.GTE, V(2 : Long)).evaluate should be (false)
-        OrderedFieldComparison[Long](V(2 : Long), OrderedComparator.GTE, V(2 : Long)).evaluate should be (true)
-        OrderedFieldComparison[Long](V(2 : Long), OrderedComparator.GTE, V(1 : Long)).evaluate should be (true)
-        OrderedFieldComparison[Long](V(1 : Long), OrderedComparator.GREATER_THAN_EQUAL, V(2 : Long)).evaluate should be (false)
-        OrderedFieldComparison[Long](V(2 : Long), OrderedComparator.GREATER_THAN_EQUAL, V(2 : Long)).evaluate should be (true)
-        OrderedFieldComparison[Long](V(2 : Long), OrderedComparator.GREATER_THAN_EQUAL, V(1 : Long)).evaluate should be (true)
+        OrderedFieldComparison(V(1 : Long), OrderedComparator.GTE, V(2 : Long)).evaluate should be (false)
+        OrderedFieldComparison(V(2 : Long), OrderedComparator.GTE, V(2 : Long)).evaluate should be (true)
+        OrderedFieldComparison(V(2 : Long), OrderedComparator.GTE, V(1 : Long)).evaluate should be (true)
+        OrderedFieldComparison(V(1 : Long), OrderedComparator.GREATER_THAN_EQUAL, V(2 : Long)).evaluate should be (false)
+        OrderedFieldComparison(V(2 : Long), OrderedComparator.GREATER_THAN_EQUAL, V(2 : Long)).evaluate should be (true)
+        OrderedFieldComparison(V(2 : Long), OrderedComparator.GREATER_THAN_EQUAL, V(1 : Long)).evaluate should be (true)
     }
 
     it should "compare strings correctly" in {
-        OrderedFieldComparison[String](V("a"), OrderedComparator.LT, V("b")).evaluate should be (true)
-        OrderedFieldComparison[String](V("b"), OrderedComparator.LT, V("b")).evaluate should be (false)
-        OrderedFieldComparison[String](V("b"), OrderedComparator.LTE, V("b")).evaluate should be (true)
-        OrderedFieldComparison[String](V("b"), OrderedComparator.GTE, V("b")).evaluate should be (true)
-        OrderedFieldComparison[String](V("b"), OrderedComparator.GT, V("b")).evaluate should be (false)
-        OrderedFieldComparison[String](V("b"), OrderedComparator.GT, V("a")).evaluate should be (true)
+        OrderedFieldComparison(V("a"), OrderedComparator.LT, V("b")).evaluate should be (true)
+        OrderedFieldComparison(V("b"), OrderedComparator.LT, V("b")).evaluate should be (false)
+        OrderedFieldComparison(V("b"), OrderedComparator.LTE, V("b")).evaluate should be (true)
+        OrderedFieldComparison(V("b"), OrderedComparator.GTE, V("b")).evaluate should be (true)
+        OrderedFieldComparison(V("b"), OrderedComparator.GT, V("b")).evaluate should be (false)
+        OrderedFieldComparison(V("b"), OrderedComparator.GT, V("a")).evaluate should be (true)
     }
 
     it should "compare dates correctly" in {
         val date1 = OffsetDateTime.of(1, 1, 1, 1, 0, 0, 0, ZoneOffset.UTC)
         val date2 = OffsetDateTime.of(1, 1, 1, 2, 0, 0, 0, ZoneOffset.UTC)
-        OrderedFieldComparison[OffsetDateTime](V(date1), OrderedComparator.LT, V(date2)).evaluate should be (true)
-        OrderedFieldComparison[OffsetDateTime](V(date2), OrderedComparator.LT, V(date2)).evaluate should be (false)
-        OrderedFieldComparison[OffsetDateTime](V(date2), OrderedComparator.LTE, V(date2)).evaluate should be (true)
-        OrderedFieldComparison[OffsetDateTime](V(date2), OrderedComparator.GTE, V(date2)).evaluate should be (true)
-        OrderedFieldComparison[OffsetDateTime](V(date2), OrderedComparator.GT, V(date2)).evaluate should be (false)
-        OrderedFieldComparison[OffsetDateTime](V(date2), OrderedComparator.GT, V(date1)).evaluate should be (true)
+        OrderedFieldComparison(V(date1), OrderedComparator.LT, V(date2)).evaluate should be (true)
+        OrderedFieldComparison(V(date2), OrderedComparator.LT, V(date2)).evaluate should be (false)
+        OrderedFieldComparison(V(date2), OrderedComparator.LTE, V(date2)).evaluate should be (true)
+        OrderedFieldComparison(V(date2), OrderedComparator.GTE, V(date2)).evaluate should be (true)
+        OrderedFieldComparison(V(date2), OrderedComparator.GT, V(date2)).evaluate should be (false)
+        OrderedFieldComparison(V(date2), OrderedComparator.GT, V(date1)).evaluate should be (true)
     }
 }

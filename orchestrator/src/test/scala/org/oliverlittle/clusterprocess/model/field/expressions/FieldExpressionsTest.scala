@@ -7,6 +7,7 @@ import scala.reflect.{ClassTag, classTag}
 import java.text.DecimalFormat
 
 import org.oliverlittle.clusterprocess.table_model.{Expression, Value}
+import org.oliverlittle.clusterprocess.model.field.expressions.FieldOperations.AddInt
 import org.oliverlittle.clusterprocess.UnitSpec
 
 class FieldExpressionSpec extends UnitSpec {

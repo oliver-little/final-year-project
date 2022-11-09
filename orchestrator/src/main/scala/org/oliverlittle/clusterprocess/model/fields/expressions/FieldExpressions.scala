@@ -4,10 +4,17 @@ import java.time.{LocalDateTime, OffsetDateTime, ZoneOffset}
 import java.time.format.DateTimeFormatter
 import scala.reflect.{ClassTag, classTag}
 import scala.util.Try
+import java.text.DecimalFormat
 
 import org.oliverlittle.clusterprocess.table_model._
-import java.lang
-import java.text.DecimalFormat
+
+object FieldExpression:
+    def fromProtobuf(expr : Expression) : FieldExpression = expr match {
+        case Expression(Expression.Expr.Value(Value(Value.Value.Field(f), _)), _) => F(f)
+        case Expression(Expression.Expr.Value(value), unknownFields) => V.fromProtobuf(value)
+        case Expression(Expression.Expr.Function(functionCall), _) => FunctionCall.fromProtobuf(functionCall).asInstanceOf[FieldExpression]
+        case Expression(Expression.Expr.Empty, unknownFields) => throw new IllegalArgumentException("Empty expression found.")
+    }
 
 // Defines highest level operations on FieldExpressions 
 sealed abstract class FieldExpression:
@@ -33,9 +40,19 @@ sealed abstract class FieldExpression:
         }
     }
 
+object V:
+    def fromProtobuf(v : Value) : V = V(v.value.string.getOrElse(v.value.int.getOrElse(v.value.double.getOrElse(v.value.bool.getOrElse(v.value.datetime.getOrElse(throw new IllegalArgumentException("Could not unpack Value, unknown type:" + v.toString)))))))
+
 // V takes a value of any type, as it doesn't care what it's actually passed until it's asked to evaluate it.
 // Only Longs and Doubles are supported, Ints and Floats are automatically converted
-final case class V(value : Any) extends FieldExpression {
+final case class V(inputValue : Any) extends FieldExpression {
+    // Preprocess inputValue to convert ints and floats to longs and doubles
+    val value = inputValue match {
+        case v : Int => v.toLong
+        case v : Float => v.toDouble
+        case v => v
+    }
+
     lazy val isWellTyped = Try{protobuf}.isSuccess
     
     def doesReturnType[EvalType](using tag : ClassTag[EvalType]) : Boolean = Try{getValueAsType[EvalType]}.isSuccess
@@ -55,11 +72,7 @@ final case class V(value : Any) extends FieldExpression {
         }
     )
 
-    def evaluateAny : Any = value match {
-        case v : Int => v.toLong
-        case v : Float => v.toDouble
-        case v => v
-    }
+    def evaluateAny: Any = value
 
     // Returns this value as the provided type parameter, if possible.
     def getValueAsType[EvalType](using tag : ClassTag[EvalType]): EvalType = {
@@ -87,24 +100,28 @@ final case class V(value : Any) extends FieldExpression {
     // Helper function to convert Float to Double
     def getDouble : Double = {
         return value match {
-            case v : Float => return v.toDouble
+            case v : Float => return v.toFloat
             case v : Double => return v
             case _ => throw new IllegalArgumentException("Cannot convert " + value.toString + " to Double.")
         }
     }
+
+    // Standard compare function, includes type safety and will throw an error if the other value cannot be compared
+    def compare(that : V) : Int = 
+        (value, that.value) match {
+            case (x : String, y : String) => x.compare(y)
+            case (x : Long, y : Long)=> x.compare(y)
+            case (x : Double, y : Double) => x.compare(y)
+            case (x : LocalDateTime, y : LocalDateTime) => x.compareTo(y)
+            case (x : OffsetDateTime, y : OffsetDateTime) => x.compareTo(y)
+            case (x : Boolean, y : Boolean) => x.compare(y)
+            // This case should never happen
+            case _ => throw new IllegalArgumentException("Provided value " + that.value.toString + " (type: " + that.value.getClass.toString + ") cannot be compared with this value " + value.toString + " (type: " + value.getClass.toString + ").")
+        }
 }
 
-// Implicit definitions used for automatic conversion of literals to Vs in the model
-implicit def stringToV(s : String) : V = new V(s)
-implicit def intToV(i : Int) : V = new V(i.toLong)
-implicit def longToV(l : Long) : V = new V(l)
-implicit def floatToV(f : Float) : V = new V(f.toLong)
-implicit def doubleToV(d : Double) : V = new V(d)
-implicit def offsetDateTimeToV(l : OffsetDateTime) : V = new V(l)
-implicit def boolToV(b : Boolean) : V = new V(b)
-
 // F defines a field name, currently this does nothing
-final case class F(fieldName : String) extends FieldExpression {
+final case class F(fieldName : String)(using tag : ClassTag[String]) extends FieldExpression {
     lazy val isWellTyped: Boolean = true
 
     def doesReturnType[EvalType](using tag : ClassTag[EvalType]): Boolean = true
@@ -113,11 +130,14 @@ final case class F(fieldName : String) extends FieldExpression {
     def evaluateAny: Any = fieldName
 }
 
+object FunctionCall:
+    def fromProtobuf(f : Expression.FunctionCall) : Any = FieldOperations.getClass.getDeclaredMethod(f.functionName, FieldOperations.getClass).invoke(FieldOperations, f.arguments.map(FieldExpression.fromProtobuf(_)))
+
 // Defines an abstract function call with an unknown number of parameters and a fixed return type
 // The implicit (using) ClassTag[ReturnType] prevents the type erasure of the generic type ReturnType, which allows it 
-abstract class FunctionCall[ReturnType](functionName : String)(using retTag : ClassTag[ReturnType])  extends FieldExpression:
-
-    def doesReturnType[EvalType](using tag : ClassTag[EvalType]) : Boolean = tag.equals(retTag)
+abstract class FunctionCall[ReturnType](functionName : String)(using tag : ClassTag[ReturnType])  extends FieldExpression:
+    val returnClassTag : ClassTag[ReturnType] = tag
+    def doesReturnType[EvalType](using evalTag : ClassTag[EvalType]) : Boolean = evalTag.equals(tag)
 
     val arguments : Seq[FieldExpression]
     lazy val protobuf : Expression = Expression().withFunction(Expression.FunctionCall(functionName=functionName, arguments=this.arguments.map(_.protobuf)))
