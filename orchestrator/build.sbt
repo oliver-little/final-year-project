@@ -15,7 +15,9 @@ lazy val root = project
     // gRPC
     "io.grpc" % "grpc-netty" % scalapb.compiler.Version.grpcJavaVersion,
     // Protobufs in Scala
-    "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % scalapb.compiler.Version.scalapbVersion
+    "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % scalapb.compiler.Version.scalapbVersion,
+    // Cassandra Driver - could also use Phantom or Quill
+    "com.datastax.oss" % "java-driver-core" % "4.14.0"
     ),
 
     Compile / PB.targets := Seq(
