@@ -121,6 +121,7 @@ final case class V(inputValue : Any) extends FieldExpression {
 }
 
 // F defines a field name, currently this does nothing
+// This should do a LOOKUP on the table context to find the correct column
 final case class F(fieldName : String)(using tag : ClassTag[String]) extends FieldExpression {
     lazy val isWellTyped: Boolean = true
 
