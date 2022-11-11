@@ -1,22 +1,22 @@
 package org.oliverlittle.clusterprocess.model.table
 
+import java.time.Instant
+
 trait TableField:
     val name : String
-    val fieldType : String
-    // Returns the Cassandra CREATE TABLE representation of this field
-    def toCql : String = name + " " + fieldType
+    def getValue(rowNumber : Long) : Any
 
-final case class IntField(name : String) extends TableField:
-    val fieldType = "bigint"
+trait IntField extends TableField:
+    def getValue(rowNumber : Long) : Long
 
-final case class DoubleField(name : String) extends TableField:
-    val fieldType = "double"
+trait DoubleField extends TableField:
+    def getValue(rowNumber : Long) : Double
 
-final case class StringField(name : String) extends TableField:
-    val fieldType = "text"
+trait StringField extends TableField:
+    def getValue(rowNumber : Long) : String
 
-final case class BoolField(name : String) extends TableField:
-    val fieldType = "boolean"
+trait BoolField extends TableField:
+    def getValue(rowNumber : Long) : Boolean
 
-final case class DateTimeField(name : String) extends TableField:
-    val fieldType = "timestamp"
+trait DateTimeField extends TableField:
+    def getValue(rowNumber : Long) : Instant

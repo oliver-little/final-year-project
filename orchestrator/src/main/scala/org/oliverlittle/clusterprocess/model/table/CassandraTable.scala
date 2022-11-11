@@ -1,9 +1,12 @@
 package org.oliverlittle.clusterprocess.model.table
 
 import org.oliverlittle.clusterprocess.cassandra.CassandraConnector
+
 import com.datastax.oss.driver.api.core.metadata.schema.TableMetadata
 import com.datastax.oss.driver.api.core.`type`.{DataTypes, DataType}
+import com.datastax.oss.driver.api.core.cql.Row
 import scala.jdk.CollectionConverters._
+import java.time.Instant
 
 object CassandraTable:
     def getTableMetadata(keyspace : String, table : String) : TableMetadata = {
@@ -51,4 +54,27 @@ final case class CassandraTable(keyspace : String, name : String, fields : Seq[T
         return "CREATE TABLE " + ifNotExistsString + keyspace + "." + name + " (" + fields.map(_.toCql).reduce((l, r) => l + "," + r) + ", PRIMARY KEY " + primaryKeyBuilder + ");"
     }
     
-@main def main : Unit = CassandraConnector.getSession.execute(Table("test", "test_table", Seq(IntField("one"), StringField("two"), DateTimeField("three")), Seq("one", "two"), Seq("three")).toCql())
+// Fields
+trait CassandraField extends TableField:
+    val fieldType : String
+    def toCql : String = name + " " + fieldType
+
+final case class CassandraIntField(name : String, table : CassandraTable) extends IntField with CassandraField:
+    def getValue(rowNumber : Long) : Long = table.getRow.getLong(name)
+    val fieldType = "bigint"
+
+final case class CassandraDoubleField(name : String, table : CassandraTable) extends DoubleField with CassandraField:
+    def getValue(rowNumber : Long) : Double = table.getRow.getDouble(name)
+    val fieldType = "double"
+
+final case class CassandraStringField(name : String, table : CassandraTable) extends StringField with CassandraField:
+    def getValue(rowNumber : Long) : String = table.getRow.getString(name)
+    val fieldType = "text"
+
+final case class CassandraBoolField(name : String, table : CassandraTable) extends BoolField with CassandraField:
+    def getValue(rowNumber : Long) : Boolean = table.getRow.getBoolean(name)
+    val fieldType = "boolean"
+
+final case class CassandraDateTimeField(name : String, table : CassandraTable) extends DateTimeField with CassandraField:
+    def getValue(rowNumber : Long) : Instant = table.getRow.getInstant(name)
+    val fieldType = "timestamp"
