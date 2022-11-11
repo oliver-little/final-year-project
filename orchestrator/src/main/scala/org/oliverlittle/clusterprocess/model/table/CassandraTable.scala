@@ -21,33 +21,55 @@ object CassandraTable:
 
     def inferTableFromCassandra(keyspace : String, table : String) : Table = {
         val tableMetadata : TableMetadata = CassandraTable.getTableMetadata(keyspace, table)
-        val fields = tableMetadata.getColumns.asScala.map(
-            (k, v) => v.getType match {
-                case DataTypes.BIGINT => IntField(v.getName.asInternal)
-                case DataTypes.TEXT => StringField(v.getName.asInternal)
-                case DataTypes.DOUBLE => DoubleField(v.getName.asInternal)
-                case DataTypes.BOOLEAN => BoolField(v.getName.asInternal)
-                case DataTypes.TIMESTAMP => DateTimeField(v.getName.asInternal)
-                case v => throw new UnsupportedOperationException("This column type is unsupported: " + v.asCql(false, false))
-            }
-        )
-
+        
+        // Map column definitions to (name, data type pairs)
+        val fieldDefinitions = tableMetadata.getColumns.asScala.map((k, v) => (k.asInternal, v.getType)).toSeq
         val partitions = tableMetadata.getPartitionKey.asScala.map(_.getName.asInternal)
         val primaries = tableMetadata.getPrimaryKey.asScala.map(_.getName.asInternal)
 
-        return CassandraTable(keyspace, table, fields.toSeq, partitions.toSeq, primaries.toSeq)
+        return CassandraTable(keyspace, table, fieldDefinitions, partitions.toSeq, primaries.toSeq)
     }
 
-final case class CassandraTable(keyspace : String, name : String, fields : Seq[TableField], partitionKey : Seq[String], primaryKey : Seq[String] = Seq()) extends Table:
+/**
+  * Creates an instance of table using Cassandra as a backend.
+  *
+  * @param keyspace The Cassandra keyspace this table is in
+  * @param name The name of the table within the keyspace
+  * @param fieldDefinitions A list of (column name, column datatype) pairs
+  * @param partitionKey A list of strings representing the partition keys for this table
+  * @param primaryKey A list of strings representing the primary keys for this table
+  */
+class CassandraTable(keyspace : String, name : String, fieldDefinitions : Seq[(String, DataType)], partitionKey : Seq[String], primaryKey : Seq[String] = Seq()) extends Table:
     // Validity Checks
     if partitionKey.length == 0 then throw new IllegalArgumentException("Must have at least one partition key")
     if !(partitionKey.forall(fieldMap contains _) && primaryKey.forall(fieldMap contains _)) then throw new IllegalArgumentException("PartitionKey and PrimaryKey names must match field names")
+
+    var currentData : Iterable[Row] = Iterable()
+
+    val fields : Seq[CassandraField] = fieldDefinitions.map((name, dataType) => dataType match {
+            case DataTypes.BIGINT => CassandraIntField(name, this)
+            case DataTypes.TEXT => CassandraStringField(name, this)
+            case DataTypes.DOUBLE => CassandraDoubleField(name, this)
+            case DataTypes.BOOLEAN => CassandraBoolField(name, this)
+            case DataTypes.TIMESTAMP => CassandraDateTimeField(name, this)
+            case v => throw new UnsupportedOperationException("This column type is unsupported: " + v.asCql(false, false))
+    })
 
     lazy val primaryKeyBuilder : String = {
         val partition = if partitionKey.length > 1 then "(" + partitionKey.reduce((l, r) => l + "," + r) + ")" else partitionKey(0)
         val primary = if primaryKey.length > 0 then "," + primaryKey.reduce((l, r) => l + "," + r) else ""
         "(" + partition + primary + ")"
     }
+
+    // This should eventually get the specific records that the worker will execute on, for now it just gets everything
+    def getData : Unit = currentData = CassandraConnector.getSession.execute("SELECT * FROM " + keyspace + "." + name).asScala
+
+    // Theoretically how this will work is that the worker will first call getData to get all the rows to run on. Then it will iterate over all rows in currentData
+    // The current row is kept in some "context" of sorts. This context will store name -> TableField mappings for F calls, and the actual table being executed as well?
+    // Assuming a select statement, it will then iterate over all rows, executing the field expressions which will call the tablefields through F as necessary.
+    // These will then reference back to the table to fetch the actual data from the datastax Row instance.
+    // Feels quite circular, perhaps there's a better way of doing this. 
+    def getRow : Row // INCOMPLETE
 
     def toCql(ifNotExists : Boolean = true) : String = {
         val ifNotExistsString = if ifNotExists then "IF NOT EXISTS " else "";
