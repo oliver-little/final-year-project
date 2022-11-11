@@ -2,7 +2,7 @@ package org.oliverlittle.clusterprocess.model.field.comparisons
 
 import scala.reflect.{ClassTag, classTag}
 import scala.util.Try
-import java.time.{LocalDateTime, OffsetDateTime}
+import java.time.Instant
 
 import org.oliverlittle.clusterprocess.table_model._
 import org.oliverlittle.clusterprocess.model.field.expressions.{FieldExpression, V, FunctionCall}
@@ -83,8 +83,7 @@ final case class OrderedFieldComparison(left : FieldExpression, comparator : Ord
             case (x : String, y : String) => x.compare(y)
             case (x : Long, y : Long)=> x.compare(y)
             case (x : Double, y : Double) => x.compare(y)
-            case (x : LocalDateTime, y : LocalDateTime) => x.compareTo(y)
-            case (x : OffsetDateTime, y : OffsetDateTime) => x.compareTo(y)
+            case (x : Instant, y : Instant) => x.compareTo(y)
             case (x : Boolean, y : Boolean) => x.compare(y)
             // This case should never happen
             case (x, y) => throw new IllegalArgumentException("Provided value " + x.toString + " (type: " + x.getClass.toString + ") cannot be compared with this value " + y.toString + " (type: " + y.getClass.toString + ").")

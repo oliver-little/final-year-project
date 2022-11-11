@@ -1,8 +1,9 @@
 package org.oliverlittle.clusterprocess.model.field.comparisons
 
+import java.time.{Instant, LocalDateTime}
+
 import org.oliverlittle.clusterprocess.model.field.expressions._
 import org.oliverlittle.clusterprocess.UnitSpec
-import java.time.OffsetDateTime
 import java.time.ZoneOffset
 
 class UnaryFieldComparisonSpec extends UnitSpec {
@@ -46,10 +47,10 @@ class EqualityFieldComparisonSpec extends UnitSpec {
     }
 
     it should "compare DateTimes correctly" in {
-        EqualityFieldComparison(V(OffsetDateTime.of(2000, 1, 1, 1, 0, 0, 0, ZoneOffset.UTC)), EqualsComparator.EQ, V(OffsetDateTime.of(2000, 1, 1, 1, 0, 0, 0, ZoneOffset.UTC))).evaluate should be (true)
-        EqualityFieldComparison(V(OffsetDateTime.of(2000, 1, 1, 1, 0, 0, 0, ZoneOffset.UTC)), EqualsComparator.EQ, V(OffsetDateTime.of(2000, 1, 1, 1, 0, 1, 0, ZoneOffset.UTC))).evaluate should be (false)
-        EqualityFieldComparison(V(OffsetDateTime.of(2000, 1, 1, 1, 0, 0, 0, ZoneOffset.UTC)), EqualsComparator.NE, V(OffsetDateTime.of(2000, 1, 1, 1, 0, 0, 0, ZoneOffset.UTC))).evaluate should be (false)
-        EqualityFieldComparison(V(OffsetDateTime.of(2000, 1, 1, 1, 0, 0, 0, ZoneOffset.UTC)), EqualsComparator.NE, V(OffsetDateTime.of(2000, 1, 1, 1, 0, 1, 0, ZoneOffset.UTC))).evaluate should be (true)
+        EqualityFieldComparison(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0, 0).atOffset(ZoneOffset.UTC).toInstant), EqualsComparator.EQ, V(LocalDateTime.of(2000, 1, 1, 1, 0, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).evaluate should be (true)
+        EqualityFieldComparison(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0, 0).atOffset(ZoneOffset.UTC).toInstant), EqualsComparator.EQ, V(LocalDateTime.of(2000, 1, 1, 1, 0, 1, 0).atOffset(ZoneOffset.UTC).toInstant)).evaluate should be (false)
+        EqualityFieldComparison(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0, 0).atOffset(ZoneOffset.UTC).toInstant), EqualsComparator.NE, V(LocalDateTime.of(2000, 1, 1, 1, 0, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).evaluate should be (false)
+        EqualityFieldComparison(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0, 0).atOffset(ZoneOffset.UTC).toInstant), EqualsComparator.NE, V(LocalDateTime.of(2000, 1, 1, 1, 0, 1, 0).atOffset(ZoneOffset.UTC).toInstant)).evaluate should be (true)
     }
 
     it should "compare Booleans correctly" in {
@@ -107,8 +108,8 @@ class OrderedFieldComparisonSpec extends UnitSpec {
     }
 
     it should "compare dates correctly" in {
-        val date1 = OffsetDateTime.of(1, 1, 1, 1, 0, 0, 0, ZoneOffset.UTC)
-        val date2 = OffsetDateTime.of(1, 1, 1, 2, 0, 0, 0, ZoneOffset.UTC)
+        val date1 = LocalDateTime.of(2000, 1, 1, 1, 0, 0, 0).atOffset(ZoneOffset.UTC).toInstant()
+        val date2 = LocalDateTime.of(2000, 1, 1, 2, 0, 0, 0).atOffset(ZoneOffset.UTC).toInstant()
         OrderedFieldComparison(V(date1), OrderedComparator.LT, V(date2)).evaluate should be (true)
         OrderedFieldComparison(V(date2), OrderedComparator.LT, V(date2)).evaluate should be (false)
         OrderedFieldComparison(V(date2), OrderedComparator.LTE, V(date2)).evaluate should be (true)

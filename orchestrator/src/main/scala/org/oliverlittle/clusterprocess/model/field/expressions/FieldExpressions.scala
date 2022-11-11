@@ -1,12 +1,13 @@
 package org.oliverlittle.clusterprocess.model.field.expressions
 
-import java.time.{LocalDateTime, OffsetDateTime, ZoneOffset}
+import java.time.Instant
 import java.time.format.DateTimeFormatter
 import scala.reflect.{ClassTag, classTag}
 import scala.util.Try
 import java.text.DecimalFormat
 
 import org.oliverlittle.clusterprocess.table_model._
+import java.time.OffsetDateTime
 
 object FieldExpression:
     def fromProtobuf(expr : Expression) : FieldExpression = expr match {
@@ -41,7 +42,16 @@ sealed abstract class FieldExpression:
     }
 
 object V:
-    def fromProtobuf(v : Value) : V = V(v.value.string.getOrElse(v.value.int.getOrElse(v.value.double.getOrElse(v.value.bool.getOrElse(v.value.datetime.getOrElse(throw new IllegalArgumentException("Could not unpack Value, unknown type:" + v.toString)))))))
+    // This needs refactoring - there must be a way of doing this using for-expressions
+    def fromProtobuf(v : Value) : V = V(v.value.string.getOrElse(
+        v.value.int.getOrElse(
+            v.value.double.getOrElse(
+                v.value.bool.getOrElse(
+                    OffsetDateTime.parse(v.value.datetime.getOrElse(throw new IllegalArgumentException("Could not unpack Value, unknown type:" + v.toString)), DateTimeFormatter.ISO_INSTANT)
+                )
+            )
+        )
+    ))
 
 // V takes a value of any type, as it doesn't care what it's actually passed until it's asked to evaluate it.
 // Only Longs and Doubles are supported, Ints and Floats are automatically converted
@@ -64,8 +74,7 @@ final case class V(inputValue : Any) extends FieldExpression {
             case i : Long => Value().withInt(i)
             case f : Double => Value().withDouble(f)
             case f : Float => Value().withDouble(f.toDouble)
-            case d : LocalDateTime => Value().withDatetime(d.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_DATE_TIME))
-            case d : OffsetDateTime => Value().withDatetime(d.format(DateTimeFormatter.ISO_DATE_TIME))
+            case d : Instant => Value().withDatetime(DateTimeFormatter.ISO_INSTANT.format(d))
             case b : Boolean => Value().withBool(b)
             // This case should never happen
             case _ => throw new IllegalArgumentException("Type of " + value.toString + " is invalid: " + value.getClass.toString)
@@ -112,8 +121,7 @@ final case class V(inputValue : Any) extends FieldExpression {
             case (x : String, y : String) => x.compare(y)
             case (x : Long, y : Long)=> x.compare(y)
             case (x : Double, y : Double) => x.compare(y)
-            case (x : LocalDateTime, y : LocalDateTime) => x.compareTo(y)
-            case (x : OffsetDateTime, y : OffsetDateTime) => x.compareTo(y)
+            case (x : Instant, y : Instant) => x.compareTo(y)
             case (x : Boolean, y : Boolean) => x.compare(y)
             // This case should never happen
             case _ => throw new IllegalArgumentException("Provided value " + that.value.toString + " (type: " + that.value.getClass.toString + ") cannot be compared with this value " + value.toString + " (type: " + value.getClass.toString + ").")

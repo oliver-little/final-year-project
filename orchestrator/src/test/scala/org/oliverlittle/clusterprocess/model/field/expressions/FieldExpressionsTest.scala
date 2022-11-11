@@ -1,14 +1,14 @@
 package org.oliverlittle.clusterprocess.model.field.expressions
 
-import java.time.OffsetDateTime
-import java.time.LocalDateTime
-import java.time.ZoneOffset
+import java.time.{LocalDateTime, Instant}
 import scala.reflect.{ClassTag, classTag}
 import java.text.DecimalFormat
+
 
 import org.oliverlittle.clusterprocess.table_model.{Expression, Value}
 import org.oliverlittle.clusterprocess.model.field.expressions.FieldOperations.AddInt
 import org.oliverlittle.clusterprocess.UnitSpec
+import java.time.ZoneOffset
 
 class FieldExpressionSpec extends UnitSpec {
     "A FieldExpression" should "evaluate Values correctly" in {
@@ -130,22 +130,8 @@ class ValueSpec extends UnitSpec {
         }
     }
 
-    it should "convert LocalDateTimes to Protobuf strings" in {
-        val literal = LocalDateTime.of(2000, 1, 1, 1, 0, 0)
-        val value = V(literal)
-        val expression : Expression = value.protobuf
-        
-        inside(expression) { case Expression(expr, unknownFields) => 
-            inside (expr) { case Expression.Expr.Value(value) => 
-                inside (value) { case Value(v, unknownFields) => 
-                    v.datetime.value should be ("2000-01-01T01:00:00Z")
-                }
-            }
-        }
-    }
-
-    it should "convert OffsetDateTimes to Protobuf strings" in {
-        val literal = LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC)
+    it should "convert Instants to Protobuf strings" in {
+        val literal = LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant
         val value = V(literal)
         val expression : Expression = value.protobuf
         
@@ -169,7 +155,7 @@ class ValueSpec extends UnitSpec {
 
     // Well Typed check
     it should "be well-typed for valid types" in {
-        Seq("a", 1L, 1, 1.01D, 1.01, true, LocalDateTime.of(2000, 1, 1, 1, 0, 0), LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.ofHours(4))) foreach {literal =>
+        Seq("a", 1L, 1, 1.01D, 1.01, true, LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant) foreach {literal =>
             val value = V(literal)
             
             value.isWellTyped should be (true) withClue (", when literal is: " + literal.toString)
@@ -362,11 +348,11 @@ class ToStringSpec extends UnitSpec {
     }
 
     it should "convert LocalDateTimes" in {
-        ToString(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0))).evaluateAny should be (LocalDateTime.of(2000, 1, 1, 1, 0, 0).toString)
+        ToString(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).evaluateAny should be (LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant.toString)
     }
 
     it should "convert OffsetDateTimes" in {
-        ToString(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC))).evaluateAny should be (LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toString)
+        ToString(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).evaluateAny should be (LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant.toString)
     }
 
     it should "convert Booleans" in {
@@ -405,15 +391,9 @@ class ToIntSpec extends UnitSpec {
         ToInt(V(1.01 : Double)).evaluateAny should be (1)
     }
 
-    it should "fail to convert LocalDateTimes" in {
+    it should "fail to convert Instants" in {
         assertThrows[IllegalArgumentException] {
-            ToInt(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0))).evaluateAny
-        }
-    }
-
-    it should "fail to convert OffsetDateTimes" in {
-        assertThrows[IllegalArgumentException] {
-            ToInt(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC))).evaluateAny
+            ToInt(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).evaluateAny
         }
     }
 
@@ -447,13 +427,13 @@ class ToDoubleSpec extends UnitSpec {
 
     it should "fail to convert LocalDateTimes" in {
         assertThrows[IllegalArgumentException] {
-            ToDouble(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0))).evaluateAny
+            ToDouble(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).evaluateAny
         }
     }
 
     it should "fail to convert OffsetDateTimes" in {
         assertThrows[IllegalArgumentException] {
-            ToDouble(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC))).evaluateAny
+            ToDouble(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).evaluateAny
         }
     }
 

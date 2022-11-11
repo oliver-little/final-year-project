@@ -1,7 +1,7 @@
 package org.oliverlittle.clusterprocess.model.field.expressions
 
 import scala.math.pow
-import java.time.LocalDateTime
+import java.time.Instant
 
 import org.oliverlittle.clusterprocess.model.field.expressions
 
