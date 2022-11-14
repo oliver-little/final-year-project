@@ -99,8 +99,8 @@ final case class OrderedFieldComparison(left : FieldExpression, comparator : Ord
 final case class StringFieldComparison(left : FieldExpression, comparator : StringComparator, right : V) extends FieldComparison:
     lazy val protobuf: Filter.FilterExpression = Filter.FilterExpression(leftValue=Some(left.protobuf), filterType=comparator.protobuf, rightValue=Some(right.protobuf))
     
-    def evaluate : Boolean = comparator match {
-        case c @ (StringComparator.CONTAINS) => left.evaluate[String].contains(right.getValueAsType[String])
+    def evaluate(context : Map[String, Any]) : Boolean = comparator match {
+        case c @ (StringComparator.CONTAINS) => left.evaluate[String]().contains(right.getValueAsType[String])
         case c @ (StringComparator.ICONTAINS) => left.evaluate[String].toLowerCase.contains(right.getValueAsType[String].toLowerCase)
         case c @ (StringComparator.STARTS_WITH) => left.evaluate[String].startsWith(right.getValueAsType[String])
         case c @ (StringComparator.ISTARTS_WITH) => left.evaluate[String].toLowerCase.startsWith(right.getValueAsType[String].toLowerCase)
