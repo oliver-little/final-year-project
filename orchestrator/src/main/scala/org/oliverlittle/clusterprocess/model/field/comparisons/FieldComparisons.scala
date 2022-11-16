@@ -6,6 +6,7 @@ import java.time.Instant
 
 import org.oliverlittle.clusterprocess.table_model._
 import org.oliverlittle.clusterprocess.model.field.expressions.{FieldExpression, V, FunctionCall}
+import org.oliverlittle.clusterprocess.model.table.field._
 
 object FieldComparison:
     def fromProtobuf(f : Filter.FilterExpression) : FieldComparison = {
@@ -30,7 +31,7 @@ object FieldComparison:
 sealed abstract class FieldComparison:
     lazy val protobuf : Filter.FilterExpression
 
-    def evaluate : Boolean
+    def evaluate(rowContext : Map[String, TableValue]) : Boolean
 
 enum UnaryComparator(val protobuf : Filter.FilterType):
     case IS_NULL extends UnaryComparator(Filter.FilterType.IS_NULL)
@@ -41,9 +42,9 @@ enum UnaryComparator(val protobuf : Filter.FilterType):
 
 final case class UnaryFieldComparison(expression : FieldExpression, comparator : UnaryComparator) extends FieldComparison:
     lazy val protobuf: Filter.FilterExpression = Filter.FilterExpression(leftValue=Some(expression.protobuf), filterType=comparator.protobuf)
-    def evaluate : Boolean = comparator match {
-        case isNull @ (UnaryComparator.IS_NULL | UnaryComparator.NULL) => expression.evaluateAny == null
-        case isNotNull @ (UnaryComparator.IS_NOT_NULL | UnaryComparator.NOT_NULL) => expression.evaluateAny != null
+    def evaluate(rowContext : Map[String, TableValue]) : Boolean = comparator match {
+        case isNull @ (UnaryComparator.IS_NULL | UnaryComparator.NULL) => expression.evaluateAny(rowContext) == null
+        case isNotNull @ (UnaryComparator.IS_NOT_NULL | UnaryComparator.NOT_NULL) => expression.evaluateAny(rowContext) != null
     }
 
 enum EqualsComparator(val protobuf : Filter.FilterType):
@@ -72,14 +73,14 @@ enum StringComparator(val protobuf : Filter.FilterType):
 
 final case class EqualityFieldComparison(left : FieldExpression, comparator : EqualsComparator, right : FieldExpression) extends FieldComparison:
     lazy val protobuf: Filter.FilterExpression = Filter.FilterExpression(leftValue=Some(left.protobuf), filterType=comparator.protobuf, rightValue=Some(right.protobuf))
-    def evaluate : Boolean = comparator match {
-        case eq @ (EqualsComparator.EQ | EqualsComparator.EQUAL) => left.evaluateAny.equals(right.evaluateAny)
-        case ne @ (EqualsComparator.NE | EqualsComparator.NOT_EQUAL) => !left.evaluateAny.equals(right.evaluateAny)
+    def evaluate(rowContext : Map[String, TableValue]) : Boolean = comparator match {
+        case eq @ (EqualsComparator.EQ | EqualsComparator.EQUAL) => left.evaluateAny(rowContext).equals(right.evaluateAny(rowContext))
+        case ne @ (EqualsComparator.NE | EqualsComparator.NOT_EQUAL) => !left.evaluateAny(rowContext).equals(right.evaluateAny(rowContext))
     }
 
 final case class OrderedFieldComparison(left : FieldExpression, comparator : OrderedComparator, right : FieldExpression)extends FieldComparison:
     lazy val protobuf: Filter.FilterExpression = Filter.FilterExpression(leftValue=Some(left.protobuf), filterType=comparator.protobuf, rightValue=Some(right.protobuf))
-    def evaluate : Boolean = mappedComparator((left.evaluateAny, right.evaluateAny) match {
+    def evaluate(rowContext : Map[String, TableValue]) : Boolean = mappedComparator((left.evaluateAny(rowContext), right.evaluateAny(rowContext)) match {
             case (x : String, y : String) => x.compare(y)
             case (x : Long, y : Long)=> x.compare(y)
             case (x : Double, y : Double) => x.compare(y)
@@ -99,11 +100,13 @@ final case class OrderedFieldComparison(left : FieldExpression, comparator : Ord
 final case class StringFieldComparison(left : FieldExpression, comparator : StringComparator, right : V) extends FieldComparison:
     lazy val protobuf: Filter.FilterExpression = Filter.FilterExpression(leftValue=Some(left.protobuf), filterType=comparator.protobuf, rightValue=Some(right.protobuf))
     
-    def evaluate(context : Map[String, Any]) : Boolean = comparator match {
-        case c @ (StringComparator.CONTAINS) => left.evaluate[String]().contains(right.getValueAsType[String])
-        case c @ (StringComparator.ICONTAINS) => left.evaluate[String].toLowerCase.contains(right.getValueAsType[String].toLowerCase)
-        case c @ (StringComparator.STARTS_WITH) => left.evaluate[String].startsWith(right.getValueAsType[String])
-        case c @ (StringComparator.ISTARTS_WITH) => left.evaluate[String].toLowerCase.startsWith(right.getValueAsType[String].toLowerCase)
-        case c @ (StringComparator.ENDS_WITH) => left.evaluate[String].endsWith(right.getValueAsType[String])
-        case c @ (StringComparator.IENDS_WITH) => left.evaluate[String].toLowerCase.endsWith(right.getValueAsType[String].toLowerCase)
+    def evaluate(rowContext : Map[String, TableValue]) : Boolean = {
+        comparator match {
+            case c @ (StringComparator.CONTAINS) => left.evaluate[String](rowContext).contains(right.getValueAsType[String])
+            case c @ (StringComparator.ICONTAINS) => left.evaluate[String](rowContext).toLowerCase.contains(right.getValueAsType[String].toLowerCase)
+            case c @ (StringComparator.STARTS_WITH) => left.evaluate[String](rowContext).startsWith(right.getValueAsType[String])
+            case c @ (StringComparator.ISTARTS_WITH) => left.evaluate[String](rowContext).toLowerCase.startsWith(right.getValueAsType[String].toLowerCase)
+            case c @ (StringComparator.ENDS_WITH) => left.evaluate[String](rowContext).endsWith(right.getValueAsType[String])
+            case c @ (StringComparator.IENDS_WITH) => left.evaluate[String](rowContext).toLowerCase.endsWith(right.getValueAsType[String].toLowerCase)
+        }
     }

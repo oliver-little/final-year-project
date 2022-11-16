@@ -1,19 +1,16 @@
 package org.oliverlittle.clusterprocess.model.table
 
-abstract class Table:
-    val fields : Seq[TableField]
-    val fieldMap : Map[String, TableField] = fields.map(t => t.name -> t).toMap
-    val transformations : Seq[TableTransformation] = Seq()
+import org.oliverlittle.clusterprocess.model.table.field._
+import org.oliverlittle.clusterprocess.model.table.sources.DataSource
 
-    def getData : Iterator[Seq[TableField]]
+case class Table(dataSource : DataSource, transformations : Seq[TableTransformation] = Seq()):
     
-    def compute : Unit = {
-        transformations.foreach(
-            transformation => {
-                transformation match {
-                    case SelectTransformation(selectColumns) => getData.map(row => selectColumns.map)
-                    case _ => UnsupportedOperationException("Not implemented yet.")
-                }
-            }
-        )
+    def addTransformation(transformation : TableTransformation) : Table = Table(dataSource, transformations :+ transformation)
+
+    def compute : Iterable[Map[String, TableValue]] = {
+        var data : Iterable[Map[String, TableValue]] = dataSource.getData
+        for (transformation <- transformations) {
+            data = transformation.evaluate(data)
+        }
+        return data
     }
