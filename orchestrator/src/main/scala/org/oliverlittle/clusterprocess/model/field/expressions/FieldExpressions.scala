@@ -157,7 +157,7 @@ final case class F(fieldName : String) extends FieldExpression:
     def doesReturnType[EvalType](fieldContext : Map[String, TableField])(using tag : ClassTag[EvalType]): Boolean = tag.runtimeClass.isInstance(fieldContext.getOrElse(fieldName, throw new IllegalArgumentException("Field name not found: " + fieldName)).testValue)
     
     lazy val protobuf : Expression = Expression().withValue(Value().withField(fieldName))
-    def evaluateAny(rowContext : Map[String, TableValue]): Any = rowContext.getOrElse(fieldName, throw new IllegalArgumentException("Field name not found: " + fieldName))
+    def evaluateAny(rowContext : Map[String, TableValue]): Any = rowContext.getOrElse(fieldName, throw new IllegalArgumentException("Field name not found: " + fieldName)).value
 
 
 object FunctionCall:

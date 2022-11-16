@@ -21,7 +21,7 @@ object CassandraDataSource:
             if tableObj.isPresent then
                 return tableObj.get
             throw new IllegalArgumentException("Table " + keyspace + "." + table + " not found.")
-        throw new IllegalArgumentException("Keyspace " + keyspace + "not found.")
+        throw new IllegalArgumentException("Keyspace " + keyspace + " not found.")
     }
 
     def inferTableFromCassandra(keyspace : String, table : String) : Table = {
@@ -105,5 +105,3 @@ final case class CassandraBoolField(name : String) extends BoolField with Cassan
 final case class CassandraDateTimeField(name : String) extends DateTimeField with CassandraField:
     val fieldType = "timestamp"
     def getTableValue(rowData : Row) : TableValue = DateTimeValue(name, rowData.getInstant(name))
-
-@main def main : Unit = CassandraDataSource.inferTableFromCassandra("test", "test").addTransformation(SelectTransformation(F("a"), F("b")))

@@ -9,6 +9,8 @@ import org.oliverlittle.clusterprocess.table_model.{Expression, Value}
 import org.oliverlittle.clusterprocess.model.field.expressions.FieldOperations.AddInt
 import org.oliverlittle.clusterprocess.UnitSpec
 import java.time.ZoneOffset
+import org.oliverlittle.clusterprocess.model.table.field.TableField
+import org.oliverlittle.clusterprocess.model.table.field.TableValue
 
 class FieldExpressionSpec extends UnitSpec {
     "A FieldExpression" should "evaluate Values correctly" in {
@@ -42,7 +44,7 @@ class ValueSpec extends UnitSpec {
     // Instantiation
     "A Value" should "return the same value it is given" in {
         val value = V("a")
-        assert(value.evaluateAny == "a")
+        assert(value.evaluateAny(Map()) == "a")
     }
 
     // Protobufs
@@ -158,7 +160,7 @@ class ValueSpec extends UnitSpec {
         Seq("a", 1L, 1, 1.01D, 1.01, true, LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant) foreach {literal =>
             val value = V(literal)
             
-            value.isWellTyped should be (true) withClue (", when literal is: " + literal.toString)
+            value.isWellTyped(Map()) should be (true) withClue (", when literal is: " + literal.toString)
         }
     }
 
@@ -166,7 +168,7 @@ class ValueSpec extends UnitSpec {
         Seq(Seq(1, 2, 3)) foreach { literal =>
             val value = V(literal)
             
-            value.isWellTyped should be (false)
+            value.isWellTyped(Map()) should be (false)
         }
     }
 
@@ -217,17 +219,17 @@ class ValueSpec extends UnitSpec {
 class FunctionCallSpec extends UnitSpec {
     "A FunctionCall" should "be well-typed when its arguments are well-typed" in {
         val func = FunctionCallImpl()
-        func.isWellTyped should be (true)
+        func.isWellTyped(Map()) should be (true)
     }
 
     it should "return true for doesReturnType with the correct type parameter" in {
         val func = FunctionCallImpl()
-        func.doesReturnType[String] should be (true)
+        func.doesReturnType[String](Map()) should be (true)
     }
 
     it should "return false for doesReturnType with invalid type parameters" in {
         val func = FunctionCallImpl()
-        func.doesReturnType[Long] should be (false)
+        func.doesReturnType[Long](Map()) should be (false)
     }
 
     it should "convert to a protobuf expression based on the name and arguments" in {
@@ -264,17 +266,17 @@ class FunctionCallSpec extends UnitSpec {
     }
 
     private class FunctionCallImpl extends FunctionCall[String]("testName"):
-        lazy val isWellTyped = true
+        def isWellTyped(fieldContext : Map[String, TableField]) = true
         val arguments = Seq(V("a"))
-        def functionCalc = "a"
+        def functionCalc(rowContext : Map[String, TableValue]) = "a"
 }
 
 class UnaryFunctionSpec extends UnitSpec {
     val func = (arg) => UnaryFunction[String, String]("testName", (a) => a, arg)
 
     "A UnaryFunction" should "check the type of its argument matches the type parameter" in {
-        func(V("a")).isWellTyped should be (true)
-        func(V(1)).isWellTyped should be (false)
+        func(V("a")).isWellTyped(Map()) should be (true)
+        func(V(1)).isWellTyped(Map()) should be (false)
     }
 
     it should "put its argument into a Sequence for adding to a protobuf" in {
@@ -291,8 +293,8 @@ class BinaryFunctionSpec extends UnitSpec {
     val func = (l, r) => BinaryFunction[String, String, String]("testName", (a, b) => a + b, l, r)
 
     "A BinaryFunction" should "check the type of its argument matches the type parameter" in {
-        func(V("a"), V("a")).isWellTyped should be (true)
-        func(V(1), V(1)).isWellTyped should be (false)
+        func(V("a"), V("a")).isWellTyped(Map()) should be (true)
+        func(V(1), V(1)).isWellTyped(Map()) should be (false)
     }
 
     it should "put its argument into a Sequence for adding to a protobuf" in {
@@ -310,8 +312,8 @@ class TernaryFunctionSpec extends UnitSpec {
     val func = (l, r, t) => TernaryFunction[String, String, String, String]("testName", (a, b, t) => a + b + t, l, r, t)
 
     "A TernaryFunction" should "check the type of its argument matches the type parameter" in {
-        func(V("a"), V("a"), V("a")).isWellTyped should be (true)
-        func(V(1), V(1), V(1)).isWellTyped should be (false)
+        func(V("a"), V("a"), V("a")).isWellTyped(Map()) should be (true)
+        func(V(1), V(1), V(1)).isWellTyped(Map()) should be (false)
     }
 
     it should "put its argument into a Sequence for adding to a protobuf" in {
@@ -418,11 +420,11 @@ class ToDoubleSpec extends UnitSpec {
     }
 
     it should "convert Floats" in {
-        ToDouble(V(1.01 : Float)).evaluate[Double] should be (1.01 +- 0.01)
+        ToDouble(V(1.01 : Float)).evaluate[Double](Map()) should be (1.01 +- 0.01)
     }
 
     it should "convert Doubles" in {
-        ToDouble(V(1.01 : Double)).evaluate[Double] should be (1.01 +- 0.01)
+        ToDouble(V(1.01 : Double)).evaluate[Double](Map()) should be (1.01 +- 0.01)
     }
 
     it should "fail to convert LocalDateTimes" in {
