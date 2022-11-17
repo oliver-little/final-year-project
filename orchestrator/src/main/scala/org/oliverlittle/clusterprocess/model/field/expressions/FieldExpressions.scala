@@ -37,7 +37,8 @@ sealed abstract class FieldExpression:
         
         return this match {
             case value : V => value.getValueAsType[EvalType]
-            case function : FunctionCall[_] if function.doesReturnType[EvalType](rowContext) => function.functionCalc.asInstanceOf[EvalType]
+            case function : FunctionCall[_] if function.doesReturnType[EvalType](rowContext) => function.functionCalc(rowContext).asInstanceOf[EvalType]
+            case field : F if field.doesReturnType[EvalType](rowContext) => field.evaluateAny(rowContext).asInstanceOf[EvalType]
             case _ => throw new IllegalArgumentException("Cannot evaluate to type " + tag.runtimeClass.getName)
         }
     }
@@ -171,7 +172,7 @@ abstract class FunctionCall[ReturnType](functionName : String)(using tag : Class
 
     val arguments : Seq[FieldExpression]
     lazy val protobuf : Expression = Expression().withFunction(Expression.FunctionCall(functionName=functionName, arguments=this.arguments.map(_.protobuf)))
-    def evaluateAny(rowContext : Map[String, TableValue]): Any = functionCalc
+    def evaluateAny(rowContext : Map[String, TableValue]): Any = functionCalc(rowContext)
     
     // Abstract function: this should perform the actual function call on the FieldExpression arguments
     def functionCalc(rowContext : Map[String, TableValue]) : ReturnType
@@ -186,13 +187,13 @@ final case class UnaryFunction[ArgType, ReturnType](functionName : String, funct
 final case class BinaryFunction[LeftArgType, RightArgType, ReturnType](functionName : String, function : (left : LeftArgType, right : RightArgType) => ReturnType, left : FieldExpression, right : FieldExpression)(using lTag : ClassTag[LeftArgType]) (using rTag : ClassTag[RightArgType])(using retTag : ClassTag[ReturnType]) extends FunctionCall[ReturnType](functionName):
     def isWellTyped(fieldContext : Map[String, TableField]) : Boolean = left.doesReturnType[LeftArgType](fieldContext) && right.doesReturnType[RightArgType](fieldContext)
     val arguments = Seq(left, right)
-    def functionCalc(rowContext : Map[String, TableValue]) = function(left.evaluate[LeftArgType](rowContext), right.evaluate[RightArgType](rowContext))
+    def functionCalc(rowContext : Map[String, TableValue]) : ReturnType = function(left.evaluate[LeftArgType](rowContext), right.evaluate[RightArgType](rowContext))
 
 // Defines a function that takes three arguments and returns a value
 final case class TernaryFunction[ArgOneType, ArgTwoType, ArgThreeType, ReturnType](functionName : String, function : (one : ArgOneType, two : ArgTwoType, three : ArgThreeType) => ReturnType, one : FieldExpression, two : FieldExpression, three : FieldExpression)(using oneTag : ClassTag[ArgOneType], twoTag : ClassTag[ArgTwoType], threeTag : ClassTag[ArgThreeType])(using retTag : ClassTag[ReturnType]) extends FunctionCall[ReturnType](functionName):
     def isWellTyped(fieldContext : Map[String, TableField]) : Boolean = one.doesReturnType[ArgOneType](fieldContext) && two.doesReturnType[ArgTwoType](fieldContext) && three.doesReturnType[ArgThreeType](fieldContext)
     val arguments = Seq(one, two, three)
-    def functionCalc(rowContext : Map[String, TableValue]) = function(one.evaluate[ArgOneType](rowContext), two.evaluate[ArgTwoType](rowContext), three.evaluate[ArgThreeType](rowContext))
+    def functionCalc(rowContext : Map[String, TableValue]) : ReturnType = function(one.evaluate[ArgOneType](rowContext), two.evaluate[ArgTwoType](rowContext), three.evaluate[ArgThreeType](rowContext))
 
 // Polymorphic cast definitions (takes any argument, and returns the type or an error)
 final case class ToString(argument: FieldExpression) extends FunctionCall[String]("ToString"):
@@ -204,7 +205,7 @@ final case class ToString(argument: FieldExpression) extends FunctionCall[String
 final case class DoubleToString(argument: FieldExpression, formatter : DecimalFormat) extends FunctionCall[String]("DoubleToString"):
     def isWellTyped(context : Map[String, TableField]) : Boolean = argument.doesReturnType[Double](context)
     val arguments = Seq(argument)
-    def functionCalc(rowContext : Map[String, TableValue]) = formatter.format(argument.evaluate[Double])
+    def functionCalc(rowContext : Map[String, TableValue]) = formatter.format(argument.evaluate[Double](rowContext))
 
 final case class ToInt(argument : FieldExpression) extends FunctionCall[Long]("ToInt"):
     def isWellTyped(fieldContext : Map[String, TableField]) : Boolean = argument.doesReturnType[String](fieldContext) || argument.doesReturnType[Double](fieldContext) || argument.doesReturnType[Float](fieldContext) || argument.doesReturnType[Long](fieldContext) || argument.doesReturnType[Int](fieldContext)
