@@ -3,14 +3,13 @@ package org.oliverlittle.clusterprocess.model.field.expressions
 import java.time.{LocalDateTime, Instant}
 import scala.reflect.{ClassTag, classTag}
 import java.text.DecimalFormat
-
+import java.time.ZoneOffset
 
 import org.oliverlittle.clusterprocess.table_model.{Expression, Value}
 import org.oliverlittle.clusterprocess.model.field.expressions.FieldOperations.AddInt
 import org.oliverlittle.clusterprocess.UnitSpec
-import java.time.ZoneOffset
 import org.oliverlittle.clusterprocess.model.table.field.TableField
-import org.oliverlittle.clusterprocess.model.table.field.TableValue
+import org.oliverlittle.clusterprocess.model.table.field.{TableValue, IntValue, StringValue}
 
 class FieldExpressionSpec extends UnitSpec {
     "A FieldExpression" should "evaluate Values correctly" in {
@@ -21,7 +20,12 @@ class FieldExpressionSpec extends UnitSpec {
         AddInt(V(1), V(2)).evaluate[Long](Map()) should be (3)
     }
 
-    // TODO: Fields once implemented
+    it should "evaluate Fields correctly" in {
+        F("a").evaluate[Long](Map("a" -> IntValue("a", 1))) should be (1)
+        F("a").evaluateAny(Map("a" -> IntValue("a", 1))) should be (1)
+        F("a").evaluate[String](Map("a" -> StringValue("a", "test"))) should be ("test")
+        F("a").evaluateAny(Map("a" -> StringValue("a", "test"))) should be ("test")
+    }
 
     it should "evaluate nested FieldExpressions correctly" in {
         AddInt(V(1), AddInt(V(2), V(5))).evaluate[Long](Map()) should be (8)
@@ -212,6 +216,49 @@ class ValueSpec extends UnitSpec {
 
         assertThrows[IllegalArgumentException] {
             value.getDouble
+        }
+    }
+}
+
+class FieldSpec extends UnitSpec {
+    "A Field" should "be well-typed if the field name is defined in the field context" in {
+        F("testField").isWellTyped(Map("testField" -> IntValue("testField", 1))) should be (true)
+        F("testField").isWellTyped(Map("otherField" -> IntValue("otherField", 1))) should be (false)
+    }
+
+    it should "return true for doesReturnType with the correct type parameter" in {
+        val field : F = F("testField")
+        field.doesReturnType[Long](Map("testField" -> IntValue("testField", 1))) should be (true)
+        //field.doesReturnType[String](Map("testField" -> StringValue("testField", "test"))) should be (true)
+    }
+
+    it should "return false for doesReturnType with invalid type parameters" in {
+        val field : F = F("testField")
+        field.doesReturnType[String](Map("testField" -> IntValue("testField", 1))) should be (false)
+    }
+
+    it should "convert to a protobuf representation" in {
+        val expression : Expression = F("testField").protobuf
+
+        inside(expression) { case Expression(expr, unknownFields) => 
+            inside (expr) { case Expression.Expr.Value(value) => 
+                inside (value) { case Value(v, unknownFields) => 
+                    v.field.value should be ("testField")
+                }
+            }
+        }
+    }
+
+    it should "evaluate to a value correctly when the field is defined with the correct type" in {
+        val field : F = F("testField")
+        field.evaluateAny(Map("testField" -> IntValue("testField", 1))) should be (1)
+        field.evaluateAny(Map("testField" -> StringValue("testField", "test"))) should be ("test")
+    }
+
+    it should "throw IllegalArgumentException when the field is undefined" in {
+        val field : F = F("testField")
+        assertThrows[IllegalArgumentException] {
+            field.evaluateAny(Map("otherField" -> IntValue("testField", 1))) should be (1)
         }
     }
 }

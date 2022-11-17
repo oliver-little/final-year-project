@@ -32,6 +32,7 @@ sealed abstract class FieldExpression:
     def evaluateAny(rowContext : Map[String, TableValue]) : Any 
 
     // Evaluate this FieldExpression with a specific type, this will throw an error if the expression cannot be computed with the given type.
+    // Should be able to refactor this to remove the match and call evaluate directly on implementations
     def evaluate[EvalType](rowContext : Map[String, TableValue])(using tag : ClassTag[EvalType]): EvalType = {
         if !isWellTyped(rowContext) then throw new IllegalArgumentException("FieldExpression is not well-typed, cannot compute.")
         
@@ -153,9 +154,9 @@ object F:
     implicit def toNamed(f : F) : NamedFieldExpression = NamedFieldExpression(f.fieldName, f)
 
 final case class F(fieldName : String) extends FieldExpression:
-    def isWellTyped(fieldContext : Map[String, TableField]): Boolean = true
+    def isWellTyped(fieldContext : Map[String, TableField]): Boolean = fieldContext.contains(fieldName)
 
-    def doesReturnType[EvalType](fieldContext : Map[String, TableField])(using tag : ClassTag[EvalType]): Boolean = tag.runtimeClass.isInstance(fieldContext.getOrElse(fieldName, throw new IllegalArgumentException("Field name not found: " + fieldName)).testValue)
+    def doesReturnType[EvalType](fieldContext : Map[String, TableField])(using tag : ClassTag[EvalType]): Boolean = fieldContext.getOrElse(fieldName, throw new IllegalArgumentException("Field name not found: " + fieldName)).compareClassTags(tag)
     
     lazy val protobuf : Expression = Expression().withValue(Value().withField(fieldName))
     def evaluateAny(rowContext : Map[String, TableValue]): Any = rowContext.getOrElse(fieldName, throw new IllegalArgumentException("Field name not found: " + fieldName)).value
