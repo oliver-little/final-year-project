@@ -152,6 +152,7 @@ def generate_transaction(transfer_id, currency_pair, currency_data):
 
     transfer_df = pd.DataFrame(data, columns=["Amount", "Currency", "Identifier"])
     transfer_df["Transfer_ID"] = transfer_id
+    transfer_df["Date"] = transfer_date.strftime("%Y-%m-%d")
 
 
     return transfer_df
