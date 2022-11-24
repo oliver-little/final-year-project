@@ -8,6 +8,7 @@ import org.oliverlittle.clusterprocess.table_model._
 import org.oliverlittle.clusterprocess.model.field.expressions.{FieldExpression, V, FunctionCall}
 import org.oliverlittle.clusterprocess.model.table.field._
 
+// Need to add resolved/unresolved forms of FieldComparison
 object FieldComparison:
     def fromProtobuf(f : Filter.FilterExpression) : FieldComparison = {
         val leftFieldExpression = FieldExpression.fromProtobuf(f.leftValue.getOrElse(throw new IllegalArgumentException("Missing required left value for FieldComparison")))
@@ -43,8 +44,8 @@ enum UnaryComparator(val protobuf : Filter.FilterType):
 final case class UnaryFieldComparison(expression : FieldExpression, comparator : UnaryComparator) extends FieldComparison:
     lazy val protobuf: Filter.FilterExpression = Filter.FilterExpression(leftValue=Some(expression.protobuf), filterType=comparator.protobuf)
     def evaluate(rowContext : Map[String, TableValue]) : Boolean = comparator match {
-        case isNull @ (UnaryComparator.IS_NULL | UnaryComparator.NULL) => expression.evaluateAny(rowContext) == null
-        case isNotNull @ (UnaryComparator.IS_NOT_NULL | UnaryComparator.NOT_NULL) => expression.evaluateAny(rowContext) != null
+        case isNull @ (UnaryComparator.IS_NULL | UnaryComparator.NULL) => expression.evaluate(rowContext) == null
+        case isNotNull @ (UnaryComparator.IS_NOT_NULL | UnaryComparator.NOT_NULL) => expression.evaluate(rowContext) != null
     }
 
 enum EqualsComparator(val protobuf : Filter.FilterType):
@@ -74,13 +75,13 @@ enum StringComparator(val protobuf : Filter.FilterType):
 final case class EqualityFieldComparison(left : FieldExpression, comparator : EqualsComparator, right : FieldExpression) extends FieldComparison:
     lazy val protobuf: Filter.FilterExpression = Filter.FilterExpression(leftValue=Some(left.protobuf), filterType=comparator.protobuf, rightValue=Some(right.protobuf))
     def evaluate(rowContext : Map[String, TableValue]) : Boolean = comparator match {
-        case eq @ (EqualsComparator.EQ | EqualsComparator.EQUAL) => left.evaluateAny(rowContext).equals(right.evaluateAny(rowContext))
-        case ne @ (EqualsComparator.NE | EqualsComparator.NOT_EQUAL) => !left.evaluateAny(rowContext).equals(right.evaluateAny(rowContext))
+        case eq @ (EqualsComparator.EQ | EqualsComparator.EQUAL) => left.evaluate(rowContext).equals(right.evaluate(rowContext))
+        case ne @ (EqualsComparator.NE | EqualsComparator.NOT_EQUAL) => !left.evaluate(rowContext).equals(right.evaluate(rowContext))
     }
 
 final case class OrderedFieldComparison(left : FieldExpression, comparator : OrderedComparator, right : FieldExpression)extends FieldComparison:
     lazy val protobuf: Filter.FilterExpression = Filter.FilterExpression(leftValue=Some(left.protobuf), filterType=comparator.protobuf, rightValue=Some(right.protobuf))
-    def evaluate(rowContext : Map[String, TableValue]) : Boolean = mappedComparator((left.evaluateAny(rowContext), right.evaluateAny(rowContext)) match {
+    def evaluate(rowContext : Map[String, TableValue]) : Boolean = mappedComparator((left.evaluate(rowContext), right.evaluate(rowContext)) match {
             case (x : String, y : String) => x.compare(y)
             case (x : Long, y : Long)=> x.compare(y)
             case (x : Double, y : Double) => x.compare(y)
