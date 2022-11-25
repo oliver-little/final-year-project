@@ -7,39 +7,39 @@ import java.time.ZoneOffset
 
 import org.oliverlittle.clusterprocess.table_model.{Expression, Value}
 import org.oliverlittle.clusterprocess.model.field.expressions.FieldOperations.AddInt
+import org.oliverlittle.clusterprocess.model.field.expressions.ResolvedFunctionCall
 import org.oliverlittle.clusterprocess.UnitSpec
-import org.oliverlittle.clusterprocess.model.table.field.TableField
-import org.oliverlittle.clusterprocess.model.table.field.{TableValue, IntValue, StringValue}
+import org.oliverlittle.clusterprocess.model.table.field.{TableField, TableValue, IntValue, StringValue}
 
 class FieldExpressionSpec extends UnitSpec {
     "A FieldExpression" should "evaluate Values correctly" in {
-        V(1).evaluate[Long](Map()) should be (1)
+        V(1).resolve(Map()).evaluate[Long](Map()) should be (1)
     }
 
     it should "evaluate FunctionCalls correctly" in {
-        AddInt(V(1), V(2)).evaluate[Long](Map()) should be (3)
+        AddInt(V(1), V(2)).resolve(Map()).evaluate[Long](Map()) should be (3)
     }
 
     it should "evaluate Fields correctly" in {
-        F("a").evaluate[Long](Map("a" -> IntValue("a", 1))) should be (1)
-        F("a").evaluateAny(Map("a" -> IntValue("a", 1))) should be (1)
-        F("a").evaluate[String](Map("a" -> StringValue("a", "test"))) should be ("test")
-        F("a").evaluateAny(Map("a" -> StringValue("a", "test"))) should be ("test")
+        F("a").resolve(Map("a" -> IntValue("a", 1))).evaluate[Long](Map("a" -> IntValue("a", 1))) should be (1)
+        F("a").resolve(Map("a" -> IntValue("a", 1))).evaluateAny(Map("a" -> IntValue("a", 1))) should be (1)
+        F("a").resolve(Map("a" -> StringValue("a", "test"))).evaluate[String](Map("a" -> StringValue("a", "test"))) should be ("test")
+        F("a").resolve(Map("a" -> StringValue("a", "test"))).evaluateAny(Map("a" -> StringValue("a", "test"))) should be ("test")
     }
 
     it should "evaluate nested FieldExpressions correctly" in {
-        AddInt(V(1), AddInt(V(2), V(5))).evaluate[Long](Map()) should be (8)
+        AddInt(V(1), AddInt(V(2), V(5))).resolve(Map()).evaluate[Long](Map()) should be (8)
     }
 
     it should "throw IllegalArgumentException if a type is invalid within the statement" in {
         assertThrows[IllegalArgumentException] {
-            AddInt(V(1), V("a")).evaluate[Long](Map())
+            AddInt(V(1), V("a")).resolve(Map())
         }
     }
 
     it should "throw IllegalArgumentException if the requested type is invalid" in {
         assertThrows[IllegalArgumentException] {
-            AddInt(V(1), V(1)).evaluate[String](Map())
+            AddInt(V(1), V(1)).resolve(Map()).evaluate[String](Map())
         }
     }
 }
@@ -48,7 +48,7 @@ class ValueSpec extends UnitSpec {
     // Instantiation
     "A Value" should "return the same value it is given" in {
         val value = V("a")
-        assert(value.evaluateAny(Map()) == "a")
+        assert(value.resolve(Map()).evaluateAny(Map()) == "a")
     }
 
     // Protobufs
@@ -180,18 +180,18 @@ class ValueSpec extends UnitSpec {
     it should "automatically convert Ints to Longs" in {
         val int : Int = 1
         val value = V(int)
-        value.evaluateAny(Map()) shouldBe a [Long]
-        value.evaluateAny(Map()) should be (1)
-        value.getValueAsType[Long] shouldBe a [Long]
+        value.resolve(Map()).evaluateAny(Map()) shouldBe a [Long]
+        value.resolve(Map()).evaluateAny(Map()) should be (1)
+        value.resolve(Map()).evaluate[Long](Map()) shouldBe a [Long]
         value.getLong shouldBe a [Long]
     }
 
     it should "automatically convert Floats to Doubles" in {
         val float : Float = 1.01
         val value = V(float)
-        value.evaluateAny(Map()) shouldBe a [Double]
-        value.evaluateAny(Map()) should be (float)
-        value.getValueAsType[Double] shouldBe a [Double]
+        value.resolve(Map()).evaluateAny(Map()) shouldBe a [Double]
+        value.resolve(Map()).evaluateAny(Map()) should be (float)
+        value.resolve(Map()).evaluate[Double](Map()) shouldBe a [Double]
         value.getDouble shouldBe a [Double]
     }
 
@@ -199,7 +199,7 @@ class ValueSpec extends UnitSpec {
         val value = V(Seq(1, 2, 3))
 
         assertThrows[IllegalArgumentException] {
-            value.getValueAsType[String]
+            value.resolve(Map()).evaluate[String](Map())
         }
     }
 
@@ -251,14 +251,14 @@ class FieldSpec extends UnitSpec {
 
     it should "evaluate to a value correctly when the field is defined with the correct type" in {
         val field : F = F("testField")
-        field.evaluateAny(Map("testField" -> IntValue("testField", 1))) should be (1)
-        field.evaluateAny(Map("testField" -> StringValue("testField", "test"))) should be ("test")
+        field.resolve(Map("testField" -> IntValue("testField", 1))).evaluateAny(Map("testField" -> IntValue("testField", 1))) should be (1)
+        field.resolve(Map("testField" -> StringValue("testField", "test"))).evaluateAny(Map("testField" -> StringValue("testField", "test"))) should be ("test")
     }
 
     it should "throw IllegalArgumentException when the field is undefined" in {
         val field : F = F("testField")
         assertThrows[IllegalArgumentException] {
-            field.evaluateAny(Map("otherField" -> IntValue("testField", 1))) should be (1)
+            field.resolve(Map()).evaluateAny(Map("otherField" -> IntValue("testField", 1))) should be (1)
         }
     }
 }
@@ -303,19 +303,20 @@ class FunctionCallSpec extends UnitSpec {
     it should "call the function correctly" in {
         val func = FunctionCallImpl()
 
-        func.functionCalc(Map()) should be ("a")
+        func.resolve(Map()).evaluate[String](Map()) should be ("a")
     }
 
     it should "call the function when evaluateAny is called" in {
         val func = FunctionCallImpl()
 
-        func.evaluateAny(Map()) should be ("a")
+        func.resolve(Map()).evaluateAny(Map()) should be ("a")
     }
 
-    private class FunctionCallImpl extends FunctionCall[String]("testName"):
+    private class FunctionCallImpl extends FunctionCall("testName"):
         def isWellTyped(fieldContext : Map[String, TableField]) = true
+        def doesReturnType[EvalType](fieldContext : Map[String, TableField])(using evalTag : ClassTag[EvalType]) = evalTag.equals(classTag[String])
         val arguments = Seq(V("a"))
-        def functionCalc(rowContext : Map[String, TableValue]) = "a"
+        def resolve(fieldContext : Map[String, TableField]) = ResolvedFunctionCall((rowContext : Map[String, TableValue]) => "a")
 }
 
 class UnaryFunctionSpec extends UnitSpec {
@@ -332,7 +333,7 @@ class UnaryFunctionSpec extends UnitSpec {
     }
 
     it should "evaluate the function according to its argument" in {
-        func(V("a")).functionCalc(Map()) should be ("a")
+        func(V("a")).resolve(Map()).evaluateAny(Map()) should be ("a")
     }
 }
 
@@ -351,7 +352,7 @@ class BinaryFunctionSpec extends UnitSpec {
     }
 
     it should "evaluate the function according to its argument" in {
-        func(V("a"), V("b")).functionCalc(Map()) should be ("ab")
+        func(V("a"), V("b")).resolve(Map()).evaluateAny(Map()) should be ("ab")
     }
 }
 
@@ -371,130 +372,130 @@ class TernaryFunctionSpec extends UnitSpec {
     }
 
     it should "evaluate the function according to its argument" in {
-        func(V("a"), V("b"), V("c")).functionCalc(Map()) should be ("abc")
+        func(V("a"), V("b"), V("c")).resolve(Map()).evaluateAny(Map()) should be ("abc")
     }
 }
 
 class ToStringSpec extends UnitSpec {
     "A ToString Cast" should "convert Strings" in {
-        ToString(V("a")).evaluateAny(Map()) should be ("a")
+        ToString(V("a")).resolve(Map()).evaluateAny(Map()) should be ("a")
     }
 
     it should "convert Ints" in {
-        ToString(V(1 : Int)).evaluateAny(Map()) should be ("1")
+        ToString(V(1 : Int)).resolve(Map()).evaluateAny(Map()) should be ("1")
     }
 
     it should "convert Longs" in {
-        ToString(V(1 : Long)).evaluateAny(Map()) should be ("1")
+        ToString(V(1 : Long)).resolve(Map()).evaluateAny(Map()) should be ("1")
     }
 
     it should "convert Floats" in {
-        ToString(V(1.01 : Float)).evaluateAny(Map()) shouldBe a [String]
+        ToString(V(1.01 : Float)).resolve(Map()).evaluateAny(Map()) shouldBe a [String]
     }
 
     it should "convert Doubles" in {
-        ToString(V(1.01 : Double)).evaluateAny(Map()) shouldBe a [String]
+        ToString(V(1.01 : Double)).resolve(Map()).evaluateAny(Map()) shouldBe a [String]
     }
 
     it should "convert LocalDateTimes" in {
-        ToString(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).evaluateAny(Map()) should be (LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant.toString)
+        ToString(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).resolve(Map()).evaluateAny(Map()) should be (LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant.toString)
     }
 
     it should "convert OffsetDateTimes" in {
-        ToString(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).evaluateAny(Map()) should be (LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant.toString)
+        ToString(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).resolve(Map()).evaluateAny(Map()) should be (LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant.toString)
     }
 
     it should "convert Booleans" in {
-        ToString(V(true)).evaluateAny(Map()) should be ("true")
+        ToString(V(true)).resolve(Map()).evaluateAny(Map()) should be ("true")
     }
 }
 
 class DoubleToStringSpec extends UnitSpec {
     "A DoubleToString cast" should "convert Floats" in {
-        DoubleToString(V(1.01 : Float), DecimalFormat("#.##")).evaluateAny(Map()) should be ("1.01")
+        DoubleToString(V(1.01 : Float), DecimalFormat("#.##")).resolve(Map()).evaluateAny(Map()) should be ("1.01")
     }
 
     "A DoubleToString cast" should "convert Doubles" in {
-        DoubleToString(V(1.01 : Double), DecimalFormat("#.##")).evaluateAny(Map()) should be ("1.01")
+        DoubleToString(V(1.01 : Double), DecimalFormat("#.##")).resolve(Map()).evaluateAny(Map()) should be ("1.01")
     }
 }
 
 class ToIntSpec extends UnitSpec {
     "A ToInt Cast" should "convert Strings" in {
-        ToInt(V("1")).evaluateAny(Map()) should be (1)
+        ToInt(V("1")).resolve(Map()).evaluateAny(Map()) should be (1)
     }
 
     it should "convert Ints" in {
-        ToInt(V(1 : Int)).evaluateAny(Map()) should be (1)
+        ToInt(V(1 : Int)).resolve(Map()).evaluateAny(Map()) should be (1)
     }
 
     it should "convert Longs" in {
-        ToInt(V(1 : Long)).evaluateAny(Map()) should be (1)
+        ToInt(V(1 : Long)).resolve(Map()).evaluateAny(Map()) should be (1)
     }
 
     it should "convert Floats" in {
-        ToInt(V(1.01 : Float)).evaluateAny(Map()) should be (1)
+        ToInt(V(1.01 : Float)).resolve(Map()).evaluateAny(Map()) should be (1)
     }
 
     it should "convert Doubles" in {
-        ToInt(V(1.01 : Double)).evaluateAny(Map()) should be (1)
+        ToInt(V(1.01 : Double)).resolve(Map()).evaluateAny(Map()) should be (1)
     }
 
     it should "fail to convert Instants" in {
         assertThrows[IllegalArgumentException] {
-            ToInt(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).evaluateAny(Map())
+            ToInt(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).resolve(Map()).evaluateAny(Map())
         }
     }
 
     it should "fail to convert Booleans" in {
         assertThrows[IllegalArgumentException] {
-            ToInt(V(true)).evaluateAny(Map())
+            ToInt(V(true)).resolve(Map()).evaluateAny(Map())
         }
     }
 }
 
 class ToDoubleSpec extends UnitSpec {
     "A ToDouble Cast" should "convert Strings" in {
-        ToDouble(V("1")).evaluateAny(Map()) should be (1)
+        ToDouble(V("1")).resolve(Map()).evaluateAny(Map()) should be (1)
     }
 
     it should "convert Ints" in {
-        val result = ToDouble(V(1 : Int)).evaluateAny(Map())
+        val result = ToDouble(V(1 : Int)).resolve(Map()).evaluateAny(Map())
         result should be (1)
         result shouldBe a [Double]
     }
 
     it should "convert Longs" in {
-        val result = ToDouble(V(1 : Long)).evaluateAny(Map())
+        val result = ToDouble(V(1 : Long)).resolve(Map()).evaluateAny(Map())
         result should be (1)
         result shouldBe a [Double]
     }
 
     it should "convert Floats" in {
-        val result = ToDouble(V(1.01 : Float)).evaluate[Double](Map())
+        val result = ToDouble(V(1.01 : Float)).resolve(Map()).evaluate[Double](Map())
         result should be (1.01 +- 0.01)
         result shouldBe a [Double] 
     }
 
     it should "convert Doubles" in {
-        ToDouble(V(1.01 : Double)).evaluate[Double](Map()) should be (1.01 +- 0.01)
+        ToDouble(V(1.01 : Double)).resolve(Map()).evaluate[Double](Map()) should be (1.01 +- 0.01)
     }
 
     it should "fail to convert LocalDateTimes" in {
         assertThrows[IllegalArgumentException] {
-            ToDouble(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).evaluateAny(Map())
+            ToDouble(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).resolve(Map()).evaluateAny(Map())
         }
     }
 
     it should "fail to convert OffsetDateTimes" in {
         assertThrows[IllegalArgumentException] {
-            ToDouble(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).evaluateAny(Map())
+            ToDouble(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).resolve(Map()).evaluateAny(Map())
         }
     }
 
     it should "fail to convert Booleans" in {
         assertThrows[IllegalArgumentException] {
-            ToDouble(V(true)).evaluateAny(Map())
+            ToDouble(V(true)).resolve(Map()).evaluateAny(Map())
         }
     }
 }

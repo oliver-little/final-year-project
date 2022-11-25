@@ -63,6 +63,8 @@ class CassandraDataSource(keyspace : String, name : String, fields: Seq[Cassandr
         "(" + partition + primary + ")"
     }
 
+    lazy val getHeaders : Map[String, TableField] = fields.map(f => f.name -> f).toMap
+
     /**
       * Cassandra Implementation of getData - for now this does not restrict the data received, it simply gets an entire table
       *

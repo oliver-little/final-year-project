@@ -15,10 +15,13 @@ sealed trait TableTransformation:
       * @param data An iterable containing a map of field names to TableValues (field data and metadata)
       * @return A new iterable of the same form, with the transformation applied
       */
-    def evaluate(data : Iterable[Map[String, TableValue]]) : Iterable[Map[String, TableValue]]
+    def evaluate(fieldContext : Map[String, TableField], data : Iterable[Map[String, TableValue]]) : Iterable[Map[String, TableValue]]
 
 final case class SelectTransformation(selectColumns : NamedFieldExpression*) extends TableTransformation:
-    def evaluate(data : Iterable[Map[String, TableValue]]) : Iterable[Map[String, TableValue]] = data.map(row => selectColumns.map(col => col.name -> col.evaluateAny(row)).toMap)
+    def evaluate(fieldContext : Map[String, TableField], rows : Iterable[Map[String, TableValue]]) : Iterable[Map[String, TableValue]] = {
+      val resolved = selectColumns.map(_.resolve(fieldContext))
+      return rows.map(row => resolved.map(col => col.name -> col.evaluate(row)).toMap)
+    }
 
 abstract final case class FilterTransformation(filters : FieldComparison*) extends TableTransformation
 
