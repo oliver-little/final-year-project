@@ -11,27 +11,37 @@ trait TableField:
 trait TableValue extends TableField:
     val value : Any
 
-trait IntField extends TableField:
+trait BaseIntField extends TableField:
     def compareClassTags[T](tag : ClassTag[T]) = classTag[Long].equals(tag)
 
-final case class IntValue(name : String, value : Long) extends IntField with TableValue
+final case class IntField(name : String) extends BaseIntField
 
-trait DoubleField extends TableField:
+final case class IntValue(name : String, value : Long) extends BaseIntField with TableValue
+
+trait BaseDoubleField extends TableField:
     def compareClassTags[T](tag : ClassTag[T]) = classTag[Double].equals(tag)
 
-final case class DoubleValue(name : String, value : Double) extends DoubleField with TableValue
+final case class DoubleField(name : String) extends BaseDoubleField
 
-trait StringField extends TableField:
+final case class DoubleValue(name : String, value : Double) extends BaseDoubleField with TableValue
+
+trait BaseStringField extends TableField:
     def compareClassTags[T](tag : ClassTag[T]) = classTag[String].equals(tag)
 
-final case class StringValue(name : String, value : String) extends StringField with TableValue
+final case class StringField(name : String) extends BaseStringField
 
-trait BoolField extends TableField:
+final case class StringValue(name : String, value : String) extends BaseStringField with TableValue
+
+trait BaseBoolField extends TableField:
     def compareClassTags[T](tag : ClassTag[T]) = classTag[Boolean].equals(tag)
 
-final case class BoolValue(name : String, value : Boolean) extends BoolField with TableValue
+final case class BoolField(name : String) extends BaseBoolField
 
-trait DateTimeField extends TableField:
+final case class BoolValue(name : String, value : Boolean) extends BaseBoolField with TableValue
+
+trait BaseDateTimeField extends TableField:
     def compareClassTags[T](tag : ClassTag[T]) = classTag[Instant].equals(tag)
 
-final case class DateTimeValue(name : String, value : Instant) extends DateTimeField with TableValue
+final case class DateTimeField(name : String) extends BaseDateTimeField
+
+final case class DateTimeValue(name : String, value : Instant) extends BaseDateTimeField with TableValue

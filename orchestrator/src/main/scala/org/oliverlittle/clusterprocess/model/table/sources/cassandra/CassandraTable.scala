@@ -88,22 +88,22 @@ trait CassandraField extends TableField:
     def toCql : String = name + " " + fieldType
     def getTableValue(rowData : Row) : TableValue
 
-final case class CassandraIntField(name : String) extends IntField with CassandraField:
+final case class CassandraIntField(name : String) extends BaseIntField with CassandraField:
     val fieldType = "bigint"
     def getTableValue(rowData : Row) : TableValue = IntValue(name, rowData.getLong(name))
 
-final case class CassandraDoubleField(name : String) extends DoubleField with CassandraField:
+final case class CassandraDoubleField(name : String) extends BaseDoubleField with CassandraField:
     val fieldType = "double"
     def getTableValue(rowData : Row) : TableValue = DoubleValue(name, rowData.getDouble(name))
 
-final case class CassandraStringField(name : String) extends StringField with CassandraField:
+final case class CassandraStringField(name : String) extends BaseStringField with CassandraField:
     val fieldType = "text"
     def getTableValue(rowData : Row) : TableValue = StringValue(name, rowData.getString(name))
 
-final case class CassandraBoolField(name : String) extends BoolField with CassandraField:
+final case class CassandraBoolField(name : String) extends BaseBoolField with CassandraField:
     val fieldType = "boolean"
     def getTableValue(rowData : Row) : TableValue = BoolValue(name, rowData.getBool(name))
 
-final case class CassandraDateTimeField(name : String) extends DateTimeField with CassandraField:
+final case class CassandraDateTimeField(name : String) extends BaseDateTimeField with CassandraField:
     val fieldType = "timestamp"
     def getTableValue(rowData : Row) : TableValue = DateTimeValue(name, rowData.getInstant(name))
