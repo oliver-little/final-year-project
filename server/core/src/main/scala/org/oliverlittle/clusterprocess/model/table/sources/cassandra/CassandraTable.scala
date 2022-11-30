@@ -14,16 +14,6 @@ import scala.jdk.CollectionConverters._
 import java.time.Instant
 
 object CassandraDataSource:
-    def getTableMetadata(keyspace : String, table : String) : TableMetadata = {
-        val ksObj = CassandraConnector.getSession.getMetadata.getKeyspace(keyspace)
-        if ksObj.isPresent then
-            val tableObj = ksObj.get.getTable(table)
-            if tableObj.isPresent then
-                return tableObj.get
-            throw new IllegalArgumentException("Table " + keyspace + "." + table + " not found.")
-        throw new IllegalArgumentException("Keyspace " + keyspace + " not found.")
-    }
-
     def inferTableFromCassandra(keyspace : String, table : String) : Table = {
         val tableMetadata : TableMetadata = CassandraDataSource.getTableMetadata(keyspace, table)
         
@@ -52,10 +42,12 @@ object CassandraDataSource:
   * @param primaryKey A list of strings representing the primary keys for this table
   */
 class CassandraDataSource(keyspace : String, name : String, fields: Seq[CassandraField], partitionKey : Seq[String], primaryKey : Seq[String] = Seq()) extends DataSource:
-    val names : Set[String] = fields.map(_.name).toSet
     // Validity Checks
+    if fields.distinct.size != fields.size then throw new IllegalArgumentException("Field list must not contain duplicate names")
     if partitionKey.length == 0 then throw new IllegalArgumentException("Must have at least one partition key")
     if !(partitionKey.forall(names contains _) && primaryKey.forall(names contains _)) then throw new IllegalArgumentException("PartitionKey and PrimaryKey names must match field names")
+
+    val names : Set[String] = fields.map(_.name).toSet
 
     lazy val primaryKeyBuilder : String = {
         val partition = if partitionKey.length > 1 then "(" + partitionKey.reduce((l, r) => l + "," + r) + ")" else partitionKey(0)
@@ -79,8 +71,19 @@ class CassandraDataSource(keyspace : String, name : String, fields: Seq[Cassandr
 
     def toCql(ifNotExists : Boolean = true) : String = {
         val ifNotExistsString = if ifNotExists then "IF NOT EXISTS " else "";
+        // Need to convert to a prepared statement
         return "CREATE TABLE " + ifNotExistsString + keyspace + "." + name + " (" + fields.map(_.toCql).reduce((l, r) => l + "," + r) + ", PRIMARY KEY " + primaryKeyBuilder + ");"
     }
+
+    /**
+      * Creates this table in the current Cassandra database if it doesn't already exist
+      */
+    def createIfNotExists : Unit = CassandraConnector.getSession.execute(toCql(true))
+
+    /**
+      * Creates this table in the current Cassandra database
+      */
+    def create : Unit = CassandraConnector.getSession.execute(toCql(false))
     
 // Fields
 trait CassandraField extends TableField:
