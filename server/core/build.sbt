@@ -1,9 +1,9 @@
-val scala3Version = "3.2.0"
+val scala3Version = "3.2.1"
 
 lazy val root = project
   .in(file("."))
   .settings(
-    name := "final-year-project",
+    name := "core",
     version := "0.1.0-SNAPSHOT",
 
     scalaVersion := scala3Version,
@@ -24,5 +24,5 @@ lazy val root = project
       scalapb.gen() -> (Compile / sourceManaged).value / "scalapb"
     ),
 
-    Compile / PB.protoSources +=  file("../protos/")
+    Compile / PB.protoSources +=  file("../../protos")
   )
