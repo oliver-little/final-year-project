@@ -15,7 +15,7 @@ import java.time.Instant
 
 object CassandraDataSource:
     def inferTableFromCassandra(keyspace : String, table : String) : Table = {
-        val tableMetadata : TableMetadata = CassandraDataSource.getTableMetadata(keyspace, table)
+        val tableMetadata : TableMetadata = CassandraConnector.getTableMetadata(keyspace, table)
         
         // Map column definitions to (name, data type pairs)
         val fields = tableMetadata.getColumns.asScala.map((k, v) => v.getType match {

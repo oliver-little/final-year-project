@@ -7,9 +7,15 @@ import "cassandra_source.proto";
 
 service WorkerComputeService {
     // Computes a partial result
-    rpc ComputePartialResultCassandra(Table, CassandraDataSource, CassandraTokenRange) returns (WorkerResult);
+    rpc ComputePartialResultCassandra(ComputePartialResultCassandraRequest) returns (ComputePartialResultCassandraResult);
 }
 
-message WorkerResult {
+message ComputePartialResultCassandraRequest {
+    Table transformations = 1;
+    CassandraDataSource dataSource = 2;
+    CassandraTokenRange tokenRange = 3;
+}
+
+message ComputePartialResultCassandraResult {
     boolean success = 1;
 }
