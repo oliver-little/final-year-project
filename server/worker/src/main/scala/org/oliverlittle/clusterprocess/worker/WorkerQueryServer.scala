@@ -2,6 +2,7 @@ package org.oliverlittle.clusterprocess.worker
 
 import io.grpc.ServerBuilder
 import scala.concurrent.{ExecutionContext, Future}
+import java.util.logging.Logger
 
 import org.oliverlittle.clusterprocess.worker_query.{WorkerComputeServiceGrpc, ComputePartialResultCassandraRequest, ComputePartialResultCassandraResult}
 
@@ -17,7 +18,7 @@ object WorkerQueryServer {
 }
 
 class WorkerQueryServer(executionContext: ExecutionContext) {
-    private val server =  ServerBuilder.forPort(ClientQueryServer.port).addService(WorkerComputeServiceGrpc.bindService(new WorkerQueryServicer, executionContext)).build.start
+    private val server =  ServerBuilder.forPort(WorkerQueryServer.port).addService(WorkerComputeServiceGrpc.bindService(new WorkerQueryServicer, executionContext)).build.start
     WorkerQueryServer.logger.info("gRPC Server started, listening on " + WorkerQueryServer.port)
     
     sys.addShutdownHook({
@@ -31,10 +32,10 @@ class WorkerQueryServer(executionContext: ExecutionContext) {
     private def blockUntilShutdown(): Unit = this.server.awaitTermination()
 
     private class WorkerQueryServicer extends WorkerComputeServiceGrpc.WorkerComputeService {
-        override def computePartialResultCassandra(request: ComputePartialResultCassandraRequest): Future[WorkerResult] = {
+        override def computePartialResultCassandra(request: ComputePartialResultCassandraRequest): Future[ComputePartialResultCassandraResult] = {
             WorkerQueryServer.logger.info("received files")
             WorkerQueryServer.logger.info(request.toString)
-            val response = WorkerResult(success=true)
+            val response = ComputePartialResultCassandraResult(success=true)
             Future.successful(response)
         }
     }

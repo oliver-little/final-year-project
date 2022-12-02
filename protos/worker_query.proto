@@ -17,5 +17,5 @@ message ComputePartialResultCassandraRequest {
 }
 
 message ComputePartialResultCassandraResult {
-    boolean success = 1;
+    bool success = 1;
 }
