@@ -13,10 +13,10 @@ lazy val root = project
       "org.scalactic" %% "scalactic" % "3.2.14",
       "org.scalatest" %% "scalatest" % "3.2.14" % "test",
       // gRPC
-      "io.grpc" % "grpc-netty" % core.scalapb.compiler.Version.grpcJavaVersion,
+      "io.grpc" % "grpc-netty" % scalapb.compiler.Version.grpcJavaVersion,
       // Cassandra Driver - could also use Phantom or Quill
       "com.datastax.oss" % "java-driver-core" % "4.14.0"
-    )
+    ),
 
     dockerExposedPorts := Seq(50051)
   )

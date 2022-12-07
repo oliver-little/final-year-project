@@ -55,6 +55,8 @@ final case class NamedFieldExpression(name : String, expr : FieldExpression):
     def resolve(fieldContext : Map[String, TableField]) = if expr.isWellTyped(fieldContext) then NamedResolvedFieldExpression(name, expr.resolve(fieldContext))
         else throw new IllegalArgumentException("Expression is not well typed. Cannot resolve.")
 
+    lazy val protobuf : NamedExpression = NamedExpression(name, Some(expr.protobuf))
+
 final case class NamedResolvedFieldExpression(name : String, expr : ResolvedFieldExpression):
     /**
       * Evaluates the stored FieldExpression into a named and typed TableValue

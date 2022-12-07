@@ -30,6 +30,12 @@ message Expression {
     }
 }
 
+// Represents a field expression that has been assigned a name
+message NamedExpression {
+    string name = 1;
+    Expression expr = 2;
+}
+
 message Table {
     // Represents an transformation that can be applied to the table.
     message TableTransformation {
@@ -50,7 +56,7 @@ message Table {
 
 // A Select statement is made up of any number of Fields (calculated or not)
 message Select {
-    repeated Expression fields = 1;
+    repeated NamedExpression fields = 1;
 }
 
 // A Filter Statement is made up of two arguments 
