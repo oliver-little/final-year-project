@@ -28,3 +28,6 @@ jobs:
     - name: Run orchestrator tests
       working-directory: ./server/orchestrator
       run: sbt test
+    - name: Run worker tests
+      working-directory: ./server/worker
+      run: sbt test
