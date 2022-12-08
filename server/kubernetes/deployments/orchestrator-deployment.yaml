@@ -16,6 +16,6 @@ spec:
     spec:
       containers:
       - name: orchestrator
-        image: orchestrator:latest
+        image: localhost:5000/orchestrator:latest
         ports:
         - containerPort: 80

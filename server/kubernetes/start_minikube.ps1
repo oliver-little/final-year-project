@@ -1,2 +1,3 @@
 minikube start
-minikube -p minikube docker-env --shell powershell | Invoke-Expression
+# Start registry
+minikube addons enable registry

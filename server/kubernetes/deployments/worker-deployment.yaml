@@ -16,6 +16,6 @@ spec:
     spec:
       containers:
       - name: worker
-        image: worker:latest
+        image: localhost:5000/worker:latest
         ports:
         - containerPort: 80
