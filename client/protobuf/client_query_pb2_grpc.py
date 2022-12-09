@@ -2,8 +2,8 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-from . import client_query_pb2 as client__query__pb2
-from . import table_model_pb2 as table__model__pb2
+import client_query_pb2 as client__query__pb2
+import table_model_pb2 as table__model__pb2
 
 
 class TableClientServiceStub(object):

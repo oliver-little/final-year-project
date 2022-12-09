@@ -11,18 +11,19 @@ from google.protobuf import symbol_database as _symbol_database
 _sym_db = _symbol_database.Default()
 
 
-from . import table_model_pb2 as table__model__pb2
+import table_model_pb2 as table__model__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x12\x63lient_query.proto\x1a\x11table_model.proto\"\"\n\x12TableComputeResult\x12\x0c\n\x04uuid\x18\x01 \x01(\t2@\n\x12TableClientService\x12*\n\tSendTable\x12\x06.Table\x1a\x13.TableComputeResult\"\x00\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x12\x63lient_query.proto\x1a\x11table_model.proto\"\"\n\x12TableComputeResult\x12\x0c\n\x04uuid\x18\x01 \x01(\t2>\n\x12TableClientService\x12(\n\tSendTable\x12\x06.Table\x1a\x13.TableComputeResultB!\n\x1forg.oliverlittle.clusterprocessb\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'client_query_pb2', globals())
 if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
+  DESCRIPTOR._serialized_options = b'\n\037org.oliverlittle.clusterprocess'
   _TABLECOMPUTERESULT._serialized_start=41
   _TABLECOMPUTERESULT._serialized_end=75
   _TABLECLIENTSERVICE._serialized_start=77
-  _TABLECLIENTSERVICE._serialized_end=141
+  _TABLECLIENTSERVICE._serialized_end=139
 # @@protoc_insertion_point(module_scope)

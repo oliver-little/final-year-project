@@ -2,6 +2,14 @@ syntax = "proto3";
 
 option java_package = "org.oliverlittle.clusterprocess";
 
+import "cassandra_source.proto";
+
+message DataSource {
+    oneof source {
+        CassandraDataSource cassandra = 1;
+    }
+}
+
 // Represents some value accepted by the system.
 message Value {
     oneof value {
@@ -50,8 +58,7 @@ message Table {
         }
     }
 
-    string data_source = 1;
-    repeated TableTransformation transformations = 2;
+    repeated TableTransformation transformations = 1;
 }
 
 // A Select statement is made up of any number of Fields (calculated or not)
