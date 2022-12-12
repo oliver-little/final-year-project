@@ -22,33 +22,35 @@ def is_bool(item : str) -> bool:
 def is_iso_datetime(item : str) -> bool:
     return test_conversion(item, datetime.fromisoformat)
 
-DATATYPE_CHECKERS = [
-    lambda x: is_iso_datetime(x),
-    lambda x: x.isdigit(),
-    lambda x: is_float(x),
-    lambda x: is_bool(x),
-    lambda _: True
-]
+class CassandraDatatype():
+    def __init__(self, datatype_string : str, validator) -> None:
+        self.datatype_string = datatype_string
+        self.validator = validator
 
-DATATYPE_ORDER = [
-    "timestamp",
-    "bigint",
-    "double",
-    "boolean",
-    "text"
-]   
+# Stores inferred datatypes, from most restrictive to least restrictive
+DATATYPES = [
+    CassandraDatatype(lambda x: is_iso_datetime(x), "timestamp"),
+    CassandraDatatype(lambda x: x.isdigit(), "bigint"),
+    CassandraDatatype(lambda x: is_float(x), "double"),
+    CassandraDatatype(lambda x: is_bool(x), "boolean"),
+    CassandraDatatype(lambda _: True, "text")
+]
 
 class CassandraUploadHandler():
     def __init__(self, connector : CassandraConnector):
         self.connector = connector
 
-    def create_from_csv(self, file_name : str, keyspace : str, table : str, column_names : List[str], partition_keys = List[str], primary_keys = List[str], column_types : List[str] = None, date_converters = Dict[str, Callable], delimiter : str = ",", quotechar : str = '"', row_delimiter : str ="\n") -> None:
+    def create_from_csv(self, file_name : str, keyspace : str, table : str, partition_keys : List[str], primary_keys : List[str] = [], column_names : List[str] = None, column_types : List[str] = None, row_converters : Dict[str, Callable] = {}, start_row : int = 1, delimiter : str = ",", quotechar : str = '"', row_delimiter : str ="\n") -> None:
         if column_types is None:
-            column_types = self.infer_columns_from_csv(file_name, delimiter, quotechar, row_delimiter)
-        self.create_table(keyspace, table, column_names, column_types, partition_keys, primary_keys)
-        self.insert_from_csv(file_name, keyspace, table, delimiter, quotechar, row_delimiter)
+            if column_names is None:
+                column_names, column_types = infer_columns_from_csv(file_name, delimiter, quotechar, row_delimiter, detect_headers=False)
+            else:
+                column_types = infer_columns_from_csv(file_name, delimiter, quotechar, row_delimiter, detect_headers=True)
 
-    def create_table(self, keyspace : str, table : str, column_names : List[str], column_types : List[str], partition_keys = List[str], primary_keys = List[str]) -> None:
+        self.create_table(keyspace, table, column_names, column_types, partition_keys, primary_keys)
+        self.insert_from_csv(file_name, keyspace, table, column_names, row_converters, start_row, delimiter, quotechar, row_delimiter)
+
+    def create_table(self, keyspace : str, table : str, column_names : List[str], column_types : List[str], partition_keys : List[str], primary_keys : List[str]) -> None:
         self.connector.create_keyspace(keyspace)
         if self.connector.has_table(keyspace, table):
             raise ValueError(f"Table already exists: {keyspace}.{table}")
@@ -60,67 +62,84 @@ class CassandraUploadHandler():
             raise ValueError("Must have at least 1 partition key")
 
         # Validation and preparing strings (can't use prepared statements here)
-        column_string = ""
-        for name, type in zip(column_names, column_types):
-            if not name.isalpha():
-                raise ValueError(f"Invalid column name {name}")
-            elif not type.isalpha():
-                raise ValueError(f"Invalid column type {type}")
-            column_string += f"{name} {type}, "
 
-        partition_key_string = ""
-        for partition_key in partition_keys:
-            if not (partition_key.isalpha() and partition_key in column_names):
-                raise ValueError(f"Invalid partition key {partition_key}")
-            partition_key_string += partition_key + ", "
-
-        partition_key_string = partition_key_string[:-2]
-
-        primary_key_string = ""
-        for primary_key in primary_keys:
-            if not (primary_key.isalpha() and primary_key in column_names):
-                raise ValueError(f"Invalid primary key {primary_key}")
-            primary_key_string += primary_key + ", "
-
-        primary_key_string = primary_key_string[:-2]
-
-        if primary_key_string != "":
-            key_string = "(" + partition_key_string + ")"
-        else:
-            key_string = "((" + partition_key_string + "), " + primary_key_string + ")"
+        if not all(x.isalpha() for x in column_names):
+            raise ValueError(f"Invalid column name {name}")
+        elif not all(x.isalpha() for x in column_types):
+            raise ValueError(f"Invalid column type {type}")
         
-        self.connector.get_session().execute(f"CREATE TABLE {keyspace}.{table} {key_string};")
+        column_check = lambda x: x.isalpha() and x in column_names
+        if not all(column_check(x) for x in partition_keys):
+            raise ValueError("Invalid partition keys")
+        elif not all(column_check(x) for x in primary_keys):
+            raise ValueError("Invalid partition keys")
 
-    def infer_columns_from_csv(self, file_name : str, delimiter = ",", quotechar = '"', row_delimiter="\n") -> List[str]:
-        """Scans the entire file to determine the type of each column.
-        If possible, provide the column definitions instead, as this will be much faster.
-        NOTE: this does not handle datetime objects except where they are in ISO8601 format. 
-        If custom date/datetime formats are required, you must provide the column definitions
-        """
+        if len(primary_keys) == 0:
+            key_string = "(" + ", ".join(partition_keys) + ")"
+        else:
+            key_string = "((" + ", ".join(partition_keys) + "), " + ", ".join(primary_keys) + ")"
+        
+        column_string = ", ".join(" ".join(i) for i in zip(column_names, column_types))
 
-        # Stores the index of the 
-        column_checker_index = []
+        self.connector.get_session().execute(f"CREATE TABLE {keyspace}.{table} ({column_string} PRIMARY KEY {key_string});")
+
+    def insert_from_csv(self, file_name : str, keyspace : str, table : str, column_names : List[str], row_converters : Dict[str, Callable] = {}, start_row : int = 1, delimiter = ",", quotechar = '"', row_delimiter="\n") -> None:
+        column_string = ", ".join(column_names)
+        value_string = ", ".join(["?"] * len(column_names))
+
+        # Prepare statement
+        prep = self.connector.get_session().prepare(f"INSERT INTO {keyspace}.{table} ({column_string}) VALUES ({value_string})")
+        
+        # Generate row_converter mapping
+        row_converter_indices = {column_names.index(k) : v for k, v in row_converters.items()}
 
         with open(file_name, "r", newline=row_delimiter) as file:
             reader = csv.reader(file, delimiter=delimiter, quotechar=quotechar)
+
+            # Skip start_row rows
+            for x in range(start_row - 1):
+                next(reader)
+
             for row in reader:
-                if len(column_checker_index) == 0:
-                    column_checker_index = [0] * len(row)
-                # Iterate over all cells in the row
-                for cell_index in range(len(row)):
-                    # Iterate over all checkers, starting from the one we are currently using
-                    for y in range(DATATYPE_CHECKERS[column_checker_index[cell_index]], len(DATATYPE_CHECKERS)):
-                        # Check if this checker fits this columns
-                        if DATATYPE_CHECKERS[y](row[cell_index]):
-                            # If it does, continue to the next cell
-                            break
-                        else:
-                            # Otherwise, increment the checker we are using and try again
-                            column_checker_index[cell_index] += 1
+                # Convert anything that needs to be converted (usually dates/datetimes)
+                for index, converter in  row_converter_indices.items():
+                    row[index] = converter(row[index])
+                # Execute prepared statement for this row
+                self.connector.get_session().execute(prep, row)
 
-        return [DATATYPE_ORDER[index] for index in column_checker_index]
+def infer_columns_from_csv(file_name : str, delimiter = ",", quotechar = '"', row_delimiter="\n", detect_headers : bool = True) -> List[str]:
+    """Scans the entire file to determine the type of each column.
+    If possible, provide the column definitions instead, as this will be much faster.
+    NOTE: this does not handle datetime objects except where they are in ISO8601 format. 
+    If custom date/datetime formats are required, you must provide the column definitions.
+    When detect_headers is true (default), return type is (column_names, column_types). Otherwise, return type is column_types
+    """
 
-    def insert_from_csv(self, file_name : str, keyspace : str, table : str, delimiter = ",", quotechar = '"', row_delimiter="\n") -> None:
-        pass
+    # Stores the index of the current inferred datatype of the column
+    column_checker_index = []
 
-    
+    with open(file_name, "r", newline=row_delimiter) as file:
+        reader = csv.reader(file, delimiter=delimiter, quotechar=quotechar)
+
+        if detect_headers:
+            column_names = next(reader)
+            
+        for row in reader:
+            if len(column_checker_index) == 0:
+                column_checker_index = [0] * len(row)
+            # Iterate over all cells in the row
+            for cell_index in range(len(row)):
+                # Iterate over all checkers, starting from the one we are currently using
+                for y in range(column_checker_index[cell_index], len(DATATYPES)):
+                    # Check if this checker fits this columns
+                    if DATATYPES[y].validator(row[cell_index]):
+                        # If it does, continue to the next cell
+                        break
+                    else:
+                        # Otherwise, increment the checker we are using and try again
+                        column_checker_index[cell_index] += 1
+
+    try:
+        return column_names, [DATATYPES[index].datatype_string for index in column_checker_index]
+    except NameError:
+        return [DATATYPES[index].datatype_string for index in column_checker_index]
