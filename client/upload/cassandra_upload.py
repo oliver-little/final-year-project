@@ -63,10 +63,10 @@ class CassandraUploadHandler():
 
         # Validation and preparing strings (can't use prepared statements here)
 
-        if not all(x.isalpha() for x in column_names):
-            raise ValueError(f"Invalid column name {name}")
+        if not all((x.isalpha() or x.isdigit()) for x in column_names):
+            raise ValueError(f"Invalid column names (must be alphanumeric)")
         elif not all(x.isalpha() for x in column_types):
-            raise ValueError(f"Invalid column type {type}")
+            raise ValueError(f"Invalid column types (must be alpha)")
         
         column_check = lambda x: x.isalpha() and x in column_names
         if not all(column_check(x) for x in partition_keys):
