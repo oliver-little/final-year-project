@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import grpc
-import protobuf.table_model_pb2 as protobuf_model
-import protobuf.client_query_pb2_grpc as client_query
+import client.protobuf.table_model_pb2 as protobuf_model
+import client.protobuf.client_query_pb2_grpc as client_query
 
 class ClientQueryManager():
     def __init__(self):

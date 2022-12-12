@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import List, Tuple
 
 from .field_expressions import *
-import protobuf.table_model_pb2 as protobuf_model
+import client.protobuf.table_model_pb2 as protobuf_model
 
 class TableTransformation():
     """Base class defining all transformations on a table"""

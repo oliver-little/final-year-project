@@ -4,9 +4,9 @@ from typing import List, Dict, Callable
 from datetime import datetime
 import csv
 
-from connector.cassandra import CassandraConnector
+from client.connector.cassandra import CassandraConnector
 
-def test_conversion(item : str, func : Callable) -> bool:
+def check_conversion(item : str, func : Callable) -> bool:
     try:
         func(item)
         return True
@@ -14,18 +14,18 @@ def test_conversion(item : str, func : Callable) -> bool:
         return False
 
 def is_float(item : str) -> bool:
-    return test_conversion(item, float)
+    return check_conversion(item, float)
 
 def is_bool(item : str) -> bool:
-    return test_conversion(item, bool)
+    return check_conversion(item, bool)
 
 def is_iso_datetime(item : str) -> bool:
-    return test_conversion(item, datetime.fromisoformat)
+    return check_conversion(item, datetime.fromisoformat)
 
 class CassandraDatatype():
-    def __init__(self, datatype_string : str, validator) -> None:
-        self.datatype_string = datatype_string
+    def __init__(self, validator, datatype_string : str) -> None:
         self.validator = validator
+        self.datatype_string = datatype_string
 
 # Stores inferred datatypes, from most restrictive to least restrictive
 DATATYPES = [
