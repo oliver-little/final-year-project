@@ -2,7 +2,7 @@ import pytest
 
 from cassandra.cluster import Session
 
-from cluster_client.upload.cassandra_upload import *
+from cluster_client.upload.cassandra import *
 from cluster_client.connector.cassandra import CassandraConnector
 
 import csv
@@ -85,9 +85,9 @@ def test_infer_columns_from_csv_empty_csv(tmp_path):
         infer_columns_from_csv(csv_file)
 
 def test_create_from_csv(mocker):
-    mock_infer = mocker.patch("cluster_client.upload.cassandra_upload.infer_columns_from_csv", return_value=(["A", "B"], ["text", "bigint"]))
-    mock_create = mocker.patch("cluster_client.upload.cassandra_upload.CassandraUploadHandler.create_table")
-    mock_insert = mocker.patch("cluster_client.upload.cassandra_upload.CassandraUploadHandler.insert_from_csv")
+    mock_infer = mocker.patch("cluster_client.upload.cassandra.infer_columns_from_csv", return_value=(["A", "B"], ["text", "bigint"]))
+    mock_create = mocker.patch("cluster_client.upload.cassandra.CassandraUploadHandler.create_table")
+    mock_insert = mocker.patch("cluster_client.upload.cassandra.CassandraUploadHandler.insert_from_csv")
 
     mock_connector, mock_session = get_mock_connector(mocker)
     mock_connector.has_table.return_value = False
@@ -100,9 +100,9 @@ def test_create_from_csv(mocker):
     mock_insert.assert_called_once_with("test.csv", "test", "table", ["A", "B"], {}, 1, ',', '"', "\n")
 
 def test_create_from_csv_provided_columns(mocker):
-    mock_infer = mocker.patch("cluster_client.upload.cassandra_upload.infer_columns_from_csv", return_value=["text", "bigint"])
-    mock_create = mocker.patch("cluster_client.upload.cassandra_upload.CassandraUploadHandler.create_table")
-    mock_insert = mocker.patch("cluster_client.upload.cassandra_upload.CassandraUploadHandler.insert_from_csv")
+    mock_infer = mocker.patch("cluster_client.upload.cassandra.infer_columns_from_csv", return_value=["text", "bigint"])
+    mock_create = mocker.patch("cluster_client.upload.cassandra.CassandraUploadHandler.create_table")
+    mock_insert = mocker.patch("cluster_client.upload.cassandra.CassandraUploadHandler.insert_from_csv")
 
     mock_connector, mock_session = get_mock_connector(mocker)
     mock_connector.has_table.return_value = False
@@ -115,9 +115,9 @@ def test_create_from_csv_provided_columns(mocker):
     mock_insert.assert_called_once_with("test.csv", "test", "table", ["A", "B"], {}, 1, ',', '"', "\n")
 
 def test_create_from_csv_provided_columns_and_types(mocker):
-    mock_infer = mocker.patch("cluster_client.upload.cassandra_upload.infer_columns_from_csv")
-    mock_create = mocker.patch("cluster_client.upload.cassandra_upload.CassandraUploadHandler.create_table")
-    mock_insert = mocker.patch("cluster_client.upload.cassandra_upload.CassandraUploadHandler.insert_from_csv")
+    mock_infer = mocker.patch("cluster_client.upload.cassandra.infer_columns_from_csv")
+    mock_create = mocker.patch("cluster_client.upload.cassandra.CassandraUploadHandler.create_table")
+    mock_insert = mocker.patch("cluster_client.upload.cassandra.CassandraUploadHandler.insert_from_csv")
 
     mock_connector, mock_session = get_mock_connector(mocker)
     mock_connector.has_table.return_value = False
@@ -149,7 +149,7 @@ def test_create_table(mocker):
     assert mock_connector.get_session.called
     mock_connector.create_keyspace.assert_called_once_with("test")
     mock_connector.has_table.assert_called_once_with("test", "table")
-    mock_session.execute.assert_called_once_with("CREATE TABLE test.table (A timestamp, B1 bigint, C double, D boolean, E text, PRIMARY KEY ((A, B1), C);")
+    mock_session.execute.assert_called_once_with("CREATE TABLE test.table (A timestamp, B1 bigint, C double, D boolean, E text, PRIMARY KEY ((A, B1), C));")
 
 def test_create_table_invalid(mocker):
     mock_connector, mock_session = get_mock_connector(mocker)

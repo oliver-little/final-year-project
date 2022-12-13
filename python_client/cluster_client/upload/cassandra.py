@@ -3,8 +3,10 @@ from typing import List, Dict, Callable
 
 from datetime import datetime
 import csv
+import re
 
 from cluster_client.connector.cassandra import CassandraConnector
+from cluster_client.config import NAME_REGEX, VALID_COLUMN_TYPES
 
 def check_conversion(item : str, func : Callable) -> bool:
     try:
@@ -47,16 +49,29 @@ class CassandraUploadHandler():
         if column_types is None:
             if column_names is None:
                 column_names, column_types = infer_columns_from_csv(file_name, delimiter, quotechar, row_delimiter, detect_headers=True)
+                # Increment start_row, as we are detecting the headers
+                start_row += 1
             else:
-                column_types = infer_columns_from_csv(file_name, delimiter, quotechar, row_delimiter, detect_headers=False)
+                column_types = infer_columns_from_csv(file_name, delimiter, quotechar, row_delimiter, detect_headers=False)    
+        # Add a default converter for each column if we don't have one already, as the driver requires that they be in the correct type already
+        for c_name, c_type in zip(column_names, column_types):
+            if c_name not in row_converters:
+                match c_type:
+                    case "bigint":
+                        row_converters[c_name] = lambda x: int(x)
+                    case "double":
+                        row_converters[c_name] = lambda x: float(x)
+                    case "boolean":
+                        row_converters[c_name] = lambda x: True if x.lower() == "true" else False
+                    case "timestamp":
+                        row_converters[c_name] = lambda x: datetime.fromisoformat(x)
 
-        self.create_table(keyspace, table, column_names, column_types, partition_keys, primary_keys)
+        if not self.connector.has_table(keyspace, table):
+            self.create_table(keyspace, table, column_names, column_types, partition_keys, primary_keys)
         self.insert_from_csv(file_name, keyspace, table, column_names, row_converters, start_row, delimiter, quotechar, row_delimiter)
 
     def create_table(self, keyspace : str, table : str, column_names : List[str], column_types : List[str], partition_keys : List[str], primary_keys : List[str]) -> None:
         self.connector.create_keyspace(keyspace)
-        if self.connector.has_table(keyspace, table):
-            raise ValueError(f"Table already exists: {keyspace}.{table}")
 
         # Validation
         if len(column_names) == 0 or len(column_types) == 0 or len(column_names) != len(column_types):
@@ -66,15 +81,15 @@ class CassandraUploadHandler():
 
         # Validation and preparing strings (can't use prepared statements here)
 
-        if not all(x.isalnum() for x in column_names):
+        if not all(re.match(NAME_REGEX, x) for x in column_names):
             raise ValueError(f"Invalid column names (must be alphanumeric)")
-        elif not all(x.isalpha() for x in column_types):
+        elif not all(x in VALID_COLUMN_TYPES for x in column_types):
             raise ValueError(f"Invalid column types (must be alpha)")
         
-        column_check = lambda x: x.isalnum() and x in column_names
-        if not all(column_check(x) for x in partition_keys):
+        column_check = lambda x: re.match(NAME_REGEX, x) and x in column_names
+        if not all(x in column_names for x in partition_keys):
             raise ValueError("Invalid partition keys")
-        elif not all(column_check(x) for x in primary_keys):
+        elif not all(x in column_names for x in primary_keys):
             raise ValueError("Invalid partition keys")
         elif any(key in partition_keys for key in primary_keys):
             raise ValueError("Partition Key cannot also be a Primary Key")
@@ -86,7 +101,9 @@ class CassandraUploadHandler():
         
         column_string = ", ".join(" ".join(i) for i in zip(column_names, column_types))
 
-        self.connector.get_session().execute(f"CREATE TABLE {keyspace}.{table} ({column_string}, PRIMARY KEY {key_string};")
+        query_string = f"CREATE TABLE {keyspace}.{table} ({column_string}, PRIMARY KEY {key_string});"
+        print(f"Executing {query_string}")
+        self.connector.get_session().execute(query_string)
 
     def insert_from_csv(self, file_name : str, keyspace : str, table : str, column_names : List[str] = None, row_converters : Dict[str, Callable] = {}, start_row : int = 1, delimiter = ",", quotechar = '"', row_delimiter="\n") -> None:
         with open(file_name, "r", newline=row_delimiter) as file:
