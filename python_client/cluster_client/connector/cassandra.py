@@ -4,7 +4,7 @@ from typing import Any
 from cassandra.cluster import Cluster, Session, PreparedStatement
 
 class CassandraConnector():
-    def __init__(self, server_url : str = "localhost", port : int = None) -> None:
+    def __init__(self, server_url : str = ["localhost"], port : int = None) -> None:
         self.cluster : Cluster = Cluster(server_url, port = port)
         self.session : Session = self.cluster.connect()     
 

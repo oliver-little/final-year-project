@@ -1,5 +1,5 @@
-from cluster_client.multiprocessing import managers
-from cluster_client.model.table import *
+from multiprocessing import managers
+from cluster_client.model.table_transformation import *
 from cluster_client.rpc.client_service import InsecureClientQueryManager
 
 table = Table()
