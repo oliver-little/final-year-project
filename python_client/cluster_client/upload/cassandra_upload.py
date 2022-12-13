@@ -4,7 +4,7 @@ from typing import List, Dict, Callable
 from datetime import datetime
 import csv
 
-from client.connector.cassandra import CassandraConnector
+from cluster_client.connector.cassandra import CassandraConnector
 
 def check_conversion(item : str, func : Callable) -> bool:
     try:
@@ -17,7 +17,10 @@ def is_float(item : str) -> bool:
     return check_conversion(item, float)
 
 def is_bool(item : str) -> bool:
-    return check_conversion(item, bool)
+    if item.lower() == "true" or item.lower() == "false":
+        return True
+    else:
+        return False
 
 def is_iso_datetime(item : str) -> bool:
     return check_conversion(item, datetime.fromisoformat)
@@ -122,7 +125,10 @@ def infer_columns_from_csv(file_name : str, delimiter = ",", quotechar = '"', ro
         reader = csv.reader(file, delimiter=delimiter, quotechar=quotechar)
 
         if detect_headers:
-            column_names = next(reader)
+            try:
+                column_names = list(map(lambda x: x.strip(), next(reader)))
+            except StopIteration:
+                raise ValueError("csv file has no content")
             
         for row in reader:
             if len(column_checker_index) == 0:
@@ -132,12 +138,15 @@ def infer_columns_from_csv(file_name : str, delimiter = ",", quotechar = '"', ro
                 # Iterate over all checkers, starting from the one we are currently using
                 for y in range(column_checker_index[cell_index], len(DATATYPES)):
                     # Check if this checker fits this columns
-                    if DATATYPES[y].validator(row[cell_index]):
+                    if DATATYPES[y].validator(row[cell_index].strip()):
                         # If it does, continue to the next cell
                         break
                     else:
                         # Otherwise, increment the checker we are using and try again
                         column_checker_index[cell_index] += 1
+
+    if len(column_checker_index) == 0:
+        raise ValueError("csv file has no content")
 
     try:
         return column_names, [DATATYPES[index].datatype_string for index in column_checker_index]
