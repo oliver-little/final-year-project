@@ -10,6 +10,8 @@ class CassandraConnector():
         if isinstance(server_url, str):
             server_url = [server_url]
 
+        self.server_url = server_url
+        self.port = port
         self.cluster : Cluster = Cluster(server_url, port = port)
         self.session : Session = self.cluster.connect()     
 
