@@ -4,12 +4,13 @@ from datetime import datetime
 import csv
 import re
 import logging
+import ctypes
 import multiprocessing
 from queue import Empty
 from cassandra.cluster import PreparedStatement
 
 from cluster_client.connector.cassandra import CassandraConnector
-from cluster_client.config import NAME_REGEX, VALID_COLUMN_TYPES, NUM_CASSANDRA_UPLOAD_PROCESSES
+from cluster_client.config import NAME_REGEX, VALID_COLUMN_TYPES, NUM_CASSANDRA_UPLOAD_PROCESSES, MAX_WAITING_READ_ROWS
 
 def check_conversion(item : str, func : Callable) -> bool:
     try:
@@ -106,10 +107,12 @@ class CassandraUploadHandler():
         column_string = ", ".join(" ".join(i) for i in zip(column_names, column_types))
 
         query_string = f"CREATE TABLE {keyspace}.{table} ({column_string}, PRIMARY KEY {key_string});"
-        print(f"Executing {query_string}")
+        self.logger.debug(f"Executing {query_string}")
         self.connector.get_session().execute(query_string)
 
     def insert_from_csv(self, file_name : str, keyspace : str, table : str, column_names : List[str] = None, row_converters : Dict[str, Callable] = {}, start_row : int = 1, delimiter = ",", quotechar = '"', row_delimiter="\n") -> None:  
+        """Performs a multithreaded insert into the database"""
+
         with open(file_name, "r", newline=row_delimiter) as file:
             reader = csv.reader(file, delimiter=delimiter, quotechar=quotechar)
 
@@ -124,30 +127,45 @@ class CassandraUploadHandler():
                 except StopIteration:
                     raise ValueError("csv file has no content")
             
-            # Generate row_converter mapping
-            row_converter_indices = {column_names.index(k) : v for k, v in row_converters.items()}
+        # Generate row_converter mapping
+        row_converter_indices = {column_names.index(k) : v for k, v in row_converters.items()}
 
-            column_string = ", ".join(column_names)
-            value_string = ", ".join(["?"] * len(column_names))
+        column_string = ", ".join(column_names)
+        value_string = ", ".join(["?"] * len(column_names))
 
-            # Prepare statement
-            prep = self.connector.get_session().prepare(f"INSERT INTO {keyspace}.{table} ({column_string}) VALUES ({value_string});")
+        # Prepare statement
+        prep = self.connector.get_session().prepare(f"INSERT INTO {keyspace}.{table} ({column_string}) VALUES ({value_string});")
 
-            # Perform a multiprocess read/upload - the main process reads from the file, then a number of other processes actually perform the inserts
-            queue = multiprocessing.Queue()
-            finished_reading_event = multiprocessing.Event()
-            insert_failure_event = multiprocessing.Event()
-            
-            # Start writer processes
-            self.logger.debug("Starting insert processes")
-            writers = [multiprocessing.Process(target=insert_from_queue, args=(queue, self.connector.server_url, self.connector.port, prep, finished_reading_event, insert_failure_event)) for _ in range(NUM_CASSANDRA_UPLOAD_PROCESSES)]
-            try:
-                for writer in writers:
-                    writer.start()
-                self.logger.debug("Created insert processes")
+        # Perform a multiprocess read/upload - the main process reads from the file, then a number of other processes actually perform the inserts
+        queue = multiprocessing.Queue()
+        # Requests that writers quit at the earliest opportunity
+        request_stop_event = multiprocessing.Event()
+        # Notifies writers that there are no more items to read, so when the queue is empty they can quit
+        finished_reading_event = multiprocessing.Event()
+        # Stores the exception if an insert failure occurs
+        insert_failure_event = multiprocessing.Event()
+        insert_failure_queue = multiprocessing.Queue(maxsize=MAX_WAITING_READ_ROWS)
+        
+        # Start writer processes
+        self.logger.debug("Starting insert processes")
+        writers = [multiprocessing.Process(target=insert_from_queue, args=(queue, self.connector.server_url, self.connector.port, prep, finished_reading_event, request_stop_event, insert_failure_event, insert_failure_queue)) for _ in range(NUM_CASSANDRA_UPLOAD_PROCESSES)]
+        
+        try:
+            for writer in writers:
+                writer.start()
+                self.logger.debug(f"Created insert process {writer.pid}")
+            self.logger.debug("Created insert processes")
 
-                # Read the entire file
-                self.logger.debug("Starting file read")
+            # Read the entire file
+            self.logger.debug("Starting file read")
+            with open(file_name, "r", newline=row_delimiter) as file:
+                reader = csv.reader(file, delimiter=delimiter, quotechar=quotechar)
+
+                # Skip start_row rows
+                for _ in range(start_row - 1):
+                    next(reader)
+
+                # Read all rows into the read queue
                 for row in reader:
                     for index, converter in row_converter_indices.items():
                         row[index] = converter(row[index])
@@ -155,44 +173,59 @@ class CassandraUploadHandler():
 
                     # Check if any failures have occurred, and quit early if that has happened
                     if insert_failure_event.is_set():
-                        raise ValueError("Upload failed")
+                        request_stop_event.set()
+                        exception = insert_failure_queue.get()
+                        raise ValueError(f"Upload failed: {exception}")
 
                 # Set the event when reading has finished
                 finished_reading_event.set()
-                self.logger.debug("Finished file read")
-        
-                # Poll the failure status until the queue is empty
-                while not queue.empty():
-                    if insert_failure_event.is_set():
-                        raise ValueError("UploadFailed")
+            self.logger.debug("Finished file read")
+    
+            # Poll the failure status until the queue is empty (would just do a join here, but we need to track if a failure occurs)
+            while not queue.empty():
+                if insert_failure_event.is_set():
+                    request_stop_event.set()
+                    exception = insert_failure_queue.get()
+                    raise ValueError(f"Upload failed: {exception}")
 
-                self.logger.debug("Read queue emptied")
-                for writer in writers:
-                    writer.join()
+            request_stop_event.set()
+            self.logger.debug("Read queue empty")
+        finally:
+            # Flush the queue (threads will not exit if there are items waiting to be queued, this mostly affects the read queue)
+            if not queue.empty():
+                queue.cancel_join_thread()
 
-                self.logger.debug("Insert processes have stopped")
-            # Finally clause to ensure that all writers are killed before we leave the function
-            finally:
-                for writer in writers:
-                    if writer.is_alive():
-                        self.logger.debug(f"Killing leftover writer {writer}")
-                        writer.kill()
+            # Attempt to join (close) all writers
+            for writer in writers:
+                writer.join(timeout=1)
+                # If they don't close within the timeout, kill them
+                if writer.is_alive():
+                    self.logger.debug(f"Killing leftover writer {writer}")
+                    writer.kill()
+            self.logger.debug("Insert processes closed")
 
-def insert_from_queue(queue : multiprocessing.Queue, server_url : str, port : int, prep : PreparedStatement, finished_reading : multiprocessing.Event, insert_failure : multiprocessing.Event) -> None:    
+def handle_insert_failure(insert_failure_event : multiprocessing.Event, insert_failure_queue : multiprocessing.Queue, exception):
+    if not insert_failure_event.is_set():
+        insert_failure_queue.put(str(exception))
+        insert_failure_event.set()
+
+def insert_from_queue(queue : multiprocessing.Queue, server_url : str, port : int, prep : PreparedStatement, finished_reading : multiprocessing.Event, request_stop : multiprocessing.Event, insert_failure_event : multiprocessing.Event, insert_failure_queue : multiprocessing.Queue) -> None:    
     connector = CassandraConnector(server_url, port)
-    err_callback = lambda exception: insert_failure.set()
-    # Continually loop until we get an insert failure
-    while not insert_failure.is_set():
-        try:
-            row = queue.get(block=True, timeout=0.5)
-            future = connector.get_session().execute_async(prep, row)
-            future.add_errback(err_callback)
-        except Empty:
-            # If we couldn't get an element from the queue, check if we are expecting new elements from the queue
-            if finished_reading.is_set():
-                # If not, quite the loop
-                break
-    connector.cluster.shutdown()
+    err_callback = lambda exception: handle_insert_failure(insert_failure_event, insert_failure_queue, exception)
+    try:
+        while not request_stop.is_set():
+            try:
+                row = queue.get(block=True, timeout=0.5)
+                future = connector.get_session().execute_async(prep, row)
+                future.add_errback(err_callback)
+            except Empty:
+                # If we couldn't get an element from the queue, check if we are expecting new elements from the queue
+                if finished_reading.is_set():
+                    # If not, quit the loop
+                    break
+    finally:
+        # No matter what happens, shutdown the connection to cassandra as it will block the thread from exiting
+        connector.cluster.shutdown()
 
 def infer_columns_from_csv(file_name : str, delimiter = ",", quotechar = '"', row_delimiter="\n", detect_headers : bool = True) -> List[str]:
     """Scans the entire file to determine the type of each column.
