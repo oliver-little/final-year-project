@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Dict, Callable
+from typing import List, Dict, Callable, Any
 from datetime import datetime
 import csv
 import re
@@ -53,11 +53,11 @@ class CassandraUploadHandler():
     def create_from_csv(self, file_name : str, keyspace : str, table : str, partition_keys : List[str], primary_keys : List[str] = [], column_names : List[str] = None, column_types : List[str] = None, row_converters : Dict[str, Callable] = {}, start_row : int = 1, delimiter : str = ",", quotechar : str = '"', row_delimiter : str ="\n") -> None:
         if column_types is None:
             if column_names is None:
-                column_names, column_types = infer_columns_from_csv(file_name, delimiter, quotechar, row_delimiter, detect_headers=True)
+                column_names, column_types = infer_columns_from_csv(file_name, delimiter, quotechar, row_delimiter, start_row, detect_headers=True)
                 # Increment start_row, as we are detecting the headers
                 start_row += 1
             else:
-                column_types = infer_columns_from_csv(file_name, delimiter, quotechar, row_delimiter, detect_headers=False)    
+                column_types = infer_columns_from_csv(file_name, delimiter, quotechar, row_delimiter, start_row, detect_headers=False)    
         # Add a default converter for each column if we don't have one already, as the driver requires that they be in the correct type already
         for c_name, c_type in zip(column_names, column_types):
             if c_name not in row_converters:
@@ -91,7 +91,6 @@ class CassandraUploadHandler():
         elif not all(x in VALID_COLUMN_TYPES for x in column_types):
             raise ValueError(f"Invalid column types (must be alpha)")
         
-        column_check = lambda x: re.match(NAME_REGEX, x) and x in column_names
         if not all(x in column_names for x in partition_keys):
             raise ValueError("Invalid partition keys")
         elif not all(x in column_names for x in primary_keys):
@@ -113,19 +112,21 @@ class CassandraUploadHandler():
     def insert_from_csv(self, file_name : str, keyspace : str, table : str, column_names : List[str] = None, row_converters : Dict[str, Callable] = {}, start_row : int = 1, delimiter = ",", quotechar = '"', row_delimiter="\n") -> None:  
         """Performs a multithreaded insert into the database"""
 
-        with open(file_name, "r", newline=row_delimiter) as file:
-            reader = csv.reader(file, delimiter=delimiter, quotechar=quotechar)
+        # If we don't have column names, detect them from the first row after start_row
+        if column_names is None:
+            with open(file_name, "r", newline=row_delimiter) as file:
+                reader = csv.reader(file, delimiter=delimiter, quotechar=quotechar)
+                
+                # Skip start_row rows
+                for _ in range(start_row - 1):
+                    next(reader)
 
-            ### Preparation: skip rows, get column names and create prepared statement
-            # Skip start_row rows
-            for _ in range(start_row - 1):
-                next(reader)
-
-            if column_names is None:
                 try:
                     column_names = list(map(lambda x: x.strip(), next(reader)))
                 except StopIteration:
                     raise ValueError("csv file has no content")
+            # Increment start_row, because we inferred the column names from the first row
+            start_row += 1
             
         # Generate row_converter mapping
         row_converter_indices = {column_names.index(k) : v for k, v in row_converters.items()}
@@ -167,9 +168,8 @@ class CassandraUploadHandler():
 
                 # Read all rows into the read queue
                 for row in reader:
-                    for index, converter in row_converter_indices.items():
-                        row[index] = converter(row[index])
-                    queue.put(row, block=True)
+                    row = apply_row_converters(row, row_converter_indices)
+                    queue.put(row)
 
                     # Check if any failures have occurred, and quit early if that has happened
                     if insert_failure_event.is_set():
@@ -204,6 +204,9 @@ class CassandraUploadHandler():
                     writer.kill()
             self.logger.debug("Insert processes closed")
 
+def apply_row_converters(row : List[str], converters : Dict[int, Callable]) -> List[Any]:
+    return [converters.get(index, lambda x: x)(cell) for index, cell in enumerate(row)]
+
 def handle_insert_failure(insert_failure_event : multiprocessing.Event, insert_failure_queue : multiprocessing.Queue, exception):
     if not insert_failure_event.is_set():
         insert_failure_queue.put(str(exception))
@@ -227,7 +230,7 @@ def insert_from_queue(queue : multiprocessing.Queue, server_url : str, port : in
         # No matter what happens, shutdown the connection to cassandra as it will block the thread from exiting
         connector.cluster.shutdown()
 
-def infer_columns_from_csv(file_name : str, delimiter = ",", quotechar = '"', row_delimiter="\n", detect_headers : bool = True) -> List[str]:
+def infer_columns_from_csv(file_name : str, delimiter = ",", quotechar = '"', row_delimiter="\n", start_row : int = 1, detect_headers : bool = True) -> List[str]:
     """Scans the entire file to determine the type of each column.
     If possible, provide the column definitions instead, as this will be much faster.
     NOTE: this does not handle datetime objects except where they are in ISO8601 format. 
@@ -240,6 +243,10 @@ def infer_columns_from_csv(file_name : str, delimiter = ",", quotechar = '"', ro
 
     with open(file_name, "r", newline=row_delimiter) as file:
         reader = csv.reader(file, delimiter=delimiter, quotechar=quotechar)
+
+        # Skip start_row rows
+        for _ in range(start_row - 1):
+            next(reader)
 
         if detect_headers:
             try:

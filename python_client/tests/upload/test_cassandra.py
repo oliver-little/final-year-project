@@ -1,9 +1,9 @@
 import pytest
 
 from cassandra.cluster import Session
+from queue import Empty
 
 from cluster_client.upload.cassandra import *
-from cluster_client.connector.cassandra import CassandraConnector
 
 import csv
 
@@ -95,9 +95,10 @@ def test_create_from_csv(mocker):
     upload_handler = CassandraUploadHandler(mock_connector)
     upload_handler.create_from_csv("test.csv", "test", "table", ["A"], ["B"])
 
-    mock_infer.assert_called_once_with("test.csv", ",", '"', "\n", detect_headers=True)
+    mock_infer.assert_called_once_with("test.csv", ",", '"', "\n", 1, detect_headers=True)
     mock_create.assert_called_once_with("test", "table", ["A", "B"], ["text", "bigint"], ["A"], ["B"])
-    mock_insert.assert_called_once_with("test.csv", "test", "table", ["A", "B"], {}, 1, ',', '"', "\n")
+    # Use any for the default converter for bigint, because we can't test it
+    mock_insert.assert_called_once_with("test.csv", "test", "table", ["A", "B"], {"B": mocker.ANY}, 2, ',', '"', "\n")
 
 def test_create_from_csv_provided_columns(mocker):
     mock_infer = mocker.patch("cluster_client.upload.cassandra.infer_columns_from_csv", return_value=["text", "bigint"])
@@ -110,9 +111,9 @@ def test_create_from_csv_provided_columns(mocker):
     upload_handler = CassandraUploadHandler(mock_connector)
     upload_handler.create_from_csv("test.csv", "test", "table", ["A"], ["B"], column_names=["A", "B"])
 
-    mock_infer.assert_called_once_with("test.csv", ",", '"', "\n", detect_headers=False)
+    mock_infer.assert_called_once_with("test.csv", ",", '"', "\n", 1, detect_headers=False)
     mock_create.assert_called_once_with("test", "table", ["A", "B"], ["text", "bigint"], ["A"], ["B"])
-    mock_insert.assert_called_once_with("test.csv", "test", "table", ["A", "B"], {}, 1, ',', '"', "\n")
+    mock_insert.assert_called_once_with("test.csv", "test", "table", ["A", "B"], {"B": mocker.ANY}, 1, ',', '"', "\n")
 
 def test_create_from_csv_provided_columns_and_types(mocker):
     mock_infer = mocker.patch("cluster_client.upload.cassandra.infer_columns_from_csv")
@@ -127,9 +128,7 @@ def test_create_from_csv_provided_columns_and_types(mocker):
 
     assert not mock_infer.called
     mock_create.assert_called_once_with("test", "table", ["A", "B"], ["text", "bigint"], ["A"], ["B"])
-    mock_insert.assert_called_once_with("test.csv", "test", "table", ["A", "B"], {}, 1, ',', '"', "\n")
-
-
+    mock_insert.assert_called_once_with("test.csv", "test", "table", ["A", "B"], {"B": mocker.ANY}, 1, ',', '"', "\n")
 
 
 def get_mock_connector(mocker):
@@ -148,7 +147,6 @@ def test_create_table(mocker):
 
     assert mock_connector.get_session.called
     mock_connector.create_keyspace.assert_called_once_with("test")
-    mock_connector.has_table.assert_called_once_with("test", "table")
     mock_session.execute.assert_called_once_with("CREATE TABLE test.table (A timestamp, B1 bigint, C double, D boolean, E text, PRIMARY KEY ((A, B1), C));")
 
 def test_create_table_invalid(mocker):
@@ -187,6 +185,10 @@ def test_insert_from_csv(mocker, tmp_path):
     write_csv(csv_file, data)
 
     mock_connector, mock_session = get_mock_connector(mocker)
+    mock_queue = mocker.patch("multiprocessing.Queue")
+    mock_process = mocker.patch("multiprocessing.Process")
+    mock_event = mocker.patch("multiprocessing.Event")
+    mock_event().is_set.return_value = False
 
     upload_handler = CassandraUploadHandler(mock_connector)
 
@@ -195,25 +197,30 @@ def test_insert_from_csv(mocker, tmp_path):
     assert mock_connector.get_session.called
     mock_session.prepare.assert_called_once_with("INSERT INTO test.test_table (A, B, C, D, E) VALUES (?, ?, ?, ?, ?);")
     # Use any here, as the left argument is the mocked prepared statement and we don't care to check that again
-    mock_session.execute.assert_called_once_with(mocker.ANY, ["2022-12-12T11:40:55Z", "1", "1.01", "true", "hello"])
+    mock_queue().put.assert_called_once_with(["2022-12-12T11:40:55Z", "1", "1.01", "true", "hello"])
 
 def test_insert_from_csv_with_cols(mocker, tmp_path):
     csv_file = tmp_path / "test.csv"
     data = [
+        ["A", "B", "C", "D", "E"],
         ["2022-12-12T11:40:55Z", "1", "1.01", "true", "hello"]
     ]
     write_csv(csv_file, data)
 
     mock_connector, mock_session = get_mock_connector(mocker)
+    mock_queue = mocker.patch("multiprocessing.Queue")
+    mock_process = mocker.patch("multiprocessing.Process")
+    mock_event = mocker.patch("multiprocessing.Event")
+    mock_event().is_set.return_value = False
 
     upload_handler = CassandraUploadHandler(mock_connector)
 
-    upload_handler.insert_from_csv(csv_file, "test", "test_table", ["A", "B", "C", "D", "E"])
+    upload_handler.insert_from_csv(csv_file, "test", "test_table", ["A", "B", "C", "D", "E"], start_row=2)
 
     assert mock_connector.get_session.called
     mock_session.prepare.assert_called_once_with("INSERT INTO test.test_table (A, B, C, D, E) VALUES (?, ?, ?, ?, ?);")
     # Use any here, as the left argument is the mocked prepared statement and we don't care to check that again
-    mock_session.execute.assert_called_once_with(mocker.ANY, ["2022-12-12T11:40:55Z", "1", "1.01", "true", "hello"])
+    mock_queue().put.assert_called_once_with(["2022-12-12T11:40:55Z", "1", "1.01", "true", "hello"])
  
 def test_insert_from_csv_empty_csv(mocker, tmp_path):
     csv_file = tmp_path / "test.csv"
@@ -222,14 +229,19 @@ def test_insert_from_csv_empty_csv(mocker, tmp_path):
     write_csv(csv_file, data)
 
     mock_connector, mock_session = get_mock_connector(mocker)
+    mock_queue = mocker.patch("multiprocessing.Queue")
+    mock_process = mocker.patch("multiprocessing.Process")
+    mock_event = mocker.patch("multiprocessing.Event")
+    mock_event().is_set.return_value = False
 
     upload_handler = CassandraUploadHandler(mock_connector)
 
-    upload_handler.insert_from_csv(csv_file, "test", "test_table", ["A", "B", "C", "D", "E"])
+    upload_handler.insert_from_csv(csv_file, "test", "test_table", ["A", "B", "C", "D", "E"], start_row=1)
 
     assert mock_connector.get_session.called
     mock_session.prepare.assert_called_once_with("INSERT INTO test.test_table (A, B, C, D, E) VALUES (?, ?, ?, ?, ?);")
-    assert not mock_session.execute.called, "Execute was called when it shouldn't have been"
+    # Use any here, as the left argument is the mocked prepared statement and we don't care to check that again
+    assert not mock_queue().put.called, "Put was called when it shouldn't have been"
 
 def test_insert_from_csv_skip_rows(mocker, tmp_path):
     csv_file = tmp_path / "test.csv"
@@ -242,6 +254,10 @@ def test_insert_from_csv_skip_rows(mocker, tmp_path):
     write_csv(csv_file, data)
 
     mock_connector, mock_session = get_mock_connector(mocker)
+    mock_queue = mocker.patch("multiprocessing.Queue")
+    mock_process = mocker.patch("multiprocessing.Process")
+    mock_event = mocker.patch("multiprocessing.Event")
+    mock_event().is_set.return_value = False
 
     upload_handler = CassandraUploadHandler(mock_connector)
 
@@ -249,40 +265,54 @@ def test_insert_from_csv_skip_rows(mocker, tmp_path):
 
     assert mock_connector.get_session.called
     mock_session.prepare.assert_called_once_with("INSERT INTO test.test_table (A, B, C, D, E) VALUES (?, ?, ?, ?, ?);")
-    mock_session.execute.assert_called_once_with(mocker.ANY, ["2022-12-12T11:40:55Z", "1", "1.01", "true", "hello"])
-
-    data = [
-        [],
-        [],
-        ["2022-12-12T11:40:55Z", "1", "1.01", "true", "hello"]
-    ]
-    write_csv(csv_file, data)
-
-    mock_connector, mock_session = get_mock_connector(mocker)
-
-    upload_handler = CassandraUploadHandler(mock_connector)
-
-    upload_handler.insert_from_csv(csv_file, "test", "test_table", ["A", "B", "C", "D", "E"], start_row=3)
-
-    assert mock_connector.get_session.called
-    mock_session.prepare.assert_called_once_with("INSERT INTO test.test_table (A, B, C, D, E) VALUES (?, ?, ?, ?, ?);")
-    mock_session.execute.assert_called_once_with(mocker.ANY, ["2022-12-12T11:40:55Z", "1", "1.01", "true", "hello"])
-
-def test_insert_from_csv_converter(mocker, tmp_path):
-    csv_file = tmp_path / "test.csv"
-    data = [
-        ["A", "B", "C", "D", "E"],
-        ["2022-12-12T11:40:55Z", "1", "1.01", "true", "hello"]
-    ]
-    write_csv(csv_file, data)
-
-    mock_connector, mock_session = get_mock_connector(mocker)
-
-    upload_handler = CassandraUploadHandler(mock_connector)
-
-    upload_handler.insert_from_csv(csv_file, "test", "test_table", row_converters={"B" : lambda x: str(int(x) + 1)})
-
-    assert mock_connector.get_session.called
-    mock_session.prepare.assert_called_once_with("INSERT INTO test.test_table (A, B, C, D, E) VALUES (?, ?, ?, ?, ?);")
     # Use any here, as the left argument is the mocked prepared statement and we don't care to check that again
-    mock_session.execute.assert_called_once_with(mocker.ANY, ["2022-12-12T11:40:55Z", "2", "1.01", "true", "hello"])
+    mock_queue().put.assert_called_once_with(["2022-12-12T11:40:55Z", "1", "1.01", "true", "hello"])
+
+def test_apply_row_converters():
+    row = ["a", "1", "b", "2.01"]
+    converters = {0: lambda x : x + "b", 1: lambda x: int(x) + 1, 3: lambda x: round(float(x))}
+    new_row = apply_row_converters(row, converters)
+
+    assert new_row == ["ab", 2, "b", 2], "Invalid conversion applied"
+
+def test_handle_insert_failure_not_set(mocker):
+    mock_queue = mocker.MagicMock()
+    mock_event = mocker.MagicMock()
+    mock_event.is_set.return_value = False
+
+    handle_insert_failure(mock_event, mock_queue, "test exception")
+
+    assert mock_event.is_set.called
+    mock_queue.put.assert_called_once_with("test exception")
+    assert mock_event.set.called
+
+def test_handle_insert_failure_set(mocker):
+    mock_queue = mocker.MagicMock()
+    mock_event = mocker.MagicMock()
+    mock_event.is_set.return_value = True
+
+    handle_insert_failure(mock_event, mock_queue, "test exception")
+
+    assert mock_event.is_set.called
+    assert not mock_queue.put.called
+    assert not mock_event.set.called
+
+def test_insert_from_queue(mocker):
+    mock_connector = mocker.patch("cluster_client.upload.cassandra.CassandraConnector")
+
+    mock_queue = mocker.MagicMock()
+    mock_queue.get.side_effect = [1, 2, 3, Empty()]
+    mock_finished_reading = mocker.MagicMock()
+    mock_request_stop = mocker.MagicMock()
+    mock_request_stop.is_set.return_value = False
+    mock_insert_failure_event = mocker.MagicMock()
+    mock_insert_failure_queue = mocker.MagicMock()
+    mock_prep = mocker.MagicMock()
+
+    insert_from_queue(mock_queue, "server", 1, mock_prep, mock_finished_reading, mock_request_stop, mock_insert_failure_event, mock_insert_failure_queue)
+
+    assert mock_queue.get.call_count == 4
+    assert mock_connector().get_session().execute_async.call_count == 3
+    assert mock_connector().get_session().execute_async.call_args_list == [mocker.call.execute_async(mock_prep, 1), mocker.call.execute_async(mock_prep, 2), mocker.call.execute_async(mock_prep, 3)]
+    assert mock_finished_reading.is_set.called
+    assert mock_connector().cluster.shutdown.called
