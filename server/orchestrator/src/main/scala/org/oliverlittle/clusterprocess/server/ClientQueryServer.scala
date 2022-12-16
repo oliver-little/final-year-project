@@ -4,8 +4,7 @@ import io.grpc.ServerBuilder
 import scala.concurrent.{ExecutionContext, Future}
 import java.util.logging.Logger
 
-import org.oliverlittle.clusterprocess.table_model.Table
-import org.oliverlittle.clusterprocess.client_query.{TableClientServiceGrpc, TableComputeResult}
+import org.oliverlittle.clusterprocess.client_query.{TableClientServiceGrpc, ComputeTableRequest, ComputeTableResult}
 
 object ClientQueryServer {
     private val logger = Logger.getLogger(classOf[ClientQueryServer].getName)
@@ -32,11 +31,10 @@ class ClientQueryServer(executionContext: ExecutionContext) {
     private def blockUntilShutdown(): Unit = this.server.awaitTermination()
 
     private class ClientQueryServicer extends TableClientServiceGrpc.TableClientService {
-        override def sendTable(request: Table): Future[TableComputeResult] = {
+        override def computeTable(request: ComputeTableRequest): Future[ComputeTableResult] = {
             ClientQueryServer.logger.info("received files")
-            val data : Table = request
-            ClientQueryServer.logger.info(data.toString())
-            val response = TableComputeResult(uuid="sample data")
+            ClientQueryServer.logger.info(request.toString())
+            val response = ComputeTableResult(uuid="sample data")
             Future.successful(response)
         }
     }

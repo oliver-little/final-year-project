@@ -3,7 +3,7 @@ from datetime import datetime
 from types import NoneType
 from typing import Any, Union
 
-import protobuf.table_model_pb2 as protobuf_model
+import cluster_client.protobuf.table_model_pb2 as protobuf_model
 
 VALID_LITERAL_TYPES = {int, float, str, bool, datetime, NoneType}
 

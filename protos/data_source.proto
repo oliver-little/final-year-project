@@ -2,6 +2,12 @@ syntax = "proto3";
 
 option java_package = "org.oliverlittle.clusterprocess";
 
+message DataSource {
+    oneof source {
+        CassandraDataSource cassandra = 1;
+    }
+}
+
 message CassandraDataSource {
     string server_url = 1;
     string keyspace = 2;

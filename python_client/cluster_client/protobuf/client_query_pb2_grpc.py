@@ -2,8 +2,7 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-import client_query_pb2 as client__query__pb2
-import table_model_pb2 as table__model__pb2
+from . import client_query_pb2 as client__query__pb2
 
 
 class TableClientServiceStub(object):
@@ -15,17 +14,17 @@ class TableClientServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.SendTable = channel.unary_unary(
-                '/TableClientService/SendTable',
-                request_serializer=table__model__pb2.Table.SerializeToString,
-                response_deserializer=client__query__pb2.TableComputeResult.FromString,
+        self.ComputeTable = channel.unary_unary(
+                '/TableClientService/ComputeTable',
+                request_serializer=client__query__pb2.ComputeTableRequest.SerializeToString,
+                response_deserializer=client__query__pb2.ComputeTableResult.FromString,
                 )
 
 
 class TableClientServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
-    def SendTable(self, request, context):
+    def ComputeTable(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -34,10 +33,10 @@ class TableClientServiceServicer(object):
 
 def add_TableClientServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'SendTable': grpc.unary_unary_rpc_method_handler(
-                    servicer.SendTable,
-                    request_deserializer=table__model__pb2.Table.FromString,
-                    response_serializer=client__query__pb2.TableComputeResult.SerializeToString,
+            'ComputeTable': grpc.unary_unary_rpc_method_handler(
+                    servicer.ComputeTable,
+                    request_deserializer=client__query__pb2.ComputeTableRequest.FromString,
+                    response_serializer=client__query__pb2.ComputeTableResult.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -50,7 +49,7 @@ class TableClientService(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def SendTable(request,
+    def ComputeTable(request,
             target,
             options=(),
             channel_credentials=None,
@@ -60,8 +59,8 @@ class TableClientService(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/TableClientService/SendTable',
-            table__model__pb2.Table.SerializeToString,
-            client__query__pb2.TableComputeResult.FromString,
+        return grpc.experimental.unary_unary(request, target, '/TableClientService/ComputeTable',
+            client__query__pb2.ComputeTableRequest.SerializeToString,
+            client__query__pb2.ComputeTableResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

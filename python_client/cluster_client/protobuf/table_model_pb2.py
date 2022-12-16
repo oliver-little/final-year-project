@@ -11,10 +11,9 @@ from google.protobuf import symbol_database as _symbol_database
 _sym_db = _symbol_database.Default()
 
 
-import cassandra_source_pb2 as cassandra__source__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11table_model.proto\x1a\x16\x63\x61ssandra_source.proto\"A\n\nDataSource\x12)\n\tcassandra\x18\x01 \x01(\x0b\x32\x14.CassandraDataSourceH\x00\x42\x08\n\x06source\"\x8a\x01\n\x05Value\x12\x0f\n\x05\x66ield\x18\x01 \x01(\tH\x00\x12\x10\n\x06string\x18\x02 \x01(\tH\x00\x12\x12\n\x08\x64\x61tetime\x18\x03 \x01(\tH\x00\x12\r\n\x03int\x18\x04 \x01(\x12H\x00\x12\x10\n\x06\x64ouble\x18\x05 \x01(\x01H\x00\x12\x0e\n\x04\x62ool\x18\x06 \x01(\x08H\x00\x12\x10\n\x06isnull\x18\x07 \x01(\x08H\x00\x42\x07\n\x05value\"\xa2\x01\n\nExpression\x12,\n\x08\x66unction\x18\x01 \x01(\x0b\x32\x18.Expression.FunctionCallH\x00\x12\x17\n\x05value\x18\x02 \x01(\x0b\x32\x06.ValueH\x00\x1a\x45\n\x0c\x46unctionCall\x12\x15\n\rfunction_name\x18\x01 \x01(\t\x12\x1e\n\targuments\x18\x02 \x03(\x0b\x32\x0b.ExpressionB\x06\n\x04\x65xpr\":\n\x0fNamedExpression\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x19\n\x04\x65xpr\x18\x02 \x01(\x0b\x32\x0b.Expression\"\xa8\x02\n\x05Table\x12\x33\n\x0ftransformations\x18\x01 \x03(\x0b\x32\x1a.Table.TableTransformation\x1a\xe9\x01\n\x13TableTransformation\x12\x19\n\x06select\x18\x01 \x01(\x0b\x32\x07.SelectH\x00\x12\x19\n\x06\x66ilter\x18\x02 \x01(\x0b\x32\x07.FilterH\x00\x12\x15\n\x04join\x18\x03 \x01(\x0b\x32\x05.JoinH\x00\x12\x1c\n\x08group_by\x18\x04 \x01(\x0b\x32\x08.GroupByH\x00\x12\x1f\n\taggregate\x18\x05 \x01(\x0b\x32\n.AggregateH\x00\x12\x1c\n\x08order_by\x18\x06 \x01(\x0b\x32\x08.OrderByH\x00\x12\x19\n\x06window\x18\x07 \x01(\x0b\x32\x07.WindowH\x00\x42\r\n\x0binstruction\"*\n\x06Select\x12 \n\x06\x66ields\x18\x01 \x03(\x0b\x32\x10.NamedExpression\"\x9d\x04\n\x06\x46ilter\x12)\n\x07\x66ilters\x18\x01 \x03(\x0b\x32\x18.Filter.FilterExpression\x1a\x93\x01\n\x10\x46ilterExpression\x12\x1f\n\nleft_value\x18\x01 \x01(\x0b\x32\x0b.Expression\x12\'\n\x0b\x66ilter_type\x18\x02 \x01(\x0e\x32\x12.Filter.FilterType\x12%\n\x0bright_value\x18\x03 \x01(\x0b\x32\x0b.ExpressionH\x00\x88\x01\x01\x42\x0e\n\x0c_right_value\"\xd1\x02\n\nFilterType\x12\x10\n\x0cUNKNOWN_TYPE\x10\x00\x12\t\n\x05\x45QUAL\x10\x01\x12\x06\n\x02\x45Q\x10\x01\x12\r\n\tNOT_EQUAL\x10\x02\x12\x06\n\x02NE\x10\x02\x12\r\n\tLESS_THAN\x10\x03\x12\x06\n\x02LT\x10\x03\x12\x13\n\x0fLESS_THAN_EQUAL\x10\x04\x12\x07\n\x03LTE\x10\x04\x12\x10\n\x0cGREATER_THAN\x10\x05\x12\x06\n\x02GT\x10\x05\x12\x16\n\x12GREATER_THAN_EQUAL\x10\x06\x12\x07\n\x03GTE\x10\x06\x12\x0b\n\x07IS_NULL\x10\x07\x12\x08\n\x04NULL\x10\x07\x12\x0f\n\x0bIS_NOT_NULL\x10\x08\x12\x0c\n\x08NOT_NULL\x10\x08\x12\x0c\n\x08\x43ONTAINS\x10\t\x12\r\n\tICONTAINS\x10\n\x12\x0f\n\x0bSTARTS_WITH\x10\x0b\x12\x10\n\x0cISTARTS_WITH\x10\x0c\x12\r\n\tENDS_WITH\x10\r\x12\x0e\n\nIENDS_WITH\x10\x0e\x1a\x02\x10\x01\"\xc4\x01\n\x04Join\x12!\n\tjoin_type\x18\x02 \x01(\x0e\x32\x0e.Join.JoinType\x12\x12\n\ntable_name\x18\x03 \x01(\t\"\x84\x01\n\x08JoinType\x12\x10\n\x0cUNKNOWN_TYPE\x10\x00\x12\x13\n\x0f\x46ULL_OUTER_JOIN\x10\x01\x12\x0e\n\nOUTER_JOIN\x10\x01\x12\x0e\n\nINNER_JOIN\x10\x02\x12\r\n\tLEFT_JOIN\x10\x03\x12\x0e\n\nRIGHT_JOIN\x10\x04\x12\x0e\n\nCROSS_JOIN\x10\x05\x1a\x02\x10\x01\"/\n\x07GroupBy\x12$\n\x0fgroup_by_fields\x18\x01 \x03(\x0b\x32\x0b.Expression\"2\n\tAggregate\x12%\n\x10\x61ggregate_fields\x18\x01 \x03(\x0b\x32\x0b.Expression\"\xe9\x01\n\x07OrderBy\x12.\n\x0forder_by_fields\x18\x01 \x03(\x0b\x32\x15.OrderBy.OrderByField\x1aW\n\x0cOrderByField\x12\x1a\n\x05\x66ield\x18\x01 \x01(\x0b\x32\x0b.Expression\x12+\n\rorder_by_type\x18\x02 \x01(\x0e\x32\x14.OrderBy.OrderByType\"U\n\x0bOrderByType\x12\x10\n\x0cUNKNOWN_TYPE\x10\x00\x12\x07\n\x03\x41SC\x10\x01\x12\r\n\tASCENDING\x10\x01\x12\x08\n\x04\x44\x45SC\x10\x02\x12\x0e\n\nDESCENDING\x10\x02\x1a\x02\x10\x01\"\x84\x01\n\x06Window\x12$\n\x0fwindow_function\x18\x01 \x03(\x0b\x32\x0b.Expression\x12\x18\n\x10partition_fields\x18\x02 \x03(\t\x12&\n\x0forder_by_fields\x18\x03 \x01(\x0b\x32\x08.OrderByH\x00\x88\x01\x01\x42\x12\n\x10_order_by_fieldsB!\n\x1forg.oliverlittle.clusterprocessb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11table_model.proto\"\x8a\x01\n\x05Value\x12\x0f\n\x05\x66ield\x18\x01 \x01(\tH\x00\x12\x10\n\x06string\x18\x02 \x01(\tH\x00\x12\x12\n\x08\x64\x61tetime\x18\x03 \x01(\tH\x00\x12\r\n\x03int\x18\x04 \x01(\x12H\x00\x12\x10\n\x06\x64ouble\x18\x05 \x01(\x01H\x00\x12\x0e\n\x04\x62ool\x18\x06 \x01(\x08H\x00\x12\x10\n\x06isnull\x18\x07 \x01(\x08H\x00\x42\x07\n\x05value\"\xa2\x01\n\nExpression\x12,\n\x08\x66unction\x18\x01 \x01(\x0b\x32\x18.Expression.FunctionCallH\x00\x12\x17\n\x05value\x18\x02 \x01(\x0b\x32\x06.ValueH\x00\x1a\x45\n\x0c\x46unctionCall\x12\x15\n\rfunction_name\x18\x01 \x01(\t\x12\x1e\n\targuments\x18\x02 \x03(\x0b\x32\x0b.ExpressionB\x06\n\x04\x65xpr\":\n\x0fNamedExpression\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x19\n\x04\x65xpr\x18\x02 \x01(\x0b\x32\x0b.Expression\"\xa8\x02\n\x05Table\x12\x33\n\x0ftransformations\x18\x01 \x03(\x0b\x32\x1a.Table.TableTransformation\x1a\xe9\x01\n\x13TableTransformation\x12\x19\n\x06select\x18\x01 \x01(\x0b\x32\x07.SelectH\x00\x12\x19\n\x06\x66ilter\x18\x02 \x01(\x0b\x32\x07.FilterH\x00\x12\x15\n\x04join\x18\x03 \x01(\x0b\x32\x05.JoinH\x00\x12\x1c\n\x08group_by\x18\x04 \x01(\x0b\x32\x08.GroupByH\x00\x12\x1f\n\taggregate\x18\x05 \x01(\x0b\x32\n.AggregateH\x00\x12\x1c\n\x08order_by\x18\x06 \x01(\x0b\x32\x08.OrderByH\x00\x12\x19\n\x06window\x18\x07 \x01(\x0b\x32\x07.WindowH\x00\x42\r\n\x0binstruction\"*\n\x06Select\x12 \n\x06\x66ields\x18\x01 \x03(\x0b\x32\x10.NamedExpression\"\x9d\x04\n\x06\x46ilter\x12)\n\x07\x66ilters\x18\x01 \x03(\x0b\x32\x18.Filter.FilterExpression\x1a\x93\x01\n\x10\x46ilterExpression\x12\x1f\n\nleft_value\x18\x01 \x01(\x0b\x32\x0b.Expression\x12\'\n\x0b\x66ilter_type\x18\x02 \x01(\x0e\x32\x12.Filter.FilterType\x12%\n\x0bright_value\x18\x03 \x01(\x0b\x32\x0b.ExpressionH\x00\x88\x01\x01\x42\x0e\n\x0c_right_value\"\xd1\x02\n\nFilterType\x12\x10\n\x0cUNKNOWN_TYPE\x10\x00\x12\t\n\x05\x45QUAL\x10\x01\x12\x06\n\x02\x45Q\x10\x01\x12\r\n\tNOT_EQUAL\x10\x02\x12\x06\n\x02NE\x10\x02\x12\r\n\tLESS_THAN\x10\x03\x12\x06\n\x02LT\x10\x03\x12\x13\n\x0fLESS_THAN_EQUAL\x10\x04\x12\x07\n\x03LTE\x10\x04\x12\x10\n\x0cGREATER_THAN\x10\x05\x12\x06\n\x02GT\x10\x05\x12\x16\n\x12GREATER_THAN_EQUAL\x10\x06\x12\x07\n\x03GTE\x10\x06\x12\x0b\n\x07IS_NULL\x10\x07\x12\x08\n\x04NULL\x10\x07\x12\x0f\n\x0bIS_NOT_NULL\x10\x08\x12\x0c\n\x08NOT_NULL\x10\x08\x12\x0c\n\x08\x43ONTAINS\x10\t\x12\r\n\tICONTAINS\x10\n\x12\x0f\n\x0bSTARTS_WITH\x10\x0b\x12\x10\n\x0cISTARTS_WITH\x10\x0c\x12\r\n\tENDS_WITH\x10\r\x12\x0e\n\nIENDS_WITH\x10\x0e\x1a\x02\x10\x01\"\xc4\x01\n\x04Join\x12!\n\tjoin_type\x18\x02 \x01(\x0e\x32\x0e.Join.JoinType\x12\x12\n\ntable_name\x18\x03 \x01(\t\"\x84\x01\n\x08JoinType\x12\x10\n\x0cUNKNOWN_TYPE\x10\x00\x12\x13\n\x0f\x46ULL_OUTER_JOIN\x10\x01\x12\x0e\n\nOUTER_JOIN\x10\x01\x12\x0e\n\nINNER_JOIN\x10\x02\x12\r\n\tLEFT_JOIN\x10\x03\x12\x0e\n\nRIGHT_JOIN\x10\x04\x12\x0e\n\nCROSS_JOIN\x10\x05\x1a\x02\x10\x01\"/\n\x07GroupBy\x12$\n\x0fgroup_by_fields\x18\x01 \x03(\x0b\x32\x0b.Expression\"2\n\tAggregate\x12%\n\x10\x61ggregate_fields\x18\x01 \x03(\x0b\x32\x0b.Expression\"\xe9\x01\n\x07OrderBy\x12.\n\x0forder_by_fields\x18\x01 \x03(\x0b\x32\x15.OrderBy.OrderByField\x1aW\n\x0cOrderByField\x12\x1a\n\x05\x66ield\x18\x01 \x01(\x0b\x32\x0b.Expression\x12+\n\rorder_by_type\x18\x02 \x01(\x0e\x32\x14.OrderBy.OrderByType\"U\n\x0bOrderByType\x12\x10\n\x0cUNKNOWN_TYPE\x10\x00\x12\x07\n\x03\x41SC\x10\x01\x12\r\n\tASCENDING\x10\x01\x12\x08\n\x04\x44\x45SC\x10\x02\x12\x0e\n\nDESCENDING\x10\x02\x1a\x02\x10\x01\"\x84\x01\n\x06Window\x12$\n\x0fwindow_function\x18\x01 \x03(\x0b\x32\x0b.Expression\x12\x18\n\x10partition_fields\x18\x02 \x03(\t\x12&\n\x0forder_by_fields\x18\x03 \x01(\x0b\x32\x08.OrderByH\x00\x88\x01\x01\x42\x12\n\x10_order_by_fieldsB!\n\x1forg.oliverlittle.clusterprocessb\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'table_model_pb2', globals())
@@ -28,42 +27,40 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _JOIN_JOINTYPE._serialized_options = b'\020\001'
   _ORDERBY_ORDERBYTYPE._options = None
   _ORDERBY_ORDERBYTYPE._serialized_options = b'\020\001'
-  _DATASOURCE._serialized_start=45
-  _DATASOURCE._serialized_end=110
-  _VALUE._serialized_start=113
-  _VALUE._serialized_end=251
-  _EXPRESSION._serialized_start=254
-  _EXPRESSION._serialized_end=416
-  _EXPRESSION_FUNCTIONCALL._serialized_start=339
-  _EXPRESSION_FUNCTIONCALL._serialized_end=408
-  _NAMEDEXPRESSION._serialized_start=418
-  _NAMEDEXPRESSION._serialized_end=476
-  _TABLE._serialized_start=479
-  _TABLE._serialized_end=775
-  _TABLE_TABLETRANSFORMATION._serialized_start=542
-  _TABLE_TABLETRANSFORMATION._serialized_end=775
-  _SELECT._serialized_start=777
-  _SELECT._serialized_end=819
-  _FILTER._serialized_start=822
-  _FILTER._serialized_end=1363
-  _FILTER_FILTEREXPRESSION._serialized_start=876
-  _FILTER_FILTEREXPRESSION._serialized_end=1023
-  _FILTER_FILTERTYPE._serialized_start=1026
-  _FILTER_FILTERTYPE._serialized_end=1363
-  _JOIN._serialized_start=1366
-  _JOIN._serialized_end=1562
-  _JOIN_JOINTYPE._serialized_start=1430
-  _JOIN_JOINTYPE._serialized_end=1562
-  _GROUPBY._serialized_start=1564
-  _GROUPBY._serialized_end=1611
-  _AGGREGATE._serialized_start=1613
-  _AGGREGATE._serialized_end=1663
-  _ORDERBY._serialized_start=1666
-  _ORDERBY._serialized_end=1899
-  _ORDERBY_ORDERBYFIELD._serialized_start=1725
-  _ORDERBY_ORDERBYFIELD._serialized_end=1812
-  _ORDERBY_ORDERBYTYPE._serialized_start=1814
-  _ORDERBY_ORDERBYTYPE._serialized_end=1899
-  _WINDOW._serialized_start=1902
-  _WINDOW._serialized_end=2034
+  _VALUE._serialized_start=22
+  _VALUE._serialized_end=160
+  _EXPRESSION._serialized_start=163
+  _EXPRESSION._serialized_end=325
+  _EXPRESSION_FUNCTIONCALL._serialized_start=248
+  _EXPRESSION_FUNCTIONCALL._serialized_end=317
+  _NAMEDEXPRESSION._serialized_start=327
+  _NAMEDEXPRESSION._serialized_end=385
+  _TABLE._serialized_start=388
+  _TABLE._serialized_end=684
+  _TABLE_TABLETRANSFORMATION._serialized_start=451
+  _TABLE_TABLETRANSFORMATION._serialized_end=684
+  _SELECT._serialized_start=686
+  _SELECT._serialized_end=728
+  _FILTER._serialized_start=731
+  _FILTER._serialized_end=1272
+  _FILTER_FILTEREXPRESSION._serialized_start=785
+  _FILTER_FILTEREXPRESSION._serialized_end=932
+  _FILTER_FILTERTYPE._serialized_start=935
+  _FILTER_FILTERTYPE._serialized_end=1272
+  _JOIN._serialized_start=1275
+  _JOIN._serialized_end=1471
+  _JOIN_JOINTYPE._serialized_start=1339
+  _JOIN_JOINTYPE._serialized_end=1471
+  _GROUPBY._serialized_start=1473
+  _GROUPBY._serialized_end=1520
+  _AGGREGATE._serialized_start=1522
+  _AGGREGATE._serialized_end=1572
+  _ORDERBY._serialized_start=1575
+  _ORDERBY._serialized_end=1808
+  _ORDERBY_ORDERBYFIELD._serialized_start=1634
+  _ORDERBY_ORDERBYFIELD._serialized_end=1721
+  _ORDERBY_ORDERBYTYPE._serialized_start=1723
+  _ORDERBY_ORDERBYTYPE._serialized_end=1808
+  _WINDOW._serialized_start=1811
+  _WINDOW._serialized_end=1943
 # @@protoc_insertion_point(module_scope)
