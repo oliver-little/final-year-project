@@ -159,6 +159,7 @@ class CassandraUploadHandler():
 
             # Read the entire file
             self.logger.debug("Starting file read")
+            count = 0
             with open(file_name, "r", newline=row_delimiter) as file:
                 reader = csv.reader(file, delimiter=delimiter, quotechar=quotechar)
 
@@ -170,6 +171,7 @@ class CassandraUploadHandler():
                 for row in reader:
                     row = apply_row_converters(row, row_converter_indices)
                     queue.put(row)
+                    count += 1
 
                     # Check if any failures have occurred, and quit early if that has happened
                     if insert_failure_event.is_set():
@@ -179,22 +181,21 @@ class CassandraUploadHandler():
 
                 # Set the event when reading has finished
                 finished_reading_event.set()
-            self.logger.debug("Finished file read")
+            self.logger.debug(f"Finished file read, read {count} items")
     
             # Poll the failure status until the queue is empty (would just do a join here, but we need to track if a failure occurs)
-            while not queue.empty():
+            while any(writer.is_alive() for writer in writers):
                 if insert_failure_event.is_set():
                     request_stop_event.set()
                     exception = insert_failure_queue.get()
                     raise ValueError(f"Upload failed: {exception}")
-
-            request_stop_event.set()
+                
             self.logger.debug("Read queue empty")
         finally:
             # Flush the queue (threads will not exit if there are items waiting to be queued, this mostly affects the read queue)
-            if not queue.empty():
-                queue.cancel_join_thread()
+            queue.cancel_join_thread()
 
+            request_stop_event.set()
             # Attempt to join (close) all writers
             for writer in writers:
                 writer.join(timeout=1)
