@@ -14,7 +14,7 @@ import scala.jdk.CollectionConverters._
 import java.time.Instant
 
 object CassandraDataSource:
-    def inferTableFromCassandra(keyspace : String, table : String) : Table = {
+    def inferDataSourceFromCassandra(keyspace : String, table : String) : DataSource = {
         val tableMetadata : TableMetadata = CassandraConnector.getTableMetadata(keyspace, table)
         
         // Map column definitions to (name, data type pairs)
@@ -29,7 +29,7 @@ object CassandraDataSource:
         val partitions = tableMetadata.getPartitionKey.asScala.map(_.getName.asInternal)
         val primaries = tableMetadata.getPrimaryKey.asScala.map(_.getName.asInternal)
 
-        return Table(CassandraDataSource(keyspace, table, fields, partitions.toSeq, primaries.toSeq))
+        return CassandraDataSource(keyspace, table, fields, partitions.toSeq, primaries.toSeq)
     }
 
 /**
