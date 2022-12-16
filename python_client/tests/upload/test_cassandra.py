@@ -187,6 +187,7 @@ def test_insert_from_csv(mocker, tmp_path):
     mock_connector, mock_session = get_mock_connector(mocker)
     mock_queue = mocker.patch("multiprocessing.Queue")
     mock_process = mocker.patch("multiprocessing.Process")
+    mock_process().is_alive.return_value = False
     mock_event = mocker.patch("multiprocessing.Event")
     mock_event().is_set.return_value = False
 
@@ -210,6 +211,7 @@ def test_insert_from_csv_with_cols(mocker, tmp_path):
     mock_connector, mock_session = get_mock_connector(mocker)
     mock_queue = mocker.patch("multiprocessing.Queue")
     mock_process = mocker.patch("multiprocessing.Process")
+    mock_process().is_alive.return_value = False
     mock_event = mocker.patch("multiprocessing.Event")
     mock_event().is_set.return_value = False
 
@@ -231,6 +233,7 @@ def test_insert_from_csv_empty_csv(mocker, tmp_path):
     mock_connector, mock_session = get_mock_connector(mocker)
     mock_queue = mocker.patch("multiprocessing.Queue")
     mock_process = mocker.patch("multiprocessing.Process")
+    mock_process().is_alive.return_value = False
     mock_event = mocker.patch("multiprocessing.Event")
     mock_event().is_set.return_value = False
 
@@ -256,6 +259,7 @@ def test_insert_from_csv_skip_rows(mocker, tmp_path):
     mock_connector, mock_session = get_mock_connector(mocker)
     mock_queue = mocker.patch("multiprocessing.Queue")
     mock_process = mocker.patch("multiprocessing.Process")
+    mock_process().is_alive.return_value = False
     mock_event = mocker.patch("multiprocessing.Event")
     mock_event().is_set.return_value = False
 
