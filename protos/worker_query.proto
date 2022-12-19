@@ -11,7 +11,7 @@ service WorkerComputeService {
 }
 
 message ComputePartialResultCassandraRequest {
-    Table transformations = 1;
+    Table table = 1;
     CassandraDataSource dataSource = 2;
     CassandraTokenRange tokenRange = 3;
 }

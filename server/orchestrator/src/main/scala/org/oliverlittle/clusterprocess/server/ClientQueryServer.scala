@@ -1,10 +1,12 @@
 package org.oliverlittle.clusterprocess.server
 
-import io.grpc.ServerBuilder
+import io.grpc.{ServerBuilder, ManagedChannelBuilder}
 import scala.concurrent.{ExecutionContext, Future}
 import java.util.logging.Logger
 
 import org.oliverlittle.clusterprocess.client_query.{TableClientServiceGrpc, ComputeTableRequest, ComputeTableResult}
+import org.oliverlittle.clusterprocess.worker_query
+import org.oliverlittle.clusterprocess.data_source 
 import org.oliverlittle.clusterprocess.model.table.sources.DataSource
 import org.oliverlittle.clusterprocess.model.table.{Table, TableTransformation}
 
@@ -43,7 +45,10 @@ class ClientQueryServer(executionContext: ExecutionContext) {
             ClientQueryServer.logger.info("Created table instance.")
             
             if !table.isValid then throw new IllegalArgumentException("Table cannot be computed")
-            print(table)
+            
+            val channel = ManagedChannelBuilder.forAddress("localhost", 50052).usePlaintext().build
+            val blockingStub = worker_query.WorkerComputeServiceGrpc.blockingStub(channel)
+            blockingStub.computePartialResultCassandra(worker_query.ComputePartialResultCassandraRequest().withTable(request.table.get).withDataSource(request.dataSource.get.source.cassandra.get).withTokenRange(data_source.CassandraTokenRange(start=1, end=2)))
 
             val response = ComputeTableResult(uuid="sample data")
             Future.successful(response)

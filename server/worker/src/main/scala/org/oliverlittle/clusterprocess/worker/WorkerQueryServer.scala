@@ -5,11 +5,12 @@ import scala.concurrent.{ExecutionContext, Future}
 import java.util.logging.Logger
 
 import org.oliverlittle.clusterprocess.worker_query.{WorkerComputeServiceGrpc, ComputePartialResultCassandraRequest, ComputePartialResultCassandraResult}
-
+import org.oliverlittle.clusterprocess.model.table.sources.cassandra.CassandraDataSource
+import org.oliverlittle.clusterprocess.model.table.{Table, TableTransformation}
 
 object WorkerQueryServer {
     private val logger = Logger.getLogger(classOf[WorkerQueryServer].getName)
-    private val port = 50051
+    private val port = 50052
 
     def main(): Unit = {
         val server = new WorkerQueryServer(ExecutionContext.global)
@@ -35,6 +36,16 @@ class WorkerQueryServer(executionContext: ExecutionContext) {
         override def computePartialResultCassandra(request: ComputePartialResultCassandraRequest): Future[ComputePartialResultCassandraResult] = {
             WorkerQueryServer.logger.info("received files")
             WorkerQueryServer.logger.info(request.toString)
+
+            // Parse table
+            val cassandraSourcePB = request.dataSource.get
+            val dataSource = CassandraDataSource.inferDataSourceFromCassandra(cassandraSourcePB.keyspace, cassandraSourcePB.table)
+            val tableTransformations = TableTransformation.fromProtobuf(request.table.get)
+            val table = Table(dataSource, tableTransformations)
+            WorkerQueryServer.logger.info("Created table instance.")
+            
+            if !table.isValid then throw new IllegalArgumentException("Table cannot be computed")
+
             val response = ComputePartialResultCassandraResult(success=true)
             Future.successful(response)
         }
