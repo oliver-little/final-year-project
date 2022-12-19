@@ -7,6 +7,16 @@ case class Table(dataSource : DataSource, transformations : Seq[TableTransformat
     
     def addTransformation(transformation : TableTransformation) : Table = Table(dataSource, transformations :+ transformation)
 
+    /**
+      * Returns whether this table can be evaluated with the provided data source and transformations
+      */
+    def isValid : Boolean = {
+        val fieldContextList = transformations.iterator.scanLeft(dataSource.getHeaders)((inputContext, item) => item.outputFieldContext(inputContext))
+        val itemFieldContextPairs = transformations.iterator.zip(fieldContextList)
+        val validStages = itemFieldContextPairs.takeWhile((item, fieldContext) => item.isValid(fieldContext))
+        return validStages.size == transformations.size
+    }
+
     def compute : Iterable[Map[String, TableValue]] = {
         var headers = dataSource.getHeaders
         var data = dataSource.getData

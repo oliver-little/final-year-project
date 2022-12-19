@@ -5,6 +5,8 @@ import scala.concurrent.{ExecutionContext, Future}
 import java.util.logging.Logger
 
 import org.oliverlittle.clusterprocess.client_query.{TableClientServiceGrpc, ComputeTableRequest, ComputeTableResult}
+import org.oliverlittle.clusterprocess.model.table.sources.DataSource
+import org.oliverlittle.clusterprocess.model.table.{Table, TableTransformation}
 
 object ClientQueryServer {
     private val logger = Logger.getLogger(classOf[ClientQueryServer].getName)
@@ -32,8 +34,17 @@ class ClientQueryServer(executionContext: ExecutionContext) {
 
     private class ClientQueryServicer extends TableClientServiceGrpc.TableClientService {
         override def computeTable(request: ComputeTableRequest): Future[ComputeTableResult] = {
-            ClientQueryServer.logger.info("received files")
-            ClientQueryServer.logger.info(request.toString())
+            ClientQueryServer.logger.info("Compute table request received")
+
+            // Parse table
+            val dataSource = DataSource.fromProtobuf(request.dataSource.get)
+            val tableTransformations = TableTransformation.fromProtobuf(request.table.get)
+            val table = Table(dataSource, tableTransformations)
+            ClientQueryServer.logger.info("Created table instance.")
+            
+            if !table.isValid then throw new IllegalArgumentException("Table cannot be computed")
+            print(table)
+
             val response = ComputeTableResult(uuid="sample data")
             Future.successful(response)
         }

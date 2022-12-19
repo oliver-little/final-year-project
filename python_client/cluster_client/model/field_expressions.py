@@ -14,6 +14,24 @@ def try_convert_model_value(value) -> FieldExpression:
     else:
         return value
 
+
+class NamedFieldExpression():
+    def __init__(self):
+        if type(self) is NamedFieldExpression:
+            raise NotImplementedError("FieldExpression is an abstract class and cannot be instantiated directly.") 
+
+    def to_named_protobuf(self) -> protobuf_model.NamedExpression:
+        raise NotImplementedError("FieldExpression abstract class cannot be converted to protobuf.")
+
+class DefaultNamedFieldExpression(NamedFieldExpression):
+    def __init__(self, name : str, expr : FieldExpression):
+        super().__init__()
+        self.name = name
+        self.expr = expr
+
+    def to_named_protobuf(self) -> protobuf_model.NamedExpression:
+        return protobuf_model.NamedExpression(name = self.name, expr = self.expr.to_protobuf())
+
 class FieldExpression():
     """Base class for all FieldExpressions"""
     def __init__(self):
@@ -102,6 +120,9 @@ class FieldExpression():
     def is_not_null(self) -> FieldComparison:
         return UnaryFieldComparison("IS_NOT_NULL", self)
 
+    def as_name(self, name : str):
+        return DefaultNamedFieldExpression(name, self)
+
 class V(FieldExpression):
     """Class definition for a literal argument. Automatically parses argument into an accepted type by the system or throws an error."""
     def __init__(self, value):
@@ -150,6 +171,10 @@ class F(FieldExpression):
     def __init__(self, field_name):
         super().__init__()
         self.field_name = field_name
+
+    # Use ducktyping here to mimic a NamedFieldExpression even though it doesn't actually inherit from NamedFieldExpression
+    def to_named_protobuf(self) -> protobuf_model.NamedExpression:
+        return protobuf_model.NamedExpression(name=self.field_name, expr=self.to_protobuf())
 
     def to_protobuf(self) -> protobuf_model.Expression:
         return protobuf_model.Expression(value=protobuf_model.Value(field=self.field_name))

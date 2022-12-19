@@ -15,11 +15,11 @@ class TableTransformation():
 
 class SelectTransformation(TableTransformation):
     """Selects any number of columns from the tables, and applies any given field expressions"""
-    def __init__(self, *select_columns : FieldExpression):
+    def __init__(self, *select_columns : NamedFieldExpression):
         self.select_columns = select_columns
 
     def to_protobuf(self) -> protobuf_model.Table.TableTransformation:
-        return protobuf_model.Table.TableTransformation(select=protobuf_model.Select(fields=[col.to_protobuf() for col in self.select_columns]))
+        return protobuf_model.Table.TableTransformation(select=protobuf_model.Select(fields=[col.to_named_protobuf() for col in self.select_columns]))
 
     def __str__(self):
         col_data = ""

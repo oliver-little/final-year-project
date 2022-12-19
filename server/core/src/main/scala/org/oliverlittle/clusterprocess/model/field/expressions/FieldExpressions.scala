@@ -51,9 +51,21 @@ sealed abstract class ResolvedFieldExpression:
     def evaluateAny(rowContext : Map[String, TableValue]) : Any 
     def evaluate[EvalType](rowContext : Map[String, TableValue])(using evalTag : ClassTag[EvalType]) : EvalType
 
+object NamedFieldExpression:
+    def fromProtobuf(protobuf : NamedExpression) : NamedFieldExpression = NamedFieldExpression(protobuf.name, FieldExpression.fromProtobuf(protobuf.expr.get))
+
 final case class NamedFieldExpression(name : String, expr : FieldExpression):
     def resolve(fieldContext : Map[String, TableField]) = if expr.isWellTyped(fieldContext) then NamedResolvedFieldExpression(name, expr.resolve(fieldContext))
         else throw new IllegalArgumentException("Expression is not well typed. Cannot resolve.")
+
+    def outputTableField(fieldContext : Map[String, TableField]) : TableField = expr match {
+        case expr if expr.doesReturnType[String](fieldContext) => StringField(name)
+        case expr if expr.doesReturnType[Long](fieldContext) => IntField(name)
+        case expr if expr.doesReturnType[Double](fieldContext) => DoubleField(name)
+        case expr if expr.doesReturnType[Instant](fieldContext) => DateTimeField(name)
+        case expr if expr.doesReturnType[Boolean](fieldContext) => BoolField(name)
+        case expr => throw new IllegalArgumentException("FieldExpression returns unknown type: " + expr.toString)
+    }
 
     lazy val protobuf : NamedExpression = NamedExpression(name, Some(expr.protobuf))
 

@@ -26,9 +26,8 @@ object CassandraDataSource:
             case DataTypes.TIMESTAMP => CassandraDateTimeField(k.asInternal)
             case v => throw new UnsupportedOperationException("DataType not supported: " + v)
         }).toSeq
-        val partitions = tableMetadata.getPartitionKey.asScala.map(_.getName.asInternal)
-        val primaries = tableMetadata.getPrimaryKey.asScala.map(_.getName.asInternal)
-
+        val partitions = tableMetadata.getPartitionKey.asScala.map(_.getName.asInternal).toSeq
+        val primaries = tableMetadata.getPrimaryKey.asScala.map(_.getName.asInternal).toSeq
         return CassandraDataSource(keyspace, table, fields, partitions.toSeq, primaries.toSeq)
     }
 
@@ -43,11 +42,10 @@ object CassandraDataSource:
   */
 class CassandraDataSource(keyspace : String, name : String, fields: Seq[CassandraField], partitionKey : Seq[String], primaryKey : Seq[String] = Seq()) extends DataSource:
     // Validity Checks
+    val names : Set[String] = fields.map(_.name).toSet
     if fields.distinct.size != fields.size then throw new IllegalArgumentException("Field list must not contain duplicate names")
     if partitionKey.length == 0 then throw new IllegalArgumentException("Must have at least one partition key")
     if !(partitionKey.forall(names contains _) && primaryKey.forall(names contains _)) then throw new IllegalArgumentException("PartitionKey and PrimaryKey names must match field names")
-
-    val names : Set[String] = fields.map(_.name).toSet
 
     lazy val primaryKeyBuilder : String = {
         val partition = if partitionKey.length > 1 then "(" + partitionKey.reduce((l, r) => l + "," + r) + ")" else partitionKey(0)
