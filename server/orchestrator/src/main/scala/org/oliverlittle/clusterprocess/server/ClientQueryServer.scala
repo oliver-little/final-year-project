@@ -46,7 +46,7 @@ class ClientQueryServer(executionContext: ExecutionContext) {
             
             if !table.isValid then throw new IllegalArgumentException("Table cannot be computed")
             
-            val channel = ManagedChannelBuilder.forAddress("localhost", 50052).usePlaintext().build
+            val channel = ManagedChannelBuilder.forAddress("worker-service", 50052).usePlaintext().build
             val blockingStub = worker_query.WorkerComputeServiceGrpc.blockingStub(channel)
             blockingStub.computePartialResultCassandra(worker_query.ComputePartialResultCassandraRequest().withTable(request.table.get).withDataSource(request.dataSource.get.source.cassandra.get).withTokenRange(data_source.CassandraTokenRange(start=1, end=2)))
 

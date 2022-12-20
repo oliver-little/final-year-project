@@ -1,3 +1,2 @@
-kubectl create -f .\deployments\orchestrator-deployment.yaml
-kubectl create -f .\deployments\worker-deployment.yaml
-kubectl create -f .\services\worker-service.yaml
+kubectl apply -f .\configs\
+helm install cassandra-release bitnami/cassandra --set service.type=NodePort --set dbUser.forcePassword=false

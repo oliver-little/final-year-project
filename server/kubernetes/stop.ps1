@@ -1,3 +1,2 @@
-kubectl delete -f .\deployments\orchestrator-deployment.yaml
-kubectl delete -f .\deployments\worker-deployment.yaml
-kubectl delete -f .\services\worker-service.yaml
+kubectl delete -f .\configs\
+helm delete cassandra-release --set service.type=NodePort

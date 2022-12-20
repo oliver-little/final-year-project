@@ -1,17 +1,21 @@
 from __future__ import annotations
 import re
 from cassandra.cluster import Cluster, Session, PreparedStatement
+from cassandra.auth import PlainTextAuthProvider
 
 from cluster_client.config import NAME_REGEX
 
 class CassandraConnector():
-    def __init__(self, server_url : str = ["localhost"], port : int = None) -> None:
+    def __init__(self, server_url : str = ["localhost"], port : int = None, username : str = None, password : str = None) -> None:
         if isinstance(server_url, str):
             server_url = [server_url]
 
+        if username is not None:
+            auth_provider = PlainTextAuthProvider(username=username, password=password)
+
         self.server_url = server_url
         self.port = port
-        self.cluster : Cluster = Cluster(server_url, port = port)
+        self.cluster : Cluster = Cluster(server_url, port = port, auth_provider=auth_provider)
         self.session : Session = self.cluster.connect()     
 
     def has_keyspace(self, keyspace : str) -> bool:
