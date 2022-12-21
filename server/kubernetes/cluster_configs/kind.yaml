@@ -17,8 +17,6 @@ nodes:
     hostPort: 30942
     protocol: TCP
 - role: worker
-- role: worker
-- role: worker
 # k8ssandra also adds the following configurations for each worker:
 # kubeadmConfigPatches:
 #     - |

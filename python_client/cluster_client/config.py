@@ -16,7 +16,7 @@ NAME_REGEX = r'^[A-Za-z0-9_]+$'
 VALID_COLUMN_TYPES = set(["timestamp", "bigint", "double", "text", "boolean"])
 
 # Number of processes to use to perform uploads to cassandra
-NUM_CASSANDRA_UPLOAD_PROCESSES = 8
+NUM_CASSANDRA_UPLOAD_PROCESSES = 2
 
 # Maximum number of rows that can be waiting in the queue to be processed when bulk uploading from a file (used to keep memory usage under control)
 MAX_WAITING_READ_ROWS = 1000000

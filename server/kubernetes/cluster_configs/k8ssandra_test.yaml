@@ -8,7 +8,7 @@ spec:
     datacenters:
       - metadata:
           name: dc1
-        size: 3
+        size: 1
         storageConfig:
           cassandraDataVolumeClaimSpec:
             storageClassName: standard
@@ -16,10 +16,19 @@ spec:
               - ReadWriteOnce
             resources:
               requests:
-                storage: 5Gi
+                memory: 2Gi
+                storage: 4Gi
+              limits:
+                memory: 4Gi
         config:
           jvmOptions:
             heapSize: 512M
-        stargate:
-          size: 1
-          heapSize: 256M
+  stargate:
+    size: 1
+    resources:
+      limits:
+        memory: 2Gi
+      requests:
+        memory: 1Gi
+    heapSize: 256Mi
+    allowStargateOnDataNodes: true

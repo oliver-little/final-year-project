@@ -8,6 +8,7 @@ import ctypes
 import multiprocessing
 from queue import Empty
 from cassandra.cluster import PreparedStatement
+from cassandra.auth import AuthProvider
 
 from cluster_client.connector.cassandra import CassandraConnector
 from cluster_client.config import NAME_REGEX, VALID_COLUMN_TYPES, NUM_CASSANDRA_UPLOAD_PROCESSES, MAX_WAITING_READ_ROWS
@@ -149,7 +150,7 @@ class CassandraUploadHandler():
         
         # Start writer processes
         self.logger.debug("Starting insert processes")
-        writers = [multiprocessing.Process(target=insert_from_queue, args=(queue, self.connector.server_url, self.connector.port, prep, finished_reading_event, request_stop_event, insert_failure_event, insert_failure_queue)) for _ in range(NUM_CASSANDRA_UPLOAD_PROCESSES)]
+        writers = [multiprocessing.Process(target=insert_from_queue, args=(queue, self.connector.server_url, self.connector.port, prep, finished_reading_event, request_stop_event, insert_failure_event, insert_failure_queue, self.connector.auth_provider)) for _ in range(NUM_CASSANDRA_UPLOAD_PROCESSES)]
         
         try:
             for writer in writers:
@@ -213,8 +214,8 @@ def handle_insert_failure(insert_failure_event : multiprocessing.Event, insert_f
         insert_failure_queue.put(str(exception))
         insert_failure_event.set()
 
-def insert_from_queue(queue : multiprocessing.Queue, server_url : str, port : int, prep : PreparedStatement, finished_reading : multiprocessing.Event, request_stop : multiprocessing.Event, insert_failure_event : multiprocessing.Event, insert_failure_queue : multiprocessing.Queue) -> None:    
-    connector = CassandraConnector(server_url, port)
+def insert_from_queue(queue : multiprocessing.Queue, server_url : str, port : int, prep : PreparedStatement, finished_reading : multiprocessing.Event, request_stop : multiprocessing.Event, insert_failure_event : multiprocessing.Event, insert_failure_queue : multiprocessing.Queue, auth_provider : AuthProvider = None) -> None:    
+    connector = CassandraConnector(server_url, port, auth_provider=auth_provider)
     err_callback = lambda exception: handle_insert_failure(insert_failure_event, insert_failure_queue, exception)
     try:
         while not request_stop.is_set():

@@ -1,22 +1,29 @@
 from __future__ import annotations
 import re
 from cassandra.cluster import Cluster, Session, PreparedStatement
-from cassandra.auth import PlainTextAuthProvider
+from cassandra.auth import AuthProvider, PlainTextAuthProvider
 
 from cluster_client.config import NAME_REGEX
 
 class CassandraConnector():
-    def __init__(self, server_url : str = ["localhost"], port : int = None, username : str = None, password : str = None) -> None:
+    def __init__(self, server_url : str = ["localhost"], port : int = None, username : str = None, password : str = None, auth_provider : AuthProvider = None) -> None:
         if isinstance(server_url, str):
             server_url = [server_url]
 
-        if username is not None:
-            auth_provider = PlainTextAuthProvider(username=username, password=password)
+        if auth_provider is not None:
+            self.auth_provider = auth_provider
+            self.cluster : Cluster = Cluster(server_url, port = port, auth_provider=self.auth_provider)
+        elif username is not None and password is not None:
+            self.auth_provider = PlainTextAuthProvider(username=username, password=password)
+            self.cluster : Cluster = Cluster(server_url, port = port, auth_provider=self.auth_provider)
+        else:
+            self.auth_provider = None
+            self.cluster : Cluster = Cluster(server_url, port = port)
 
         self.server_url = server_url
         self.port = port
-        self.cluster : Cluster = Cluster(server_url, port = port, auth_provider=auth_provider)
-        self.session : Session = self.cluster.connect()     
+        self.session : Session = self.cluster.connect()
+        self.session.request_timeout = 60     
 
     def has_keyspace(self, keyspace : str) -> bool:
         if not re.match(NAME_REGEX, keyspace):
