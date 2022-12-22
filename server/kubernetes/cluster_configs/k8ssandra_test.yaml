@@ -14,21 +14,10 @@ spec:
             storageClassName: standard
             accessModes:
               - ReadWriteOnce
-            resources:
-              requests:
-                memory: 2Gi
-                storage: 4Gi
-              limits:
-                memory: 4Gi
         config:
           jvmOptions:
             heapSize: 512M
   stargate:
     size: 1
-    resources:
-      limits:
-        memory: 2Gi
-      requests:
-        memory: 1Gi
     heapSize: 256Mi
     allowStargateOnDataNodes: true
