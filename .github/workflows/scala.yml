@@ -10,10 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  build:
-
+  test:
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v3
     - name: Set up JDK 11
@@ -31,3 +29,31 @@ jobs:
     - name: Run worker tests
       working-directory: ./server/worker
       run: sbt test
+  deploy:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+    - name: 'Checkout GitHub Action'
+      uses: actions/checkout@v3
+    - name: 'Login via Azure CLI'
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+    - name: 'Login to Azure Container Registry'
+      uses: azure/docker-login@v1
+      with:
+        login-server: ${{ secrets.REGISTRY_LOGIN_SERVER }}
+        username: ${{ secrets.REGISTRY_USERNAME }}
+        password: ${{ secrets.REGISTRY_PASSWORD }}
+    - name: 'Generate and push worker container'
+      working-directory: ./server/worker
+      run: |
+        sbt docker:publishLocal 
+        docker tag worker:latest ${{ secrets.REGISTRY_LOGIN_SERVER }}/worker:latest
+        docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/worker:latest
+    - name: 'Generate and push orchestrator container'
+      working-directory: ./server/orchestrator
+      run: |
+        sbt docker:publishLocal 
+        docker tag worker:latest ${{ secrets.REGISTRY_LOGIN_SERVER }}/orchestrator:latest
+        docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/orchestrator:latest
