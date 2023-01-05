@@ -1,11 +1,10 @@
 name: ACR_Push
 
 on:
-  workflow_run:
-    workflows: 
-      - Scala CI
-    types:
-      - completed
+  push:
+    branches: [ "master", "develop" ]
+  pull_request:
+    branches: [ "master", "develop" ]
 
 jobs:
     build-and-deploy:
