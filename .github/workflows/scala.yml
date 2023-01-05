@@ -55,5 +55,5 @@ jobs:
       working-directory: ./server/orchestrator
       run: |
         sbt docker:publishLocal 
-        docker tag worker:latest ${{ secrets.REGISTRY_LOGIN_SERVER }}/orchestrator:latest
+        docker tag orchestrator:latest ${{ secrets.REGISTRY_LOGIN_SERVER }}/orchestrator:latest
         docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/orchestrator:latest
