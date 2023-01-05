@@ -10,7 +10,6 @@ on:
 jobs:
     build-and-deploy:
         runs-on: ubuntu-latest
-        if: ${{ github.event.workflow_run.conclusion == 'success' }}
         steps:
         # checkout the repo
         - name: 'Checkout GitHub Action'
@@ -27,12 +26,14 @@ jobs:
             login-server: ${{ secrets.REGISTRY_LOGIN_SERVER }}
             username: ${{ secrets.REGISTRY_USERNAME }}
             password: ${{ secrets.REGISTRY_PASSWORD }}
+            
         - name: 'Generate and push worker container'
           working-directory: ./server/worker
           run: |
             sbt docker:publishLocal 
             docker tag worker:latest -t ${{ secrets.REGISTRY_LOGIN_SERVER }}/worker:latest
             docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/worker:latest
+            
         - name: 'Generate and push orchestrator container'
           working-directory: ./server/orchestrator
           run: |
