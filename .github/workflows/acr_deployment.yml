@@ -2,8 +2,8 @@ name: ACR_Push
 
 on:
   workflow_run:
-    workflows: [Scala CI]
-    branches: ["master", "develop"]
+    workflows: 
+      - Scala CI
     types:
       - completed
 
@@ -21,12 +21,21 @@ jobs:
           with:
             creds: ${{ secrets.AZURE_CREDENTIALS }}
         
-        - name: 'Build and push image'
+        - name: 'Login to Azure Container Registry'
           uses: azure/docker-login@v1
           with:
             login-server: ${{ secrets.REGISTRY_LOGIN_SERVER }}
             username: ${{ secrets.REGISTRY_USERNAME }}
             password: ${{ secrets.REGISTRY_PASSWORD }}
-        - run: |
-            docker build . -t ${{ secrets.REGISTRY_LOGIN_SERVER }}/sampleapp:${{ github.sha }}
-            docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/sampleapp:${{ github.sha }}
+        - name: 'Generate and push worker container'
+          working-directory: ./server/worker
+          run: |
+            sbt docker:publishLocal 
+            docker tag worker:latest -t ${{ secrets.REGISTRY_LOGIN_SERVER }}/worker:latest
+            docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/worker:latest
+        - name: 'Generate and push orchestrator container'
+          working-directory: ./server/orchestrator
+          run: |
+            sbt docker:publishLocal 
+            docker tag worker:latest -t ${{ secrets.REGISTRY_LOGIN_SERVER }}/orchestrator:latest
+            docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/orchestrator:latest
