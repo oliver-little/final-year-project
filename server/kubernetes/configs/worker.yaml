@@ -23,11 +23,6 @@ spec:
         - name: cassandra
           mountPath: "/etc/cassandra"
           readOnly: true
-        volumes:
-        - name: cassandra
-          secret:
-            secretName: demo-superuser
-            optional: false
         env:
         - name: CASSANDRA_URL
           value: "demo-dc1-service"
@@ -37,6 +32,11 @@ spec:
           value: "/etc/cassandra/username"
         - name: CASSANDRA_PASSWORD_FILE"
           value: "/etc/cassandra/password"
+      volumes:
+        - name: cassandra
+          secret:
+            secretName: demo-superuser
+            optional: false
 ---
 apiVersion: v1
 kind: Service
