@@ -6,8 +6,12 @@ name: Python CI
 on:
   push:
     branches: [ "master", "develop" ]
+    paths:
+    - "python_client/**"
   pull_request:
     branches: [ "master", "develop" ]
+    paths:
+    - "python_client/**"
 
 jobs:
   build:
