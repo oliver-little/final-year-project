@@ -134,7 +134,7 @@ if __name__ == "__main__":
     # Generate existing loans
     print("Generating existing loans:")
 
-    for loan_id in tqdm(range(NUM_EXISTING_LOANS)):
+    for loan_id in range(NUM_EXISTING_LOANS):
         amount, interest_rate, duration, origination_date = generate_origination(START_EXISTING_DATE, END_EXISTING_DATE)
         schedule = generate_amortisation_schedule(amount, interest_rate, duration, origination_date)
         schedule = schedule[(schedule["date"] > START_DATA_DATE) & (schedule["date"] < END_DATA_DATE)]

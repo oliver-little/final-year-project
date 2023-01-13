@@ -8,3 +8,7 @@ kubectl apply -f demo_cluster.yaml
 # For checking the cluster is up
 # kubectl get pods
 # kubectl describe k8ssandracluster demo    
+
+# Extract username and password
+#kubectl get secrets/demo-superuser --template="{{.data.username}}" | base64 -d
+#kubectl get secrets/demo-superuser --template="{{.data.password}}" | base64 -d
