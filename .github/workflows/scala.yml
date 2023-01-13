@@ -4,10 +4,12 @@ on:
   push:
     branches: [ "master", "develop" ]
     paths:
+    - ".github/workflows/scala.yml"
     - "server/**"
   pull_request:
     branches: [ "master" , "develop" ]
     paths:
+    - ".github/workflows/scala.yml"
     - "server/**"
 
 permissions:
