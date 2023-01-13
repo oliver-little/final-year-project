@@ -19,11 +19,14 @@ object CassandraConnector {
     var password : Option[String] = passwordFile.flatMap(f => Some(fromFile(f).getLines.mkString))
     var authProvider : Option[AuthProvider] = if username.isDefined && password.isDefined then Some(new ProgrammaticPlainTextAuthProvider(username.get, password.get)) else None
 
+    // Procedure style syntax to put the auth provider in if it exists
     private var sessionBuilder = CqlSession.builder().addContactPoint(new InetSocketAddress(host, port)).withLocalDatacenter(datacenter)
     if authProvider.isDefined then sessionBuilder.withAuthProvider(authProvider.get)
     private var session : CqlSession = sessionBuilder.build()
 
     def getSession : CqlSession = session
+
+    def verifyConnection : Boolean = !session.isClosed
 
     def getTableMetadata(keyspace : String, table : String) : TableMetadata = {
         val ksObj = CassandraConnector.getSession.getMetadata.getKeyspace(keyspace)
