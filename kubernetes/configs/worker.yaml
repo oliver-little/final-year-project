@@ -1,7 +1,7 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
-  name: worker-deployment
+  name: worker
   labels:
     app: worker
 spec:
@@ -9,6 +9,7 @@ spec:
   selector:
     matchLabels:
       app: worker
+  serviceName: "worker-service"
   template:
     metadata:
       labels:
@@ -19,6 +20,7 @@ spec:
         image: oliverlittle.azurecr.io/worker:latest
         ports:
         - containerPort: 50052
+          name: worker
         volumeMounts:
         - name: cassandra
           mountPath: "/etc/cassandra"
@@ -44,9 +46,9 @@ metadata:
   name: worker-service
 spec:
   type: ClusterIP
+  clusterIP: None
   selector:
     app: worker
   ports:
-    - protocol: TCP
-      port: 50052
-      targetPort: 50052
+    - port: 50052
+      name: worker

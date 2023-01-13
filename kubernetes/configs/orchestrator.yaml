@@ -32,6 +32,12 @@ spec:
           value: "/etc/cassandra/username"
         - name: CASSANDRA_PASSWORD_FILE"
           value: "/etc/cassandra/password"
+        - name: WORKER_SERVICE_URL
+          value: "worker-service"
+        - name: WORKER_NODE_NAME
+          value: "worker"
+        - name: NUM_WORKERS
+          value: "2"
       volumes:
         - name: cassandra
           secret:
