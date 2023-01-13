@@ -4,6 +4,7 @@ import org.oliverlittle.clusterprocess.worker.WorkerQueryServer
 import org.oliverlittle.clusterprocess.cassandra.CassandraConnector
 
 @main def main: Unit = {
-    CassandraConnector.verifyConnection()
+    // Verify connection to force a failure at startup if Cassandra is unavailable
+    CassandraConnector.verifyConnection
     WorkerQueryServer.main()
 }
