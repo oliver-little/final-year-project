@@ -39,6 +39,35 @@ spec:
           secret:
             secretName: demo-superuser
             optional: false
+      affinity:
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 50
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: cassandra.datastax.com/cluster
+                  operator: In
+                  values:
+                  # This must be the same name as the Cassandra cluster
+                  - demo
+                - key: cassandra.datastax.com/datacenter
+                  operator: In
+                  values:
+                  # This must be the same name as the Cassandra datacenter name
+                  - dc1
+              topologyKey: topology.kubernetes.io/zone
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 50
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - worker
+              topologyKey: topology.kubernetes.io/zone
 ---
 apiVersion: v1
 kind: Service
