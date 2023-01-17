@@ -1,7 +1,7 @@
 package org.oliverlittle.clusterprocess.model.table.sources.cassandra
 
 
-import org.oliverlittle.clusterprocess.cassandra.CassandraConnector
+import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
 import org.oliverlittle.clusterprocess.model.field.expressions.F
 import org.oliverlittle.clusterprocess.model.table._
 import org.oliverlittle.clusterprocess.model.table.sources.DataSource

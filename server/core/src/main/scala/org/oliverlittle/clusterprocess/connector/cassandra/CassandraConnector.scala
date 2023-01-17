@@ -1,4 +1,6 @@
-package org.oliverlittle.clusterprocess.cassandra
+package org.oliverlittle.clusterprocess.connector.cassandra
+
+import org.oliverlittle.clusterprocess.connector.PingLatency
 
 import com.datastax.oss.driver.api.core.CqlSession
 import com.datastax.oss.driver.api.core.metadata.schema.TableMetadata
@@ -8,8 +10,8 @@ import scala.io.Source.fromFile
 import scala.util.Properties.{envOrElse, envOrNone}
 
 object CassandraConnector {
-    var host : String = envOrElse("CASSANDRA_URL", "localhost")
     var port : Int = envOrElse("CASSANDRA_PORT", "9042").toInt
+    var host : String = getHost(port)
     var datacenter : String = envOrElse("CASSANDRA_DATACENTER", "datacenter1")
 
     var usernameFile : Option[String] = envOrNone("CASSANDRA_USERNAME_FILE")
@@ -26,8 +28,6 @@ object CassandraConnector {
 
     def getSession : CqlSession = session
 
-    def verifyConnection : Boolean = !session.isClosed
-
     def getTableMetadata(keyspace : String, table : String) : TableMetadata = {
         val ksObj = CassandraConnector.getSession.getMetadata.getKeyspace(keyspace)
         if ksObj.isPresent then
@@ -43,4 +43,21 @@ object CassandraConnector {
         val ksObj = metadata.getKeyspace(keyspace)
         return if ksObj.isPresent then return ksObj.get.getTable(table).isPresent else false
     }
+
+    def verifyConnection : Boolean = !session.isClosed
+
+    def getHost(port : Int) : String = {
+        val url = envOrNone("CASSANDRA_URL")
+        val baseURL = envOrNone("CASSANDRA_BASE_URL")
+        if url.isDefined then return url.get
+        else if baseURL.isDefined then return selectClosestNodeURL(baseURL.get, envOrElse("CASSANDRA_NODE_NAME", "demo-dc1-default-sts"), envOrElse("NUM_CASSANDRA_NODES", "1").toInt, port).getOrElse("localhost")
+        else return "localhost"
+    }
+
+    def selectClosestNodeURL(baseURL : String, nodeName : String, numNodes : Int, port : Int) : Option[String] = 
+        (0 to numNodes - 1).map(nodeName + "-" + _.toString + "." + baseURL) // For each possible URL, generate the full string
+            .map((url : String) => (url, PingLatency.getLatencyToURL(url, port))) // Then get the corresponding latency for that URL
+            .filter(_._2.nonEmpty).sortBy(_._2) // Remove any failed connections and sort by latency ascending
+            .headOption // Get the first element if it exists
+            .flatMap((url : String, _) => Some(url)) // Get the URL portion of the tuple
 }

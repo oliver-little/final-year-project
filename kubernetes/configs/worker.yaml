@@ -26,14 +26,18 @@ spec:
           mountPath: "/etc/cassandra"
           readOnly: true
         env:
-        - name: CASSANDRA_URL
-          value: "demo-dc1-service"
         - name: CASSANDRA_DATACENTER
           value: "dc1"
         - name: CASSANDRA_USERNAME_FILE
           value: "/etc/cassandra/username"
         - name: CASSANDRA_PASSWORD_FILE
           value: "/etc/cassandra/password"
+        - name: CASSANDRA_BASE_URL
+          value: "demo-dc1-service-sts"
+        - name: NUM_CASSANDRA_NODES
+          value: "3"
+        - name: CASSANDRA_NODE_NAME
+          value: "demo-dc1-default-sts"
       volumes:
         - name: cassandra
           secret:
