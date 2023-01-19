@@ -5,14 +5,19 @@ import org.oliverlittle.clusterprocess.connector.PingLatency
 import com.datastax.oss.driver.api.core.CqlSession
 import com.datastax.oss.driver.api.core.metadata.schema.TableMetadata
 import com.datastax.oss.driver.api.core.auth.{AuthProvider, ProgrammaticPlainTextAuthProvider}
+import java.util.logging.Logger
 import java.net.InetSocketAddress
 import scala.io.Source.fromFile
 import scala.util.Properties.{envOrElse, envOrNone}
 
 object CassandraConnector {
+    private val logger = Logger.getLogger("CassandraConnector")
+
     var port : Int = envOrElse("CASSANDRA_PORT", "9042").toInt
     var host : String = getHost(port)
     var datacenter : String = envOrElse("CASSANDRA_DATACENTER", "datacenter1")
+
+    logger.info(f"Connected to $host%s:$port%s, datacenter $datacenter%s.")
 
     var usernameFile : Option[String] = envOrNone("CASSANDRA_USERNAME_FILE")
     var passwordFile : Option[String] = envOrNone("CASSANDRA_PASSWORD_FILE")
