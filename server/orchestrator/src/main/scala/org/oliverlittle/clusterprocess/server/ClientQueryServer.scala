@@ -3,6 +3,7 @@ package org.oliverlittle.clusterprocess.server
 import io.grpc.{ServerBuilder, ManagedChannelBuilder}
 import scala.concurrent.{ExecutionContext, Future}
 import java.util.logging.Logger
+import scala.util.Properties.{envOrElse, envOrNone}
 
 import org.oliverlittle.clusterprocess.client_query.{TableClientServiceGrpc, ComputeTableRequest, ComputeTableResult}
 import org.oliverlittle.clusterprocess.worker_query
@@ -15,13 +16,20 @@ object ClientQueryServer {
     private val port = 50051
 
     def main(): Unit = {
-        val server = new ClientQueryServer(ExecutionContext.global)
+        val numWorkers = envOrNone("NUM_WORKERS")
+        val nodeName = envOrNone("WORKER_NODE_NAME")
+        val baseURL = envOrNone("WORKER_SERVICE_URL")
+
+        if !(numWorkers.isDefined && nodeName.isDefined && baseURL.isDefined) then throw new IllegalArgumentException("Missing environment variables (NUM_WORKERS, WORKER_NODE_NAME, WORKER_SERVICE_URL) to initialise orchestrator.")
+
+        val workerAddresses : Seq[(String, Int)] = (0 to numWorkers.get.toInt).map(num => (nodeName.get + "-" + num.toString + "." + baseURL.get, 9042))
+        val server = new ClientQueryServer(ExecutionContext.global, workerAddresses)
         server.blockUntilShutdown()
     }
 }
 
-class ClientQueryServer(executionContext: ExecutionContext) {
-    private val server =  ServerBuilder.forPort(ClientQueryServer.port).addService(TableClientServiceGrpc.bindService(new ClientQueryServicer, executionContext)).build.start
+class ClientQueryServer(executionContext: ExecutionContext, workerAddresses : Seq[(String, Int)]) {
+    private val server =  ServerBuilder.forPort(ClientQueryServer.port).addService(TableClientServiceGrpc.bindService(new ClientQueryServicer(new WorkerHandler(workerAddresses)), executionContext)).build.start
     ClientQueryServer.logger.info("gRPC Server started, listening on " + ClientQueryServer.port)
     
     sys.addShutdownHook({
@@ -30,11 +38,11 @@ class ClientQueryServer(executionContext: ExecutionContext) {
         ClientQueryServer.logger.info("*** gRPC server shut down.")
     })
 
-    private def stop() : Unit = this.server.shutdown()
+    private def stop() : Unit = server.shutdown()
 
-    private def blockUntilShutdown(): Unit = this.server.awaitTermination()
+    private def blockUntilShutdown(): Unit = server.awaitTermination()
 
-    private class ClientQueryServicer extends TableClientServiceGrpc.TableClientService {
+    private class ClientQueryServicer(workerHandler : WorkerHandler) extends TableClientServiceGrpc.TableClientService {
         override def computeTable(request: ComputeTableRequest): Future[ComputeTableResult] = {
             ClientQueryServer.logger.info("Compute table request received")
 

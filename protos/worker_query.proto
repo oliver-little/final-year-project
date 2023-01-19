@@ -8,7 +8,7 @@ import "data_source.proto";
 service WorkerComputeService {
     // Computes a partial result
     rpc ComputePartialResultCassandra(ComputePartialResultCassandraRequest) returns (ComputePartialResultCassandraResult);
-    rpc GetLocalCassandraNode(GetLocalCassandraNodeRequest) returns (GetLocalCassandraNodeResult)
+    rpc GetLocalCassandraNode(GetLocalCassandraNodeRequest) returns (GetLocalCassandraNodeResult);
 }
 
 message GetLocalCassandraNodeRequest {
@@ -16,7 +16,7 @@ message GetLocalCassandraNodeRequest {
 }
 
 message GetLocalCassandraNodeResult {
-    InetSocketAddress = 1;
+    InetSocketAddress address = 1;
 }
 
 message ComputePartialResultCassandraRequest {
