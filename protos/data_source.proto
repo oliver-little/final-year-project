@@ -18,3 +18,8 @@ message CassandraTokenRange {
     sint64 start = 1;
     sint64 end = 2;
 }
+
+message InetSocketAddress {
+    string host = 1;
+    int32 port = 2;
+}

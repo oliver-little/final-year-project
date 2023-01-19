@@ -15,6 +15,7 @@ object CassandraConnector {
 
     var port : Int = envOrElse("CASSANDRA_PORT", "9042").toInt
     var host : String = getHost(port)
+    var socket : InetSocketAddress = new InetSocketAddress(host, port)
     var datacenter : String = envOrElse("CASSANDRA_DATACENTER", "datacenter1")
 
     logger.info(f"Connected to $host%s:$port%s, datacenter $datacenter%s.")
@@ -27,7 +28,7 @@ object CassandraConnector {
     var authProvider : Option[AuthProvider] = if username.isDefined && password.isDefined then Some(new ProgrammaticPlainTextAuthProvider(username.get, password.get)) else None
 
     // Procedure style syntax to put the auth provider in if it exists
-    private var sessionBuilder = CqlSession.builder().addContactPoint(new InetSocketAddress(host, port)).withLocalDatacenter(datacenter)
+    private var sessionBuilder = CqlSession.builder().addContactPoint(socket).withLocalDatacenter(datacenter)
     if authProvider.isDefined then sessionBuilder.withAuthProvider(authProvider.get)
     private var session : CqlSession = sessionBuilder.build()
 

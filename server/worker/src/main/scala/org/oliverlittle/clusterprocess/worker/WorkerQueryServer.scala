@@ -4,9 +4,10 @@ import io.grpc.ServerBuilder
 import scala.concurrent.{ExecutionContext, Future}
 import java.util.logging.Logger
 
-import org.oliverlittle.clusterprocess.worker_query.{WorkerComputeServiceGrpc, ComputePartialResultCassandraRequest, ComputePartialResultCassandraResult}
+import org.oliverlittle.clusterprocess.worker_query._
 import org.oliverlittle.clusterprocess.model.table.sources.cassandra.CassandraDataSource
 import org.oliverlittle.clusterprocess.model.table.{Table, TableTransformation}
+import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
 
 object WorkerQueryServer {
     private val logger = Logger.getLogger(classOf[WorkerQueryServer].getName)
@@ -33,9 +34,8 @@ class WorkerQueryServer(executionContext: ExecutionContext) {
     private def blockUntilShutdown(): Unit = this.server.awaitTermination()
 
     private class WorkerQueryServicer extends WorkerComputeServiceGrpc.WorkerComputeService {
-        override def computePartialResultCassandra(request: ComputePartialResultCassandraRequest): Future[ComputePartialResultCassandraResult] = {
-            WorkerQueryServer.logger.info("received files")
-            WorkerQueryServer.logger.info(request.toString)
+        override def computePartialResultCassandra(request : ComputePartialResultCassandraRequest) : Future[ComputePartialResultCassandraResult] = {
+            WorkerQueryServer.logger.info("computePartialResultCassandra")
 
             // Parse table
             val cassandraSourcePB = request.dataSource.get
@@ -47,6 +47,13 @@ class WorkerQueryServer(executionContext: ExecutionContext) {
             if !table.isValid then throw new IllegalArgumentException("Table cannot be computed")
 
             val response = ComputePartialResultCassandraResult(success=true)
+            Future.successful(response)
+        }
+
+        override def getLocalCassandraNode(request : GetLocalCassandraNodeRequest) : Future[GetLocalCassandraNodeResult] = {
+            WorkerQueryServer.logger.info("getLocalCassandraNode")
+
+            val response = GetLocalCassandraNodeResult(host=CassandraConnector.socket.getHostName(), port=CassandraConnector.socket.getPort())
             Future.successful(response)
         }
     }
