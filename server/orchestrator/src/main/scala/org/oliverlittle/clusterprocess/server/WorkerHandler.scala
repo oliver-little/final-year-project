@@ -78,16 +78,11 @@ class WorkerHandler(workerAddresses : Seq[(String, Int)]) {
 
         val res = session.execute("SELECT * FROM system.size_estimates WHERE keyspace_name=? AND table_name=?", keyspace, table)
 
-        // For each set
-        // Intersect it with each token range
-        // If it matches with any (or multiple), add that to a running total of the amount of data for that tokenrange
-        // Keep a separate running total for data that doesn't match any token range (i.e: can be dispatched anywhere)
-        // The end result should be a mapping of Option[ChannelManager] -> total data (MB), with None representing the amount
-        // of non-localised data
+        // Currently this is not super accurate, as this is only the picture from the node that was queried
         val channelDataMapping = 
             for {
                 row <- res.iterator.asScala // Iterate over all rows
-                tokenRange <- Seq(tokenMap.newTokenRange(tokenMap.newToken(ByteBufferOperations.toByteBuffer(row.getString("range_start"))), tokenMap.newToken(ByteBufferOperations.toByteBuffer(row.getString("range_end"))))) // Generate a tokenRange covered by the row (wrapped in a Seq to satisfy flatMap requirements)
+                tokenRange <- Seq(tokenMap.newTokenRange(tokenMap.parse(row.getString("range_start")), tokenMap.parse(row.getString("range_end")))) // Generate a tokenRange covered by the row (wrapped in a Seq to satisfy flatMap requirements)
                 totalData <- Seq(row.getLong("mean_partition_size") * row.getLong("partitions_count")) // Generate the amount of data for this tokenRange 
                 matchedChannel <- tokenRangesByChannel
                     // Filter on tokenRange for each channel to find any that intersect with the current tokenRange
