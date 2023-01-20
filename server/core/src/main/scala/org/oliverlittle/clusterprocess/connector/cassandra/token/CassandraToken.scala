@@ -20,7 +20,9 @@ case class CassandraToken(tokenMap : TokenMap, token : Long) {
 }
 
 object CassandraTokenRange {
+    def fromLong(tokenMap : TokenMap, start : Long, end : Long) = CassandraTokenRange(tokenMap, CassandraToken(tokenMap, start), CassandraToken(tokenMap, end))
     def fromToken(tokenMap : TokenMap, start : Token, end : Token) : CassandraTokenRange = CassandraTokenRange(tokenMap, CassandraToken.fromToken(tokenMap, start), CassandraToken.fromToken(tokenMap, end))
+    def fromTokenRange(tokenMap : TokenMap, range : TokenRange) : CassandraTokenRange = fromToken(tokenMap, range.getStart, range.getEnd)
 }
 
 case class CassandraTokenRange(tokenMap : TokenMap, start : CassandraToken, end : CassandraToken) {
