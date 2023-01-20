@@ -53,8 +53,8 @@ class WorkerQueryServer(executionContext: ExecutionContext) {
 
         override def getLocalCassandraNode(request : GetLocalCassandraNodeRequest) : Future[GetLocalCassandraNodeResult] = {
             WorkerQueryServer.logger.info("getLocalCassandraNode")
-
-            val response = GetLocalCassandraNodeResult(address=Some(data_source.InetSocketAddress(host=CassandraConnector.socket.getHostName(), port=CassandraConnector.socket.getPort())))
+            WorkerQueryServer.logger.info("Host: " + CassandraConnector.socket.getHostName + ", port: " + CassandraConnector.socket.getPort.toString)
+            val response = GetLocalCassandraNodeResult(address=Some(data_source.InetSocketAddress(host=CassandraConnector.socket.getHostName, port=CassandraConnector.socket.getPort)))
             Future.successful(response)
         }
     }
