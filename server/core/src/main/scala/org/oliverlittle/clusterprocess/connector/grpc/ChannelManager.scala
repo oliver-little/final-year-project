@@ -20,4 +20,6 @@ case class ChannelManager(host : String, port : Int) {
         if !channel.isShutdown then channel.shutdown
         return new ChannelManager(host, port)
     }
+
+    override def toString = "ChannelManager: " + host + ":" + port.toString
 }

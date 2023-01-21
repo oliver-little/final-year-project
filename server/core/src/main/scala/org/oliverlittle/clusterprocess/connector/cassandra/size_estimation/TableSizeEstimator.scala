@@ -16,7 +16,9 @@ object TableSizeEstimation {
 case class TableSizeEstimation(estimateRows : Seq[SizeEstimatesRow]) {
     lazy val percentageOfFullRing : Double = estimateRows.map(_.range.percentageOfFullRing).sum
     lazy val allRowsSize : Long = estimateRows.map(_.size).sum
+    // Estimated size of this table, in bytes
     lazy val estimatedTableSize : Double = allRowsSize / percentageOfFullRing
+    lazy val estimatedTableSizeMB : Double = estimatedTableSize / 1000000
 }
 
 case class SizeEstimatesRow(range : CassandraTokenRange, meanPartitionSize : Long, partitionsCount : Long) {
