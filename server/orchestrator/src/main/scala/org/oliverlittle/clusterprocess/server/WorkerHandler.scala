@@ -42,38 +42,34 @@ class WorkerHandler(workerAddresses : Seq[(String, Int)]) {
         val sizeEstimator = TableSizeEstimation.estimateTableSize(session, keyspace, table)
         val channelMap = getChannelMapping(channels)
 
-        val chunkSize : Int = ConfigFactory.load().getString("clusterprocess.chunk.chunk_size_mb").toInt
+        val chunkSize : Int = ConfigFactory.load.getString("clusterprocess.chunk.chunk_size_mb").toInt
 
         // Sense check
-        val totalPercentage = channelMap.keys.map(_.percentageOfFullRing).sum
+        val totalPercentage = channelMap.map(_._1.percentageOfFullRing).sum
         if (totalPercentage - 1).abs <= 0.01 then logger.info("Nodes do not cover entire ring: " + totalPercentage.toString + "% covered.")
 
-        // This is unfinished
-        // For each channelMap entry, need to calculate the tokenRanges based on their percentage of the full ring, and do any splitting that is required (according to chunkSize)
-        // Then, reformat the list so that the output is pairs of list of possible channels to send to, and a list of chunked token ranges
-        // An empty list signifies that there is no data locality, and the chunk can be sent to any node
-        val assignedWork : Seq[(Seq[ChannelManager], Seq[CassandraTokenRange])] = for {
-            (node, matchedChannels) <- channelMap.toSeq
-            tokenRange <- node.primaryTokenRange
-            splitRanges <- tokenRange.splitEvenly(((tokenRange.percentageOfFullRing * sizeEstimator.estimatedTableSizeMB) / chunkSize).ceil.toInt.max(1)).toSeq
-        }
-        yield (matchedChannels, splitRanges)
-
-        return assignedWork.groupBy(_._1).map
+        // For each node, split the token range to be small enough to fit the chunk size
+        return channelMap.map((node, matchedChannels) => (matchedChannels, node.splitForFullSize(sizeEstimator.estimatedTableSizeMB, chunkSize)))
     }
 
-    def getChannelMapping(channelManagers : Seq[ChannelManager]) : Map[CassandraNode, Seq[ChannelManager]] = {
+    /**
+      * Returns the matching CassandraNodes for each ChannelManager
+      *
+      * @param channelManagers The ChannelManagers to compare
+      * @return A sequence of (CassandraNode, Seq[ChannelManager]) pairs, showing which ChannelManagers are colocated with a given CassandraNode
+      */
+    def getChannelMapping(channelManagers : Seq[ChannelManager]) : Seq[(CassandraNode, Seq[ChannelManager])] = {
         val metadata = CassandraConnector.getSession.getMetadata
         val cassandraNodes : Seq[CassandraNode] = CassandraNode.getNodes(metadata)
-        // For each channel, get the local cassandra address and store it as a Map
-        val channelCassandraAddresses : Seq[(InetSocketAddress, ChannelManager)] = channelManagers.map(channel => (getWorkerCassandraAddress(channel), channel))
         // For each known Cassandra node, try to match it up to a channel by comparing addresses
-        val channelMap : Map[CassandraNode, Seq[ChannelManager]] = cassandraNodes.map(node => 
-            node -> channelCassandraAddresses
-                // Find any channels, where the cassandra node address matches (can't just use get as we have to compare multiple addresses)
+        val channelMap : Seq[(CassandraNode, Seq[ChannelManager])] = cassandraNodes.map(node => 
+            (node, 
+            // For each channel, get the local cassandra address and store it as a map
+            channelManagers.map(channel => (getWorkerCassandraAddress(channel), channel))
+                // Find any channels where the cassandra node address matches (can't just use get as we have to compare multiple addresses)
                 .filter((address, channel) => node.compareAddress(address))
                 // Then extract the channel element for the Map
-                .flatMap((address, channel) => channel))
+                .map(_._2)))
 
         channelMap.foreach((node, channels) => logger.info("Cassandra node: " + node.getAddressAsString + " has workers " + channels.toString))
 

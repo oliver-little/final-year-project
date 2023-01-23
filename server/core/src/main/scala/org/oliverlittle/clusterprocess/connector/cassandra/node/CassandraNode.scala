@@ -16,6 +16,10 @@ object CassandraNode {
 }
 
 case class CassandraNode(node : Node, primaryTokenRange : Set[CassandraTokenRange]) {
+
+    lazy val getAddressAsString = node.getBroadcastRpcAddress.get.getHostName + ":" + node.getBroadcastRpcAddress.get.getPort.toString
+    lazy val percentageOfFullRing = primaryTokenRange.map(_.percentageOfFullRing).sum
+
     /**
       * Compares a given address to determine if this node is at the same address
       *
@@ -24,6 +28,12 @@ case class CassandraNode(node : Node, primaryTokenRange : Set[CassandraTokenRang
       */
     def compareAddress(address : InetSocketAddress) : Boolean = node.getBroadcastRpcAddress.equals(address) || node.getEndPoint.resolve.equals(address)
 
-    lazy val getAddressAsString = node.getBroadcastRpcAddress.get.getHostName + ":" + node.getBroadcastRpcAddress.get.getPort.toString
-    lazy val percentageOfFullRing = primaryTokenRange.map(_.percentageOfFullRing).sum
+    /**
+      * Splits this Cassandra node's primary token range according to a given full size of the ring.
+      *
+      * @param fullSizeMB The full size of the ring
+      * @param chunkSizeMB The chunk size to ensure each token range is smaller than
+      * @return A set of token ranges, each smaller than the chunk size
+      */
+    def splitForFullSize(fullSizeMB : Double, chunkSizeMB : Double) : Seq[CassandraTokenRange] = primaryTokenRange.toSeq.map(tokenRange => tokenRange.splitForFullSize(fullSizeMB, chunkSizeMB)).flatten
 }
