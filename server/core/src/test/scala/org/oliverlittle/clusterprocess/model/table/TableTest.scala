@@ -5,10 +5,12 @@ import org.oliverlittle.clusterprocess.model.table.sources.DataSource
 import org.oliverlittle.clusterprocess.model.table.field.{TableField, TableValue, IntField, IntValue}
 import org.oliverlittle.clusterprocess.model.field.expressions.{F, V}
 import org.oliverlittle.clusterprocess.model.field.expressions.FieldOperations.AddInt
+import org.oliverlittle.clusterprocess.data_source
 
 class MockDataSource extends DataSource {
     def getHeaders = Map("a" -> IntField("a"))
     def getData = Seq(Map("a" -> IntValue("a", 1)))
+    def protobuf = data_source.DataSource().withCassandra(data_source.CassandraDataSource(keyspace="test", table="test"))
 }
 
 class TableSpec extends UnitSpec {
