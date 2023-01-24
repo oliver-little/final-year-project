@@ -24,3 +24,7 @@ trait DataSource:
 	 * @return An iterator of rows, each row being a map from field name to a table value
 	 */
 	def getData : Iterable[Map[String, TableValue]]
+
+	def protobuf : data_source.DataSource
+	def isCassandra : Boolean = false
+	def getCassandraProtobuf : Option[data_source.CassandraDataSource] = None

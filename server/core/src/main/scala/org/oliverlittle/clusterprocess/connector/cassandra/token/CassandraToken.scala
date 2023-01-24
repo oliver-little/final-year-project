@@ -24,6 +24,7 @@ case class CassandraToken(tokenMap : TokenMap, token : Long) {
 
 object CassandraTokenRange {
     def fromLong(tokenMap : TokenMap, start : Long, end : Long) = CassandraTokenRange(tokenMap, CassandraToken(tokenMap, start), CassandraToken(tokenMap, end))
+    def fromString(tokenMap : TokenMap, start : String, end : String) = fromLong(tokenMap, start.toLong, end.toLong)
     def fromToken(tokenMap : TokenMap, start : Token, end : Token) : CassandraTokenRange = CassandraTokenRange(tokenMap, CassandraToken.fromToken(tokenMap, start), CassandraToken.fromToken(tokenMap, end))
     def fromTokenRange(tokenMap : TokenMap, range : TokenRange) : CassandraTokenRange = fromToken(tokenMap, range.getStart, range.getEnd)
 }
@@ -31,7 +32,7 @@ object CassandraTokenRange {
 case class CassandraTokenRange(tokenMap : TokenMap, start : CassandraToken, end : CassandraToken) {
     lazy val percentageOfFullRing : Double = (((end.toBigInt - start.toBigInt) % CassandraToken.MAX_TOKEN) / CassandraToken.NUM_TOKENS).toDouble
     lazy val toTokenRange : TokenRange = tokenMap.newTokenRange(start.toToken, end.toToken)
-    lazy val toProtobuf : data_source.CassandraTokenRange = data_source.CassandraTokenRange(start=start.toLong, end=end.toLong)
+    lazy val protobuf : data_source.CassandraTokenRange = data_source.CassandraTokenRange(start=start.toLong, end=end.toLong)
 
     def mergeWith(that : CassandraTokenRange) = CassandraTokenRange.fromTokenRange(tokenMap, toTokenRange.mergeWith(that.toTokenRange))
     def intersects(that : CassandraTokenRange) : Boolean = toTokenRange.intersects(that.toTokenRange)

@@ -6,6 +6,7 @@ import org.oliverlittle.clusterprocess.model.field.expressions.F
 import org.oliverlittle.clusterprocess.model.table._
 import org.oliverlittle.clusterprocess.model.table.sources.DataSource
 import org.oliverlittle.clusterprocess.model.table.field._
+import org.oliverlittle.clusterprocess.data_source
 
 import com.datastax.oss.driver.api.core.metadata.schema.TableMetadata
 import com.datastax.oss.driver.api.core.`type`.{DataTypes, DataType}
@@ -40,7 +41,7 @@ object CassandraDataSource:
   * @param partitionKey A list of strings representing the partition keys for this table
   * @param primaryKey A list of strings representing the primary keys for this table
   */
-class CassandraDataSource(keyspace : String, name : String, fields: Seq[CassandraField], partitionKey : Seq[String], primaryKey : Seq[String] = Seq()) extends DataSource:
+case class CassandraDataSource(keyspace : String, name : String, fields: Seq[CassandraField], partitionKey : Seq[String], primaryKey : Seq[String] = Seq()) extends DataSource:
     // Validity Checks
     val names : Set[String] = fields.map(_.name).toSet
     if fields.distinct.size != fields.size then throw new IllegalArgumentException("Field list must not contain duplicate names")
@@ -54,6 +55,10 @@ class CassandraDataSource(keyspace : String, name : String, fields: Seq[Cassandr
     }
 
     lazy val getHeaders : Map[String, TableField] = fields.map(f => f.name -> f).toMap
+
+    lazy val protobuf : data_source.DataSource = data_source.DataSource().withCassandra(getCassandraProtobuf.get)
+    override val isCassandra : Boolean = true
+    override val getCassandraProtobuf : Option[data_source.CassandraDataSource] = Some(data_source.CassandraDataSource(keyspace=keyspace, table=name))
 
     /**
       * Cassandra Implementation of getData - for now this does not restrict the data received, it simply gets an entire table
