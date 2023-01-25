@@ -1,5 +1,6 @@
 package org.oliverlittle.clusterprocess.model.table.sources
 
+import org.oliverlittle.clusterprocess.model.table._
 import org.oliverlittle.clusterprocess.model.table.field.{TableField, TableValue}
 import org.oliverlittle.clusterprocess.model.table.sources.cassandra.CassandraDataSource
 import org.oliverlittle.clusterprocess.data_source
@@ -17,13 +18,13 @@ trait DataSource:
 	 *
 	 * @return
 	 */
-	def getHeaders : Map[String, TableField]
+	def getHeaders : TableResultHeader
 	/**
 	 * Abstract implementation to get data from a data source
 	 *
 	 * @return An iterator of rows, each row being a map from field name to a table value
 	 */
-	def getData : Iterable[Map[String, TableValue]]
+	def getData : TableResult
 
 	def protobuf : data_source.DataSource
 	def isCassandra : Boolean = false

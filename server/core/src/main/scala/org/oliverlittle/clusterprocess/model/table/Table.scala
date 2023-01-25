@@ -14,17 +14,16 @@ case class Table(dataSource : DataSource, transformations : Seq[TableTransformat
       * Returns whether this table can be evaluated with the provided data source and transformations
       */
     def isValid : Boolean = {
-        val fieldContextList = transformations.iterator.scanLeft(dataSource.getHeaders)((inputContext, item) => item.outputFieldContext(inputContext))
-        val itemFieldContextPairs = transformations.iterator.zip(fieldContextList)
-        val validStages = itemFieldContextPairs.takeWhile((item, fieldContext) => item.isValid(fieldContext))
+        val headerList = transformations.iterator.scanLeft(dataSource.getHeaders)((inputContext, item) => item.outputHeaders(inputContext))
+        val itemHeaderPairs = transformations.iterator.zip(headerList)
+        val validStages = itemHeaderPairs.takeWhile((item, header) => item.isValid(header))
         return validStages.size == transformations.size
     }
 
-    def compute : Iterable[Map[String, TableValue]] = {
-        var headers = dataSource.getHeaders
+    def compute : TableResult = {
         var data = dataSource.getData
         for (transformation <- transformations) {
-            data = transformation.evaluate(headers, data)
+            data = transformation.evaluate(data)
         }
         return data
     }

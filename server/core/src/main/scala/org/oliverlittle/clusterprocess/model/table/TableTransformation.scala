@@ -18,12 +18,12 @@ object TableTransformation:
 */
 sealed trait TableTransformation:
 	/**
-	  * Checks whether this TableTransformation can be resolved in a given fieldContext
+	  * Checks whether this TableTransformation can be resolved with a given header
 	  * 
-	  * @param fieldContext A mapping of field names to TableFields (field metadata)
-	  * @return A boolean representing whether this transformation is valid in the provided fieldContext
+	  * @param header A TableResultHeader instance (field metadata)
+	  * @return A boolean representing whether this transformation is valid in the provided header
 	  */
-	def isValid(fieldContext: Map[String, TableField]) : Boolean 
+	def isValid(header : TableResultHeader) : Boolean 
 
 	/**
 		* Evaluates this transformation on some provided source data
@@ -31,9 +31,9 @@ sealed trait TableTransformation:
 		* @param data An iterable containing a map of field names to TableValues (field data and metadata)
 		* @return A new iterable of the same form, with the transformation applied
 		*/
-	def evaluate(fieldContext : Map[String, TableField], data : Iterable[Map[String, TableValue]]) : Iterable[Map[String, TableValue]]
+	def evaluate(data : TableResult) : TableResult
 
-	def outputFieldContext(fieldContext : Map[String, TableField]) : Map[String, TableField]
+	def outputHeaders(inputHeaders : TableResultHeader) : TableResultHeader
 
 	def protobuf : table_model.Table.TableTransformation
 
@@ -41,14 +41,14 @@ object SelectTransformation:
 	def fromProtobuf(select : table_model.Select) : SelectTransformation = SelectTransformation(select.fields.map(NamedFieldExpression.fromProtobuf(_))*)
 
 final case class SelectTransformation(selectColumns : NamedFieldExpression*) extends TableTransformation:
-	def isValid(fieldContext: Map[String, TableField]) : Boolean = Try(selectColumns.map(_.resolve(fieldContext))).isSuccess
+	def isValid(header : TableResultHeader) : Boolean = Try(selectColumns.map(_.resolve(header))).isSuccess
 
-	def evaluate(fieldContext : Map[String, TableField], rows : Iterable[Map[String, TableValue]]) : Iterable[Map[String, TableValue]] = {
-		val resolved = selectColumns.map(_.resolve(fieldContext))
-		return rows.map(row => resolved.map(col => col.name -> col.evaluate(row)).toMap)
+	def evaluate(data : TableResult) : TableResult = {
+		val resolved = selectColumns.map(_.resolve(data.header))
+		return TableResult(outputHeaders(data.header), data.rows.map(row => resolved.map(_.evaluate(data.header, row))))
 	}
 
-	def outputFieldContext(fieldContext : Map[String, TableField]) : Map[String, TableField] = selectColumns.map(_.outputTableField(fieldContext)).map(col => col.name -> col).toMap
+	def outputHeaders(inputHeaders : TableResultHeader) : TableResultHeader = TableResultHeader(selectColumns.map(_.outputTableField(inputHeaders)))
 
 	lazy val protobuf = table_model.Table.TableTransformation().withSelect(table_model.Select(selectColumns.map(_.protobuf)))
 

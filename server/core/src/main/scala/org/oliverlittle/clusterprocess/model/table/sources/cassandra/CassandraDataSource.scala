@@ -54,8 +54,7 @@ case class CassandraDataSource(keyspace : String, name : String, fields: Seq[Cas
         "(" + partition + primary + ")"
     }
 
-    lazy val getHeaders : Map[String, TableField] = fields.map(f => f.name -> f).toMap
-
+    lazy val getHeaders : TableResultHeader = TableResultHeader(fields)
     lazy val protobuf : data_source.DataSource = data_source.DataSource().withCassandra(getCassandraProtobuf.get)
     override val isCassandra : Boolean = true
     override val getCassandraProtobuf : Option[data_source.CassandraDataSource] = Some(data_source.CassandraDataSource(keyspace=keyspace, table=name))
@@ -65,12 +64,7 @@ case class CassandraDataSource(keyspace : String, name : String, fields: Seq[Cas
       *
       * @return An iterator of rows, each row being a map from field name to a table value
       */
-    def getData : Iterable[Map[String, TableValue]] = CassandraConnector.getSession.execute("SELECT * FROM " + keyspace + "." + name) // Gets all records from the table in Cassandra
-        .asScala.map( // Converts to a Scala Iterable, then for each row
-            row => fields.map( // For each field in that row
-                f => f.name -> f.getTableValue(row)) // Create a mapping from the field name to the row value
-            .toMap // Convert it from a sequence of pairs to a map
-        )
+    def getData : TableResult = TableResult(getHeaders, CassandraConnector.getSession.execute("SELECT * FROM " + keyspace + "." + name).asScala.map(row => fields.map(_.getTableValue(row))).toSeq)
 
     def toCql(ifNotExists : Boolean = true) : String = {
         val ifNotExistsString = if ifNotExists then "IF NOT EXISTS " else "";
