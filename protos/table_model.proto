@@ -148,3 +148,34 @@ message Window {
     repeated string partition_fields = 2;
     optional OrderBy order_by_fields = 3;
 }
+
+// Result messages
+// TableResult can be used optionally as it might be better to instead use
+message TableResult {
+    TableResultHeaders headers = 1;
+    repeated TableResultRow rows = 2;
+}
+
+// Represents data types the system supports
+enum DataType {
+    STRING = 1;
+    DATETIME = 2;
+    INT = 3;
+    DOUBLE = 4;
+    BOOL = 5;
+}
+
+// Headers defining the data types of a table
+message TableResultHeaders {
+    message Header {
+        string fieldName = 1;
+        DataType type = 2;
+    }
+
+    repeated Header field_definitions = 1;
+}
+
+// A single row result in a table
+message TableResultRow {
+    repeated Value values = 1;
+}
