@@ -2,9 +2,12 @@ package org.oliverlittle.clusterprocess.model.table
 
 import org.oliverlittle.clusterprocess.model.table.field._
 import org.oliverlittle.clusterprocess.model.table.sources.DataSource
+import org.oliverlittle.clusterprocess.table_model
 
 case class Table(dataSource : DataSource, transformations : Seq[TableTransformation] = Seq()):
-    
+
+    lazy val protobuf : table_model.Table = table_model.Table(transformations=transformations.map(_.protobuf))
+
     def addTransformation(transformation : TableTransformation) : Table = Table(dataSource, transformations :+ transformation)
 
     /**

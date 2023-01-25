@@ -9,7 +9,6 @@ message DataSource {
 }
 
 message CassandraDataSource {
-    string server_url = 1;
     string keyspace = 2;
     string table = 3;
 }

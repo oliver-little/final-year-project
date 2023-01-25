@@ -1,5 +1,7 @@
 package org.oliverlittle.clusterprocess.connector.cassandra.token
 
+import org.oliverlittle.clusterprocess.data_source
+
 import com.datastax.oss.driver.api.core.metadata._
 import com.datastax.oss.driver.api.core.metadata.token._
 import scala.jdk.CollectionConverters._
@@ -22,6 +24,7 @@ case class CassandraToken(tokenMap : TokenMap, token : Long) {
 
 object CassandraTokenRange {
     def fromLong(tokenMap : TokenMap, start : Long, end : Long) = CassandraTokenRange(tokenMap, CassandraToken(tokenMap, start), CassandraToken(tokenMap, end))
+    def fromString(tokenMap : TokenMap, start : String, end : String) = fromLong(tokenMap, start.toLong, end.toLong)
     def fromToken(tokenMap : TokenMap, start : Token, end : Token) : CassandraTokenRange = CassandraTokenRange(tokenMap, CassandraToken.fromToken(tokenMap, start), CassandraToken.fromToken(tokenMap, end))
     def fromTokenRange(tokenMap : TokenMap, range : TokenRange) : CassandraTokenRange = fromToken(tokenMap, range.getStart, range.getEnd)
 }
@@ -29,6 +32,7 @@ object CassandraTokenRange {
 case class CassandraTokenRange(tokenMap : TokenMap, start : CassandraToken, end : CassandraToken) {
     lazy val percentageOfFullRing : Double = (((end.toBigInt - start.toBigInt) % CassandraToken.MAX_TOKEN) / CassandraToken.NUM_TOKENS).toDouble
     lazy val toTokenRange : TokenRange = tokenMap.newTokenRange(start.toToken, end.toToken)
+    lazy val protobuf : data_source.CassandraTokenRange = data_source.CassandraTokenRange(start=start.toLong, end=end.toLong)
 
     def mergeWith(that : CassandraTokenRange) = CassandraTokenRange.fromTokenRange(tokenMap, toTokenRange.mergeWith(that.toTokenRange))
     def intersects(that : CassandraTokenRange) : Boolean = toTokenRange.intersects(that.toTokenRange)
@@ -45,5 +49,5 @@ case class CassandraTokenRange(tokenMap : TokenMap, start : CassandraToken, end 
     def splitForFullSize(fullSizeMB : Double, chunkSizeMB : Double) : Seq[CassandraTokenRange] = ((fullSizeMB * percentageOfFullRing) / chunkSizeMB).abs match {
         case x if x > 1 => splitEvenly(x.ceil.toInt).toSeq
         case x => Seq(this)
-    } 
+    }
 }
