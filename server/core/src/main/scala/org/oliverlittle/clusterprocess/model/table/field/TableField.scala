@@ -3,45 +3,50 @@ package org.oliverlittle.clusterprocess.model.table.field
 import java.time.Instant
 import scala.reflect.{ClassTag, classTag}
 
-trait TableField:
-    val name : String
-    // This is not a good solution and needs refactoring
+// Interface for comparing two types
+trait TypeComparator:
+    // Unsure if this is the best solution
     def compareClassTags[T](tag : ClassTag[T]) : Boolean
 
-trait TableValue extends TableField:
+// Interface for a field definition
+trait TableField extends TypeComparator:
+    val name : String
+
+// Interface for a value from a field
+trait TableValue extends TypeComparator:
     val value : Any
 
-trait BaseIntField extends TableField:
+trait IntTypeComparator extends TypeComparator:
     def compareClassTags[T](tag : ClassTag[T]) = classTag[Long].equals(tag)
 
-final case class IntField(name : String) extends BaseIntField
+case class IntField(name : String) extends TableField with IntTypeComparator
+    
+case class IntValue(value : Long) extends TableValue with IntTypeComparator
 
-final case class IntValue(name : String, value : Long) extends BaseIntField with TableValue
-
-trait BaseDoubleField extends TableField:
+trait DoubleTypeComparator extends TypeComparator:
     def compareClassTags[T](tag : ClassTag[T]) = classTag[Double].equals(tag)
 
-final case class DoubleField(name : String) extends BaseDoubleField
+case class DoubleField(name : String) extends TableField with DoubleTypeComparator
+    
+case class DoubleValue(value : Double) extends TableValue with DoubleTypeComparator
 
-final case class DoubleValue(name : String, value : Double) extends BaseDoubleField with TableValue
-
-trait BaseStringField extends TableField:
+trait StringTypeComparator extends TypeComparator:
     def compareClassTags[T](tag : ClassTag[T]) = classTag[String].equals(tag)
 
-final case class StringField(name : String) extends BaseStringField
+case class StringField(name : String) extends TableField with StringTypeComparator
 
-final case class StringValue(name : String, value : String) extends BaseStringField with TableValue
+case class StringValue(value : String) extends TableValue with StringTypeComparator
 
-trait BaseBoolField extends TableField:
+trait BoolTypeComparator extends TypeComparator:
     def compareClassTags[T](tag : ClassTag[T]) = classTag[Boolean].equals(tag)
 
-final case class BoolField(name : String) extends BaseBoolField
+case class BoolField(name : String) extends TableField with BoolTypeComparator
 
-final case class BoolValue(name : String, value : Boolean) extends BaseBoolField with TableValue
+case class BoolValue(value : Boolean) extends TableValue with BoolTypeComparator
 
-trait BaseDateTimeField extends TableField:
+trait DateTimeComparator extends TypeComparator:
     def compareClassTags[T](tag : ClassTag[T]) = classTag[Instant].equals(tag)
 
-final case class DateTimeField(name : String) extends BaseDateTimeField
+final case class DateTimeField(name : String) extends TableField with DateTimeComparator
 
-final case class DateTimeValue(name : String, value : Instant) extends BaseDateTimeField with TableValue
+final case class DateTimeValue(value : Instant) extends TableValue with DateTimeComparator

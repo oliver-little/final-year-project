@@ -77,11 +77,11 @@ final case class NamedResolvedFieldExpression(name : String, expr : ResolvedFiel
       * @return A TableValue representing the evaluated NamedFieldExpression
       */
     def evaluate(rowContext : Map[String, TableValue]) : TableValue = expr.evaluateAny(rowContext) match {
-        case s : String => StringValue(name, s)
-        case i : Long => IntValue(name, i)
-        case f : Double => DoubleValue(name, f)
-        case d : Instant => DateTimeValue(name, d)
-        case b : Boolean => BoolValue(name, b)
+        case s : String => StringValue(s)
+        case i : Long => IntValue(i)
+        case f : Double => DoubleValue(f)
+        case d : Instant => DateTimeValue(d)
+        case b : Boolean => BoolValue(b)
         // This case should never happen
         case v => throw new IllegalArgumentException("Type of " + v.toString + " is invalid: " + v.getClass.toString)
     }
