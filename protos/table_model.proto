@@ -158,6 +158,7 @@ message TableResult {
 
 // Represents data types the system supports
 enum DataType {
+    UNKNOWN = 0;
     STRING = 1;
     DATETIME = 2;
     INT = 3;
