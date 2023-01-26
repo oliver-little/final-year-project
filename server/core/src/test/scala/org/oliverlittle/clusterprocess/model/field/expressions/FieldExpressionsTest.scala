@@ -9,37 +9,32 @@ import org.oliverlittle.clusterprocess.table_model.{Expression, Value}
 import org.oliverlittle.clusterprocess.model.field.expressions.FieldOperations.AddInt
 import org.oliverlittle.clusterprocess.model.field.expressions.ResolvedFunctionCall
 import org.oliverlittle.clusterprocess.UnitSpec
-import org.oliverlittle.clusterprocess.model.table.field.{TableField, TableValue, IntValue, StringValue}
+import org.oliverlittle.clusterprocess.model.table._
+import org.oliverlittle.clusterprocess.model.table.field._
 
 class FieldExpressionSpec extends UnitSpec {
     "A FieldExpression" should "evaluate Values correctly" in {
-        V(1).resolve(Map()).evaluate[Long](Map()) should be (1)
+        V(1).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be (1)
     }
 
     it should "evaluate FunctionCalls correctly" in {
-        AddInt(V(1), V(2)).resolve(Map()).evaluate[Long](Map()) should be (3)
+        AddInt(V(1), V(2)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be (3)
     }
 
     it should "evaluate Fields correctly" in {
-        F("a").resolve(Map("a" -> IntValue("a", 1))).evaluate[Long](Map("a" -> IntValue("a", 1))) should be (1)
-        F("a").resolve(Map("a" -> IntValue("a", 1))).evaluateAny(Map("a" -> IntValue("a", 1))) should be (1)
-        F("a").resolve(Map("a" -> StringValue("a", "test"))).evaluate[String](Map("a" -> StringValue("a", "test"))) should be ("test")
-        F("a").resolve(Map("a" -> StringValue("a", "test"))).evaluateAny(Map("a" -> StringValue("a", "test"))) should be ("test")
+        F("a").resolve(TableResultHeader(Seq(BaseIntField("a")))).evaluate(Seq(Some(IntValue(1)))).get.value should be (1)
+        F("a").resolve(TableResultHeader(Seq(BaseIntField("a")))).evaluate(Seq(Some(IntValue(1)))).get.value should be (1)
+        F("a").resolve(TableResultHeader(Seq(BaseStringField("a")))).evaluate(Seq(Some(StringValue("test")))).get.value should be ("test")
+        F("a").resolve(TableResultHeader(Seq(BaseStringField("a")))).evaluate(Seq(Some(StringValue("test")))).get.value should be ("test")
     }
 
     it should "evaluate nested FieldExpressions correctly" in {
-        AddInt(V(1), AddInt(V(2), V(5))).resolve(Map()).evaluate[Long](Map()) should be (8)
+        AddInt(V(1), AddInt(V(2), V(5))).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be (8)
     }
 
     it should "throw IllegalArgumentException if a type is invalid within the statement" in {
         assertThrows[IllegalArgumentException] {
-            AddInt(V(1), V("a")).resolve(Map())
-        }
-    }
-
-    it should "throw IllegalArgumentException if the requested type is invalid" in {
-        assertThrows[IllegalArgumentException] {
-            AddInt(V(1), V(1)).resolve(Map()).evaluate[String](Map())
+            AddInt(V(1), V("a")).resolve(TableResultHeader(Seq()))
         }
     }
 }
@@ -48,7 +43,7 @@ class ValueSpec extends UnitSpec {
     // Instantiation
     "A Value" should "return the same value it is given" in {
         val value = V("a")
-        assert(value.resolve(Map()).evaluateAny(Map()) == "a")
+        assert(value.resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value == "a")
     }
 
     // Protobufs
@@ -150,29 +145,21 @@ class ValueSpec extends UnitSpec {
         }
     }
 
-    it should "throw IllegalArgumentException when converting invalid types to Protobuf expressions" in {
-        Seq(Seq(1, 2, 3)) foreach {literal => 
-            val value = V(literal)
-            assertThrows[IllegalArgumentException] {
-                value.protobuf
-            }   
-        }
-    }
-
     // Well Typed check
     it should "be well-typed for valid types" in {
         Seq("a", 1L, 1, 1.01D, 1.01, true, LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant) foreach {literal =>
             val value = V(literal)
             
-            value.isWellTyped(Map()) should be (true) withClue (", when literal is: " + literal.toString)
+            value.isWellTyped(TableResultHeader(Seq())) should be (true) withClue (", when literal is: " + literal.toString)
         }
     }
 
-    it should "not be well-typed for invalid types" in {
+    it should "throw an error for invalid types" in {
         Seq(Seq(1, 2, 3)) foreach { literal =>
-            val value = V(literal)
-            
-            value.isWellTyped(Map()) should be (false)
+            assertThrows[IllegalArgumentException] {
+                val value = V(literal)
+                value.isWellTyped(TableResultHeader(Seq())) should be (false)
+            }
         }
     }
 
@@ -180,61 +167,42 @@ class ValueSpec extends UnitSpec {
     it should "automatically convert Ints to Longs" in {
         val int : Int = 1
         val value = V(int)
-        value.resolve(Map()).evaluateAny(Map()) shouldBe a [Long]
-        value.resolve(Map()).evaluateAny(Map()) should be (1)
-        value.resolve(Map()).evaluate[Long](Map()) shouldBe a [Long]
-        value.getLong shouldBe a [Long]
+        value.resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value shouldBe a [Long]
+        value.resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be (1)
+        value.resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value shouldBe a [Long]
     }
 
     it should "automatically convert Floats to Doubles" in {
         val float : Float = 1.01
         val value = V(float)
-        value.resolve(Map()).evaluateAny(Map()) shouldBe a [Double]
-        value.resolve(Map()).evaluateAny(Map()) should be (float)
-        value.resolve(Map()).evaluate[Double](Map()) shouldBe a [Double]
-        value.getDouble shouldBe a [Double]
+        value.resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value shouldBe a [Double]
+        value.resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be (float)
+        value.resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value shouldBe a [Double]
     }
 
-    it should "throw IllegalArgumentException when a conversion fails" in {
-        val value = V(Seq(1, 2, 3))
-
+    it should "throw IllegalArgumentException when an invalid value is provided" in {
         assertThrows[IllegalArgumentException] {
-            value.resolve(Map()).evaluate[String](Map())
-        }
-    }
-
-    it should "throw IllegalArgumentException when failing to convert to a Long" in {
-        val value = V("1")
-
-        assertThrows[IllegalArgumentException] {
-            value.getLong
-        }
-    }
-
-    it should "throw IllegalArgumentException when failing to convert to a Double" in {
-        val value = V("1")
-
-        assertThrows[IllegalArgumentException] {
-            value.getDouble
+            val value = V(Seq(1, 2, 3))
+            value.resolve(TableResultHeader(Seq())).evaluate(Seq())
         }
     }
 }
 
 class FieldSpec extends UnitSpec {
     "A Field" should "be well-typed if the field name is defined in the field context" in {
-        F("testField").isWellTyped(Map("testField" -> IntValue("testField", 1))) should be (true)
-        F("testField").isWellTyped(Map("otherField" -> IntValue("otherField", 1))) should be (false)
+        F("testField").isWellTyped(TableResultHeader(Seq(BaseIntField("testField")))) should be (true)
+        F("testField").isWellTyped(TableResultHeader(Seq(BaseIntField("otherField")))) should be (false)
     }
 
     it should "return true for doesReturnType with the correct type parameter" in {
         val field : F = F("testField")
-        field.doesReturnType[Long](Map("testField" -> IntValue("testField", 1))) should be (true)
+        field.doesReturnType[Long](TableResultHeader(Seq(BaseIntField("testField")))) should be (true)
         //field.doesReturnType[String](Map("testField" -> StringValue("testField", "test"))) should be (true)
     }
 
     it should "return false for doesReturnType with invalid type parameters" in {
         val field : F = F("testField")
-        field.doesReturnType[String](Map("testField" -> IntValue("testField", 1))) should be (false)
+        field.doesReturnType[String](TableResultHeader(Seq(BaseIntField("testField")))) should be (false)
     }
 
     it should "convert to a protobuf representation" in {
@@ -251,14 +219,14 @@ class FieldSpec extends UnitSpec {
 
     it should "evaluate to a value correctly when the field is defined with the correct type" in {
         val field : F = F("testField")
-        field.resolve(Map("testField" -> IntValue("testField", 1))).evaluateAny(Map("testField" -> IntValue("testField", 1))) should be (1)
-        field.resolve(Map("testField" -> StringValue("testField", "test"))).evaluateAny(Map("testField" -> StringValue("testField", "test"))) should be ("test")
+        field.resolve(TableResultHeader(Seq(BaseIntField("testField")))).evaluate(Seq(Some(IntValue(1)))) should be (Some(IntValue(1)))
+        field.resolve(TableResultHeader(Seq(BaseStringField("testField")))).evaluate(Seq(Some(StringValue("test")))) should be (Some(StringValue("test")))
     }
 
     it should "throw IllegalArgumentException when the field is undefined" in {
         val field : F = F("testField")
         assertThrows[IllegalArgumentException] {
-            field.resolve(Map()).evaluateAny(Map("otherField" -> IntValue("testField", 1))) should be (1)
+            field.resolve(TableResultHeader(Seq())).evaluate(Seq(Some(IntValue(1)))) should be (1)
         }
     }
 }
@@ -266,17 +234,17 @@ class FieldSpec extends UnitSpec {
 class FunctionCallSpec extends UnitSpec {
     "A FunctionCall" should "be well-typed when its arguments are well-typed" in {
         val func = FunctionCallImpl()
-        func.isWellTyped(Map()) should be (true)
+        func.isWellTyped(TableResultHeader(Seq())) should be (true)
     }
 
     it should "return true for doesReturnType with the correct type parameter" in {
         val func = FunctionCallImpl()
-        func.doesReturnType[String](Map()) should be (true)
+        func.doesReturnType[String](TableResultHeader(Seq())) should be (true)
     }
 
     it should "return false for doesReturnType with invalid type parameters" in {
         val func = FunctionCallImpl()
-        func.doesReturnType[Long](Map()) should be (false)
+        func.doesReturnType[Long](TableResultHeader(Seq())) should be (false)
     }
 
     it should "convert to a protobuf expression based on the name and arguments" in {
@@ -303,28 +271,28 @@ class FunctionCallSpec extends UnitSpec {
     it should "call the function correctly" in {
         val func = FunctionCallImpl()
 
-        func.resolve(Map()).evaluate[String](Map()) should be ("a")
+        func.resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be ("a")
     }
 
-    it should "call the function when evaluateAny is called" in {
+    it should "call the function when evaluate is called" in {
         val func = FunctionCallImpl()
 
-        func.resolve(Map()).evaluateAny(Map()) should be ("a")
+        func.resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be ("a")
     }
 
     private class FunctionCallImpl extends FunctionCall("testName"):
-        def isWellTyped(fieldContext : Map[String, TableField]) = true
-        def doesReturnType[EvalType](fieldContext : Map[String, TableField])(using evalTag : ClassTag[EvalType]) = evalTag.equals(classTag[String])
+        def isWellTyped(header : TableResultHeader) = true
+        def doesReturnType[T](header : TableResultHeader)(using evalTag : ClassTag[T]) : Boolean = evalTag.equals(classTag[String])
         val arguments = Seq(V("a"))
-        def resolve(fieldContext : Map[String, TableField]) = ResolvedFunctionCall((rowContext : Map[String, TableValue]) => "a")
+        def resolve(header : TableResultHeader) = ResolvedFunctionCall((row) => Some("a"))
 }
 
 class UnaryFunctionSpec extends UnitSpec {
     val func = (arg) => UnaryFunction[String, String]("testName", (a) => a, arg)
 
     "A UnaryFunction" should "check the type of its argument matches the type parameter" in {
-        func(V("a")).isWellTyped(Map()) should be (true)
-        func(V(1)).isWellTyped(Map()) should be (false)
+        func(V("a")).isWellTyped(TableResultHeader(Seq())) should be (true)
+        func(V(1)).isWellTyped(TableResultHeader(Seq())) should be (false)
     }
 
     it should "put its argument into a Sequence for adding to a protobuf" in {
@@ -333,7 +301,7 @@ class UnaryFunctionSpec extends UnitSpec {
     }
 
     it should "evaluate the function according to its argument" in {
-        func(V("a")).resolve(Map()).evaluateAny(Map()) should be ("a")
+        func(V("a")).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be ("a")
     }
 }
 
@@ -341,8 +309,8 @@ class BinaryFunctionSpec extends UnitSpec {
     val func = (l, r) => BinaryFunction[String, String, String]("testName", (a, b) => a + b, l, r)
 
     "A BinaryFunction" should "check the type of its argument matches the type parameter" in {
-        func(V("a"), V("a")).isWellTyped(Map()) should be (true)
-        func(V(1), V(1)).isWellTyped(Map()) should be (false)
+        func(V("a"), V("a")).isWellTyped(TableResultHeader(Seq())) should be (true)
+        func(V(1), V(1)).isWellTyped(TableResultHeader(Seq())) should be (false)
     }
 
     it should "put its argument into a Sequence for adding to a protobuf" in {
@@ -352,7 +320,7 @@ class BinaryFunctionSpec extends UnitSpec {
     }
 
     it should "evaluate the function according to its argument" in {
-        func(V("a"), V("b")).resolve(Map()).evaluateAny(Map()) should be ("ab")
+        func(V("a"), V("b")).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be ("ab")
     }
 }
 
@@ -360,8 +328,8 @@ class TernaryFunctionSpec extends UnitSpec {
     val func = (l, r, t) => TernaryFunction[String, String, String, String]("testName", (a, b, t) => a + b + t, l, r, t)
 
     "A TernaryFunction" should "check the type of its argument matches the type parameter" in {
-        func(V("a"), V("a"), V("a")).isWellTyped(Map()) should be (true)
-        func(V(1), V(1), V(1)).isWellTyped(Map()) should be (false)
+        func(V("a"), V("a"), V("a")).isWellTyped(TableResultHeader(Seq())) should be (true)
+        func(V(1), V(1), V(1)).isWellTyped(TableResultHeader(Seq())) should be (false)
     }
 
     it should "put its argument into a Sequence for adding to a protobuf" in {
@@ -372,130 +340,132 @@ class TernaryFunctionSpec extends UnitSpec {
     }
 
     it should "evaluate the function according to its argument" in {
-        func(V("a"), V("b"), V("c")).resolve(Map()).evaluateAny(Map()) should be ("abc")
+        func(V("a"), V("b"), V("c")).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be ("abc")
     }
 }
 
 class ToStringSpec extends UnitSpec {
     "A ToString Cast" should "convert Strings" in {
-        ToString(V("a")).resolve(Map()).evaluateAny(Map()) should be ("a")
+        val result = ToString(V("a")).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be ("a")
     }
 
     it should "convert Ints" in {
-        ToString(V(1 : Int)).resolve(Map()).evaluateAny(Map()) should be ("1")
+        ToString(V(1 : Int)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be ("1")
     }
 
     it should "convert Longs" in {
-        ToString(V(1 : Long)).resolve(Map()).evaluateAny(Map()) should be ("1")
+        ToString(V(1 : Long)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be ("1")
     }
 
     it should "convert Floats" in {
-        ToString(V(1.01 : Float)).resolve(Map()).evaluateAny(Map()) shouldBe a [String]
+        ToString(V(1.01 : Float)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value shouldBe a [String]
     }
 
     it should "convert Doubles" in {
-        ToString(V(1.01 : Double)).resolve(Map()).evaluateAny(Map()) shouldBe a [String]
+        ToString(V(1.01 : Double)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value shouldBe a [String]
     }
 
-    it should "convert LocalDateTimes" in {
-        ToString(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).resolve(Map()).evaluateAny(Map()) should be (LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant.toString)
-    }
-
-    it should "convert OffsetDateTimes" in {
-        ToString(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).resolve(Map()).evaluateAny(Map()) should be (LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant.toString)
+    it should "convert Instants" in {
+        ToString(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be (LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant.toString)
     }
 
     it should "convert Booleans" in {
-        ToString(V(true)).resolve(Map()).evaluateAny(Map()) should be ("true")
+        ToString(V(true)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be ("true")
     }
 }
 
 class DoubleToStringSpec extends UnitSpec {
     "A DoubleToString cast" should "convert Floats" in {
-        DoubleToString(V(1.01 : Float), DecimalFormat("#.##")).resolve(Map()).evaluateAny(Map()) should be ("1.01")
+        DoubleToString(V(1.01 : Float), DecimalFormat("#.##")).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be ("1.01")
     }
 
     "A DoubleToString cast" should "convert Doubles" in {
-        DoubleToString(V(1.01 : Double), DecimalFormat("#.##")).resolve(Map()).evaluateAny(Map()) should be ("1.01")
+        DoubleToString(V(1.01 : Double), DecimalFormat("#.##")).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be ("1.01")
     }
 }
 
 class ToIntSpec extends UnitSpec {
     "A ToInt Cast" should "convert Strings" in {
-        ToInt(V("1")).resolve(Map()).evaluateAny(Map()) should be (1)
+        ToInt(V("1")).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be (1)
     }
 
     it should "convert Ints" in {
-        ToInt(V(1 : Int)).resolve(Map()).evaluateAny(Map()) should be (1)
+        ToInt(V(1 : Int)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be (1)
     }
 
     it should "convert Longs" in {
-        ToInt(V(1 : Long)).resolve(Map()).evaluateAny(Map()) should be (1)
+        ToInt(V(1 : Long)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be (1)
     }
 
     it should "convert Floats" in {
-        ToInt(V(1.01 : Float)).resolve(Map()).evaluateAny(Map()) should be (1)
+        ToInt(V(1.01 : Float)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be (1)
     }
 
     it should "convert Doubles" in {
-        ToInt(V(1.01 : Double)).resolve(Map()).evaluateAny(Map()) should be (1)
+        ToInt(V(1.01 : Double)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be (1)
     }
 
     it should "fail to convert Instants" in {
         assertThrows[IllegalArgumentException] {
-            ToInt(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).resolve(Map()).evaluateAny(Map())
+            ToInt(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).resolve(TableResultHeader(Seq())).evaluate(Seq())
         }
     }
 
     it should "fail to convert Booleans" in {
         assertThrows[IllegalArgumentException] {
-            ToInt(V(true)).resolve(Map()).evaluateAny(Map())
+            ToInt(V(true)).resolve(TableResultHeader(Seq())).evaluate(Seq())
         }
     }
 }
 
 class ToDoubleSpec extends UnitSpec {
     "A ToDouble Cast" should "convert Strings" in {
-        ToDouble(V("1")).resolve(Map()).evaluateAny(Map()) should be (1)
+        ToDouble(V("1")).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be (1)
     }
 
     it should "convert Ints" in {
-        val result = ToDouble(V(1 : Int)).resolve(Map()).evaluateAny(Map())
-        result should be (1)
-        result shouldBe a [Double]
+        val result = ToDouble(V(1 : Int)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.asInstanceOf[DoubleValue]
+        result shouldBe a [DoubleValue]
+        result.value should be (1)
+        result.value shouldBe a [Double]
     }
 
     it should "convert Longs" in {
-        val result = ToDouble(V(1 : Long)).resolve(Map()).evaluateAny(Map())
-        result should be (1)
-        result shouldBe a [Double]
+        val result = ToDouble(V(1 : Long)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.asInstanceOf[DoubleValue]
+        result shouldBe a [DoubleValue]
+        result.value should be (1)
+        result.value shouldBe a [Double]
     }
 
     it should "convert Floats" in {
-        val result = ToDouble(V(1.01 : Float)).resolve(Map()).evaluate[Double](Map())
-        result should be (1.01 +- 0.01)
-        result shouldBe a [Double] 
+        val result = ToDouble(V(1.01 : Float)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.asInstanceOf[DoubleValue]
+        result shouldBe a [DoubleValue]
+        result.value should be (1.01 +- 0.01)
+        result.value shouldBe a [Double] 
     }
 
     it should "convert Doubles" in {
-        ToDouble(V(1.01 : Double)).resolve(Map()).evaluate[Double](Map()) should be (1.01 +- 0.01)
+        val result = ToDouble(V(1.01 : Double)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.asInstanceOf[DoubleValue]
+        result shouldBe a [DoubleValue]
+        result.value should be (1.01 +- 0.01)
+        result.value shouldBe a [Double]
     }
 
     it should "fail to convert LocalDateTimes" in {
         assertThrows[IllegalArgumentException] {
-            ToDouble(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).resolve(Map()).evaluateAny(Map())
+            ToDouble(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).resolve(TableResultHeader(Seq())).evaluate(Seq())
         }
     }
 
     it should "fail to convert OffsetDateTimes" in {
         assertThrows[IllegalArgumentException] {
-            ToDouble(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).resolve(Map()).evaluateAny(Map())
+            ToDouble(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).resolve(TableResultHeader(Seq())).evaluate(Seq())
         }
     }
 
     it should "fail to convert Booleans" in {
         assertThrows[IllegalArgumentException] {
-            ToDouble(V(true)).resolve(Map()).evaluateAny(Map())
+            ToDouble(V(true)).resolve(TableResultHeader(Seq())).evaluate(Seq())
         }
     }
 }

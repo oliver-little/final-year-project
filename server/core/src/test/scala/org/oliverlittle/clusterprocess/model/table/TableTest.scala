@@ -2,14 +2,14 @@ package org.oliverlittle.clusterprocess.model.table
 
 import org.oliverlittle.clusterprocess.UnitSpec
 import org.oliverlittle.clusterprocess.model.table.sources.DataSource
-import org.oliverlittle.clusterprocess.model.table.field.{TableField, TableValue, IntField, IntValue}
+import org.oliverlittle.clusterprocess.model.table.field._
 import org.oliverlittle.clusterprocess.model.field.expressions.{F, V}
 import org.oliverlittle.clusterprocess.model.field.expressions.FieldOperations.AddInt
 import org.oliverlittle.clusterprocess.data_source
 
 class MockDataSource extends DataSource {
-    def getHeaders = Map("a" -> IntField("a"))
-    def getData = Seq(Map("a" -> IntValue("a", 1)))
+    def getHeaders = TableResultHeader(Seq(BaseIntField("a")))
+    def getData = TableResult(getHeaders, Seq(Seq(Some(IntValue(2)))))
     def protobuf = data_source.DataSource().withCassandra(data_source.CassandraDataSource(keyspace="test", table="test"))
 }
 
@@ -23,7 +23,7 @@ class TableSpec extends UnitSpec {
 
     it should "compute a single transformation correctly" in {
         val table = Table(MockDataSource(), Seq(SelectTransformation(AddInt(F("a"), V(1)).as("a"))))
-        table.compute should be (Seq(Map("a" -> IntValue("a", 2))))
+        table.compute should be (TableResult(TableResultHeader(Seq(BaseIntField("a"))), Seq(Seq(Some(IntValue(3))))))
     }
 
     // TODO: test multiple transformations sequentially

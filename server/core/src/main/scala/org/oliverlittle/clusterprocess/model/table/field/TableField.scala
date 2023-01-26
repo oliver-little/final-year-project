@@ -2,6 +2,7 @@ package org.oliverlittle.clusterprocess.model.table.field
 
 import java.time.Instant
 import scala.reflect.{ClassTag, classTag}
+import com.datastax.oss.driver.shaded.guava.common.collect.Table
 
 object ValueType:
     given intType : IntType = IntTypeInstance()
@@ -18,11 +19,27 @@ abstract class ValueType:
     def compareClassTags[U](tag : ClassTag[U]) : Boolean = valueTag.equals(tag)
 
 // Interface for a field definition
-sealed trait TableField extends ValueType:
+trait TableField extends ValueType:
     val name : String
 
 // Interface for a value from a field
 object TableValue:
+    def valueToTableValue(value : Any) : TableValue = value match {
+        case s : String => StringValue(s)
+        case i : Int => IntValue(i.toLong)
+        case i : Long => IntValue(i)
+        case f : Float => DoubleValue(f.toDouble)
+        case d : Double => DoubleValue(d)
+        case d : Instant => DateTimeValue(d)
+        case b : Boolean => BoolValue(b)
+        case x => throw new IllegalArgumentException("Cannot convert " + x + " to TableValue.")
+    }
+
+    given stringValueDefault : StringValue = StringValue("")
+    given intValueDefault : IntValue = IntValue(0)
+    given doubleValueDefault : DoubleValue = DoubleValue(0.0)
+    given boolValueDefault : BoolValue = BoolValue(true)
+    given dateTimeValueDefault : DateTimeValue = DateTimeValue(Instant.EPOCH)
     given fromStringToStringValue : Conversion[String, StringValue] = StringValue(_)
     given fromIntToIntValue : Conversion[Int, IntValue] = (i) => IntValue(i.toLong)
     given fromLongToIntValue : Conversion[Long, IntValue] = IntValue(_)
@@ -79,7 +96,7 @@ trait BoolType extends ValueType:
 
 final case class BoolTypeInstance() extends BoolType
 
-trait BoolField extends TableField
+trait BoolField extends TableField with BoolType
 
 case class BaseBoolField(name : String) extends BoolField
 

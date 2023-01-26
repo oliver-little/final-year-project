@@ -36,10 +36,10 @@ sealed abstract class FieldComparison:
     def resolve(header : TableResultHeader) : ResolvedFieldComparison
 
 sealed abstract class ResolvedFieldComparison:
-    def evaluate(row : Seq[TableValue]) : Boolean
+    def evaluate(row : Seq[Option[TableValue]]) : Boolean
 
-final case class FieldComparisonCall(runtimeFunction : Seq[TableValue] => Boolean) extends ResolvedFieldComparison:
-    def evaluate(row : Seq[TableValue]): Boolean = runtimeFunction(row)
+final case class FieldComparisonCall(runtimeFunction : Seq[Option[TableValue]] => Boolean) extends ResolvedFieldComparison:
+    def evaluate(row : Seq[Option[TableValue]]): Boolean = runtimeFunction(row)
 
 enum UnaryComparator(val protobuf : Filter.FilterType):
     case IS_NULL extends UnaryComparator(Filter.FilterType.IS_NULL)
@@ -72,9 +72,9 @@ enum StringComparator(val protobuf : Filter.FilterType):
     case IENDS_WITH extends StringComparator(Filter.FilterType.IENDS_WITH)
 
 object UnaryFieldComparison:
-    def evaluate(header : TableResultHeader, row : Seq[TableValue], comparator : UnaryComparator, expr : ResolvedFieldExpression) : Boolean = comparator match {
-        case isNull @ (UnaryComparator.IS_NULL | UnaryComparator.NULL) => expr.evaluateAny(row) == null
-        case isNotNull @ (UnaryComparator.IS_NOT_NULL | UnaryComparator.NOT_NULL) => expr.evaluateAny(row) != null
+    def evaluate(header : TableResultHeader, row : Seq[Option[TableValue]], comparator : UnaryComparator, expr : ResolvedFieldExpression) : Boolean = comparator match {
+        case isNull @ (UnaryComparator.IS_NULL | UnaryComparator.NULL) => expr.evaluate(row).isEmpty
+        case isNotNull @ (UnaryComparator.IS_NOT_NULL | UnaryComparator.NOT_NULL) => expr.evaluate(row).isDefined
     }
 
 final case class UnaryFieldComparison(expression : FieldExpression, comparator : UnaryComparator) extends FieldComparison:
@@ -86,9 +86,9 @@ final case class UnaryFieldComparison(expression : FieldExpression, comparator :
     }
 
 object EqualityFieldComparison:
-    def evaluate(header : TableResultHeader, row : Seq[TableValue], left: ResolvedFieldExpression, comparator : EqualsComparator, right : ResolvedFieldExpression) : Boolean = comparator match {
-        case eq @ (EqualsComparator.EQ | EqualsComparator.EQUAL) => left.evaluateAny(row).equals(right.evaluateAny(row))
-        case ne @ (EqualsComparator.NE | EqualsComparator.NOT_EQUAL) => !left.evaluateAny(row).equals(right.evaluateAny(row))
+    def evaluate(header : TableResultHeader, row : Seq[Option[TableValue]], left: ResolvedFieldExpression, comparator : EqualsComparator, right : ResolvedFieldExpression) : Boolean = comparator match {
+        case eq @ (EqualsComparator.EQ | EqualsComparator.EQUAL) => left.evaluate(row).equals(right.evaluate(row))
+        case ne @ (EqualsComparator.NE | EqualsComparator.NOT_EQUAL) => !left.evaluate(row).equals(right.evaluate(row))
     }
 
 final case class EqualityFieldComparison(left : FieldExpression, comparator : EqualsComparator, right : FieldExpression) extends FieldComparison:
@@ -101,15 +101,25 @@ final case class EqualityFieldComparison(left : FieldExpression, comparator : Eq
     }
 
 object OrderedFieldComparison:
-    def evaluate(header : TableResultHeader, row : Seq[TableValue], left : ResolvedFieldExpression, comparatorFunction : Int => Boolean, right : ResolvedFieldExpression) : Boolean = comparatorFunction((left.evaluateAny(row), right.evaluateAny(row)) match {
-        case (x : String, y : String) => x.compare(y)
-        case (x : Long, y : Long)=> x.compare(y)
-        case (x : Double, y : Double) => x.compare(y)
-        case (x : Instant, y : Instant) => x.compareTo(y)
-        case (x : Boolean, y : Boolean) => x.compare(y)
-        // This case should never happen
-        case (x, y) => throw new IllegalArgumentException("Provided value " + x.toString + " (type: " + x.getClass.toString + ") cannot be compared with this value " + y.toString + " (type: " + y.getClass.toString + ").")
-    })
+    def evaluate(header : TableResultHeader, row : Seq[Option[TableValue]], left : ResolvedFieldExpression, comparatorFunction : Int => Boolean, right : ResolvedFieldExpression) : Boolean = {
+        val leftOption : Option[TableValue] = left.evaluate(row)
+        val rightOption : Option[TableValue] = right.evaluate(row)
+        
+        if leftOption.isEmpty || rightOption.isEmpty then return false
+
+        val diff = (leftOption.get.value, rightOption.get.value) match {
+            case (x : String, y : String) => x.compare(y)
+            case (x : Long, y : Long)=> x.compare(y)
+            case (x : Double, y : Double) => x.compare(y)
+            case (x : Instant, y : Instant) => x.compareTo(y)
+            case (x : Boolean, y : Boolean) => x.compare(y)
+            // This case should never happen
+            case (x, y) => throw new IllegalArgumentException("Provided value " + x.toString + " (type: " + x.getClass.toString + ") cannot be compared with this value " + y.toString + " (type: " + y.getClass.toString + ").")
+        }
+
+        return comparatorFunction(diff)
+    }
+
 final case class OrderedFieldComparison(left : FieldExpression, comparator : OrderedComparator, right : FieldExpression)extends FieldComparison:
     lazy val protobuf: Filter.FilterExpression = Filter.FilterExpression(leftValue=Some(left.protobuf), filterType=comparator.protobuf, rightValue=Some(right.protobuf))    
 
@@ -127,14 +137,22 @@ final case class OrderedFieldComparison(left : FieldExpression, comparator : Ord
     }
 
 object StringFieldComparison:
-    def evaluate(header : TableResultHeader, row : Seq[TableValue], left: ResolvedFieldExpression, comparator : StringComparator, right : ResolvedFieldExpression) : Boolean = {
-            comparator match {
-                case c @ (StringComparator.CONTAINS) => left.evaluate[String](row).contains(right.evaluate[String](row))
-                case c @ (StringComparator.ICONTAINS) => left.evaluate[String](row).toLowerCase.contains(right.evaluate[String](row).toLowerCase)
-                case c @ (StringComparator.STARTS_WITH) => left.evaluate[String](row).startsWith(right.evaluate[String](row))
-                case c @ (StringComparator.ISTARTS_WITH) => left.evaluate[String](row).toLowerCase.startsWith(right.evaluate[String](row).toLowerCase)
-                case c @ (StringComparator.ENDS_WITH) => left.evaluate[String](row).endsWith(right.evaluate[String](row))
-                case c @ (StringComparator.IENDS_WITH) => left.evaluate[String](row).toLowerCase.endsWith(right.evaluate[String](row).toLowerCase)
+    def evaluate(header : TableResultHeader, row : Seq[Option[TableValue]], left: ResolvedFieldExpression, comparator : StringComparator, right : ResolvedFieldExpression) : Boolean = {
+            val leftOption : Option[TableValue] = left.evaluate(row)
+            val rightOption : Option[TableValue] = right.evaluate(row)
+            
+            if leftOption.isEmpty || rightOption.isEmpty then return false
+
+            val leftString = leftOption.get.value.asInstanceOf[String]
+            val rightString = rightOption.get.value.asInstanceOf[String]
+
+            return comparator match {
+                case c @ (StringComparator.CONTAINS) => leftString.contains(rightString)
+                case c @ (StringComparator.ICONTAINS) => leftString.toLowerCase.contains(rightString.toLowerCase)
+                case c @ (StringComparator.STARTS_WITH) => leftString.startsWith(rightString)
+                case c @ (StringComparator.ISTARTS_WITH) => leftString.toLowerCase.startsWith(rightString.toLowerCase)
+                case c @ (StringComparator.ENDS_WITH) => leftString.endsWith(rightString)
+                case c @ (StringComparator.IENDS_WITH) => leftString.toLowerCase.endsWith(rightString.toLowerCase)
             }
         }
 
