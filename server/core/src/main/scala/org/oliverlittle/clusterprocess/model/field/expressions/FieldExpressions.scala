@@ -10,7 +10,7 @@ import java.time.OffsetDateTime
 import org.oliverlittle.clusterprocess.table_model._
 import org.oliverlittle.clusterprocess.model.table._
 import org.oliverlittle.clusterprocess.model.table.field._
-
+import org.oliverlittle.clusterprocess.model.table.field.TableValue.given
 
 // FieldExpressions
 
@@ -26,7 +26,7 @@ trait FieldExpression:
     // Represents whether this field expression is well-typed (i.e.: we are at least able to attempt computation on it, as the base types all match)
     def isWellTyped(header : TableResultHeader) : Boolean 
     // Checks whether this FieldExpression is able to return the provided type parameter
-    def doesReturnType[EvalType](header : TableResultHeader)(using tag : ClassTag[EvalType]) : Boolean
+    def doesReturnType[T <: ValueType](header : TableResultHeader) : Boolean
     def resolve(header : TableResultHeader) : ResolvedFieldExpression
 
     // Convert this FieldExpression to a protobuf expression
@@ -50,8 +50,7 @@ object ResolvedFieldExpression:
 sealed abstract class ResolvedFieldExpression:
     // Evaluate this ResolvedFieldExpression from the top down, allowing the functions to resolve their own types.
     // Headers should already be checked at the resolution phase, so should not be required
-    def evaluateAny(row : Seq[TableValue]) : Any 
-    def evaluate[EvalType](row : Seq[TableValue])(using evalTag : ClassTag[EvalType]) : EvalType
+    def evaluate(row : Seq[Option[TableValue]]) : Option[TableValue]
 
 object NamedFieldExpression:
     def fromProtobuf(protobuf : NamedExpression) : NamedFieldExpression = NamedFieldExpression(protobuf.name, FieldExpression.fromProtobuf(protobuf.expr.get))
@@ -61,37 +60,19 @@ final case class NamedFieldExpression(name : String, expr : FieldExpression):
         else throw new IllegalArgumentException("Expression is not well typed. Cannot resolve.")
 
     def outputTableField(header : TableResultHeader) : TableField = expr match {
-        case expr if expr.doesReturnType[String](header) => BaseStringField(name)
-        case expr if expr.doesReturnType[Long](header) => BaseStringField(name)
-        case expr if expr.doesReturnType[Double](header) => BaseStringField(name)
-        case expr if expr.doesReturnType[Instant](header) => BaseStringField(name)
-        case expr if expr.doesReturnType[Boolean](header) => BaseStringField(name)
+        case expr if expr.doesReturnType[StringType](header) => BaseStringField(name)
+        case expr if expr.doesReturnType[IntType](header) => BaseIntField(name)
+        case expr if expr.doesReturnType[DoubleType](header) => BaseDoubleField(name)
+        case expr if expr.doesReturnType[BoolType](header) => BaseBoolField(name)
+        case expr if expr.doesReturnType[DateTimeType](header) => BaseDateTimeField(name)
         case expr => throw new IllegalArgumentException("FieldExpression returns unknown type: " + expr.toString)
     }
 
     lazy val protobuf : NamedExpression = NamedExpression(name, Some(expr.protobuf))
 
-final case class NamedResolvedFieldExpression(name : String, expr : ResolvedFieldExpression):
-    /**
-      * Evaluates the stored FieldExpression into a named and typed TableValue
-      *
-      * @param header The header for the row being evaluated
-      * @param row The row being evaluated
-      * @return A TableValue representing the evaluated NamedFieldExpression
-      */
-    def evaluate(row : Seq[TableValue]) : TableValue = expr.evaluateAny(row) match {
-        case s : String => StringValue(s)
-        case i : Long => IntValue(i)
-        case f : Double => DoubleValue(f)
-        case d : Instant => DateTimeValue(d)
-        case b : Boolean => BoolValue(b)
-        // This case should never happen
-        case v => throw new IllegalArgumentException("Type of " + v.toString + " is invalid: " + v.getClass.toString)
-    }
-
+final case class NamedResolvedFieldExpression(name : String, expr : ResolvedFieldExpression)
 
 // Values
-
 object V:
     // This needs refactoring - there must be a way of doing this using for-expressions
     def fromProtobuf(v : Value) : V = V(v.value.string.getOrElse(
@@ -114,9 +95,19 @@ final case class V(inputValue : Any) extends ResolvedFieldExpression with FieldE
         case v => v
     }
 
+    val tableValue = inputValue match {
+        case s : String => StringValue(s)
+        case i : Int => IntValue(i.toLong)
+        case i : Long => IntValue(i)
+        case f : Float => DoubleValue(f.toDouble)
+        case d : Double => DoubleValue(d)
+        case d : Instant => DateTimeValue(d)
+        case b : Boolean => BoolValue(b)
+    }
+
     def isWellTyped(header : TableResultHeader) = Try{protobuf}.isSuccess
     
-    def doesReturnType[EvalType](header : TableResultHeader)(using tag : ClassTag[EvalType]) : Boolean = Try{getValueAsType[EvalType]}.isSuccess
+    def doesReturnType[T <: ValueType](header : TableResultHeader)(using t : T) : Boolean = t.valueTag.equals(tableValue.valueTag)
 
     lazy val protobuf : Expression = Expression().withValue(
         value match {
@@ -130,42 +121,8 @@ final case class V(inputValue : Any) extends ResolvedFieldExpression with FieldE
         }
     )
 
-    def evaluateAny(row : Seq[TableValue]): Any = value
-
-    // Returns this value as the provided type parameter, if possible.
-    def evaluate[EvalType](row : Seq[TableValue])(using evalTag : ClassTag[EvalType]): EvalType = getValueAsType
-
-    def getValueAsType[EvalType](using evalTag : ClassTag[EvalType]) : EvalType = {
-        var clazz = evalTag.runtimeClass
-        // This is pure Java code, seems to be the easiest way of doing the conversion with a generic type.
-        if clazz.isInstance(value) then 
-            return value.asInstanceOf[EvalType]
-        // These extra cases handle Int/Long and Float/Double where we only support one of the two types
-        else if clazz == classOf[Long] then 
-            return getLong.asInstanceOf[EvalType]
-        else if clazz == classOf[Double] then 
-            return getDouble.asInstanceOf[EvalType]
-        else return throw new IllegalArgumentException("Cannot convert " + value.toString + " to " + clazz.toString + ".")
-    }
+    def evaluate(row : Seq[Option[TableValue]]) : Option[TableValue] = Some(tableValue)
     
-    // Helper function to convert Int to Long
-    def getLong : Long = {
-        return value match {
-            case v : Int => return v.toLong
-            case v : Long => return v
-            case _ => throw new IllegalArgumentException("Cannot convert " + value.toString + " to Long.")
-        }
-    }
-
-    // Helper function to convert Float to Double
-    def getDouble : Double = {
-        return value match {
-            case v : Float => return v.toFloat
-            case v : Double => return v
-            case _ => throw new IllegalArgumentException("Cannot convert " + value.toString + " to Double.")
-        }
-    }
-
     // Standard compare function, includes type safety and will throw an error if the other value cannot be compared
     def compare(that : V) : Int = (value, that.value) match {
         case (x : String, y : String) => x.compare(y)
@@ -183,24 +140,17 @@ final case class V(inputValue : Any) extends ResolvedFieldExpression with FieldE
 // Fields
 
 object F:
-    implicit def toNamed(f : F) : NamedFieldExpression = NamedFieldExpression(f.fieldName, f)
+    given fToNamed : Conversion[F, NamedFieldExpression] = (f) => NamedFieldExpression(f.fieldName, f)
 
 final case class F(fieldName : String) extends FieldExpression:
     def isWellTyped(header : TableResultHeader): Boolean = header.headerMap.contains(fieldName)
-    def doesReturnType[EvalType](header : TableResultHeader)(using tag: ClassTag[EvalType]): Boolean = header.headerMap.getOrElse(fieldName, throw new IllegalArgumentException("Field name not found: " + fieldName)).compareClassTags(tag)
+    def doesReturnType[T <: ValueType](header : TableResultHeader)(using t : T) : Boolean = t.valueTag.equals(header.headerMap.getOrElse(fieldName, throw new IllegalArgumentException("Field name not found: " + fieldName)).valueTag)
     def resolve(header : TableResultHeader) : ResolvedF = if isWellTyped(header) then ResolvedF(fieldName, header) else throw new IllegalArgumentException("Function is not well typed, cannot resolve.")
 
     lazy val protobuf : Expression = Expression().withValue(Value().withField(fieldName))
 
 final case class ResolvedF(fieldName : String, header : TableResultHeader) extends ResolvedFieldExpression:
-    def evaluateAny(row : Seq[TableValue]): Any = row.lift(header.headerIndex.getOrElse(fieldName, throw new IllegalArgumentException("Field name not found: " + fieldName))).get.value
-    def evaluate[EvalType](row : Seq[TableValue])(using evalTag : ClassTag[EvalType]) : EvalType = {
-        val tableValue = row.lift(header.headerIndex.getOrElse(fieldName, throw new IllegalArgumentException("Field name not found: " + fieldName))).get
-        if tableValue.compareClassTags(evalTag) then 
-            return tableValue.value.asInstanceOf[EvalType]
-        else
-            throw new IllegalArgumentException("Cannot return EvalType.")
-    }
+    def evaluate(row : Seq[Option[TableValue]]) : Option[TableValue] = row.lift(header.headerIndex.getOrElse(fieldName, throw new IllegalArgumentException("Field name not found: " + fieldName))).get
 
 
 // Functions
@@ -210,45 +160,54 @@ object FunctionCall:
 
 abstract class FunctionCall(functionName : String) extends FieldExpression:
     def isWellTyped(header : TableResultHeader): Boolean
-    def doesReturnType[EvalType](header : TableResultHeader)(using evalTag : ClassTag[EvalType]) : Boolean
+    def doesReturnType[T <: ValueType](header : TableResultHeader)(using t : T) : Boolean
     def resolve(header : TableResultHeader) : ResolvedFieldExpression
     val arguments : Seq[FieldExpression]
     lazy val protobuf : Expression = Expression().withFunction(Expression.FunctionCall(functionName=functionName, arguments=this.arguments.map(_.protobuf)))
 
 // Defines an abstract function call with an unknown number of parameters and a fixed return type
 // The implicit (using) ClassTag[ReturnType] prevents the type erasure of the generic type ReturnType, which allows it 
-final case class ResolvedFunctionCall[ReturnType](runtimeFunction : Seq[TableValue] => ReturnType)(using retTag : ClassTag[ReturnType]) extends ResolvedFieldExpression:
-    def evaluateAny(row : Seq[TableValue]) : Any = runtimeFunction(row)
-    def evaluate[EvalType](row : Seq[TableValue])(using evalTag : ClassTag[EvalType]) : EvalType = if retTag.equals(evalTag) then runtimeFunction(row).asInstanceOf[EvalType] else throw new IllegalArgumentException("Function cannot return type " + evalTag.runtimeClass.toString)
+final case class ResolvedFunctionCall[ReturnType](runtimeFunction : Seq[Option[TableValue]] => Option[TableValue]) extends ResolvedFieldExpression:
+    def evaluate(row : Seq[Option[TableValue]]) : Option[TableValue] = runtimeFunction(row)
 
 // Defines a function that takes one argument and returns a value
-final case class UnaryFunction[ArgType, ReturnType](functionName : String, function : (argument : ArgType) => ReturnType, argument : FieldExpression)(using tag : ClassTag[ArgType])(using retTag : ClassTag[ReturnType]) extends FunctionCall(functionName):
+final case class UnaryFunction[ArgType <: TableValue, ReturnType <: TableValue](functionName : String, function : ArgType => ReturnType, argument : FieldExpression)(using a : ArgType)(using retTag : ReturnType) extends FunctionCall(functionName):
     def isWellTyped(header : TableResultHeader) : Boolean = argument.doesReturnType[ArgType](header)
-    def doesReturnType[EvalType](header : TableResultHeader)(using evalTag: ClassTag[EvalType]): Boolean = evalTag.equals(retTag)
+    def doesReturnType[T <: ValueType](header : TableResultHeader)(using t : T): Boolean = t.valueTag.equals(retTag)
     val arguments = Seq(argument)
     def resolve(header : TableResultHeader): ResolvedFunctionCall[ReturnType] = {
         if !isWellTyped(header) then throw new IllegalArgumentException("Function not well typed, cannot resolve.")
         val resolvedArg = argument.resolve(header)
-        return ResolvedFunctionCall((row) => function(resolvedArg.evaluateAny(row).asInstanceOf[ArgType]))
+        return ResolvedFunctionCall((row) => 
+            resolvedArg.evaluate(row).flatMap(v => 
+                Some(function(v))
+            )
+        )
     }
 
 // Defines a function that takes two arguments and returns a value
-final case class BinaryFunction[LeftArgType, RightArgType, ReturnType](functionName : String, function : (left : LeftArgType, right : RightArgType) => ReturnType, left : FieldExpression, right : FieldExpression)(using lTag : ClassTag[LeftArgType]) (using rTag : ClassTag[RightArgType])(using retTag : ClassTag[ReturnType]) extends FunctionCall(functionName):
+final case class BinaryFunction[LeftArgType, RightArgType, ReturnType](functionName : String, function : LeftArgType => RightArgType => ReturnType, left : FieldExpression, right : FieldExpression)(using lTag : ClassTag[LeftArgType]) (using rTag : ClassTag[RightArgType])(using retTag : ClassTag[ReturnType]) extends FunctionCall(functionName):
     def isWellTyped(header : TableResultHeader) : Boolean = left.doesReturnType[LeftArgType](header) && right.doesReturnType[RightArgType](header)
-    def doesReturnType[EvalType](header : TableResultHeader)(using evalTag: ClassTag[EvalType]): Boolean = evalTag.equals(retTag)
+    def doesReturnType[T <: ValueType](header : TableResultHeader)(using t : T) : Boolean = evalTag.equals(retTag)
     val arguments = Seq(left, right)
     def resolve(header : TableResultHeader): ResolvedFunctionCall[ReturnType] = {
         if !isWellTyped(header) then throw new IllegalArgumentException("Function not well typed, cannot resolve.")
 
         val resolvedLeft = left.resolve(header)
         val resolvedRight = right.resolve(header)
-        return ResolvedFunctionCall((row) => function(resolvedLeft.evaluateAny(row).asInstanceOf[LeftArgType], resolvedRight.evaluateAny(row).asInstanceOf[RightArgType]))
+        return ResolvedFunctionCall((row) =>
+            resolvedLeft.evaluateAny(row).flatMap(l => 
+                resolvedRight.evaluateAny(row).flatMap(r =>
+                    Some(function(l.asInstanceOf[LeftArgType], r.asInstanceOf[RightArgType]))
+                )
+            )
+        )
     }
 
 // Defines a function that takes three arguments and returns a value
 final case class TernaryFunction[ArgOneType, ArgTwoType, ArgThreeType, ReturnType](functionName : String, function : (one : ArgOneType, two : ArgTwoType, three : ArgThreeType) => ReturnType, one : FieldExpression, two : FieldExpression, three : FieldExpression)(using oneTag : ClassTag[ArgOneType], twoTag : ClassTag[ArgTwoType], threeTag : ClassTag[ArgThreeType])(using retTag : ClassTag[ReturnType]) extends FunctionCall(functionName):
     def isWellTyped(header : TableResultHeader) : Boolean = one.doesReturnType[ArgOneType](header) && two.doesReturnType[ArgTwoType](header) && three.doesReturnType[ArgThreeType](header)
-    def doesReturnType[EvalType](header : TableResultHeader)(using evalTag: ClassTag[EvalType]): Boolean = evalTag.equals(retTag)
+    def doesReturnType(t : ValueType, header : TableResultHeader): Boolean = evalTag.equals(retTag)
     val arguments = Seq(one, two, three)
     def resolve(header : TableResultHeader) : ResolvedFunctionCall[ReturnType] = {
         if !isWellTyped(header) then throw new IllegalArgumentException("Function not well typed, cannot resolve.")
@@ -256,64 +215,72 @@ final case class TernaryFunction[ArgOneType, ArgTwoType, ArgThreeType, ReturnTyp
         val resolvedOne = one.resolve(header)
         val resolvedTwo = two.resolve(header)
         val resolvedThree = three.resolve(header)
-        return ResolvedFunctionCall((row) => function(resolvedOne.evaluateAny(row).asInstanceOf[ArgOneType], resolvedTwo.evaluateAny(row).asInstanceOf[ArgTwoType], resolvedThree.evaluateAny(row).asInstanceOf[ArgThreeType]))
+        return ResolvedFunctionCall((row) => 
+            resolvedOne.evaluateAny(row).flatMap(one => 
+                resolvedTwo.evaluateAny(row).flatMap(two => 
+                    resolvedThree.evaluateAny(row).flatMap(three => 
+                        Some(function(one.asInstanceOf[ArgOneType], two.asInstanceOf[ArgTwoType], three.asInstanceOf[ArgThreeType]))
+                    )
+                )
+            )
+        )
     }
 
 // Polymorphic cast definitions (takes any argument, and returns the type or an error)
 final case class ToString(argument: FieldExpression) extends FunctionCall("ToString"):
     def isWellTyped(header : TableResultHeader) : Boolean = argument.doesReturnType[Any](header)
-    def doesReturnType[EvalType](header : TableResultHeader)(using evalTag: ClassTag[EvalType]): Boolean = evalTag.equals(classTag[String])
+    def doesReturnType(t : ValueType, header : TableResultHeader): Boolean = evalTag.equals(classTag[String])
     val arguments = Seq(argument)
     def resolve(header : TableResultHeader) : ResolvedFunctionCall[String] = {
         if !isWellTyped(header) then throw new IllegalArgumentException("Function not well typed, cannot resolve.")
         val resolvedArg = argument.resolve(header)
-        return ResolvedFunctionCall((row) => resolvedArg.evaluateAny(row).toString)
+        return ResolvedFunctionCall((row) => resolvedArg.evaluateAny(row).flatMap(v => Some(v.toString)))
     }
 
 // ToString implementation specifically for Doubles, to enable specified precision
 final case class DoubleToString(argument: FieldExpression, formatter : DecimalFormat) extends FunctionCall("DoubleToString"):
     def isWellTyped(header : TableResultHeader) : Boolean = argument.doesReturnType[Double](header)
-    def doesReturnType[EvalType](header : TableResultHeader)(using evalTag: ClassTag[EvalType]): Boolean = evalTag.equals(classTag[String])
+    def doesReturnType(t : ValueType, header : TableResultHeader): Boolean = evalTag.equals(classTag[String])
     val arguments = Seq(argument)
     def resolve(header : TableResultHeader) : ResolvedFunctionCall[String] = {
         if !isWellTyped(header) then throw new IllegalArgumentException("Function not well typed, cannot resolve.")
         val resolvedArg = argument.resolve(header)
-        return ResolvedFunctionCall((row) => formatter.format(resolvedArg.evaluateAny(row)))
+        return ResolvedFunctionCall((row) => resolvedArg.evaluateAny(row).flatMap(v => Some(formatter.format(v))))
     }
 
 final case class ToInt(argument : FieldExpression) extends FunctionCall("ToInt"):
     def isWellTyped(header : TableResultHeader) : Boolean = argument.doesReturnType[String](header) || argument.doesReturnType[Double](header) || argument.doesReturnType[Float](header) || argument.doesReturnType[Long](header) || argument.doesReturnType[Int](header)
     
-    def doesReturnType[EvalType](header : TableResultHeader)(using evalTag: ClassTag[EvalType]): Boolean = evalTag.equals(classTag[Int])
+    def doesReturnType(t : ValueType, header : TableResultHeader): Boolean = evalTag.equals(classTag[Int])
 
     val arguments = Seq(argument)
 
     def resolve(header : TableResultHeader): ResolvedFunctionCall[Long] = {
         val resolvedArg = argument.resolve(header)
-        return ResolvedFunctionCall((row) => resolvedArg.evaluateAny(row) match {
-            case v : String => v.toLong
-            case v : Double => v.toLong
-            case v : Float => v.toLong
-            case v : Long => v
-            case v : Int => v.toLong
+        return ResolvedFunctionCall((row) => resolvedArg.evaluateAny(row) flatMap {
+            case v : String => Some(v.toLong)
+            case v : Double => Some(v.toLong)
+            case v : Float => Some(v.toLong)
+            case v : Int => Some(v.toLong)
+            case v : Long => Some(v)
             case v => throw new IllegalArgumentException("Cannot convert " + v.toString + " of type " + v.getClass + " to Long.")
         })
     }
 
 final case class ToDouble(argument : FieldExpression) extends FunctionCall("ToDouble"):
     def isWellTyped(header : TableResultHeader) : Boolean = argument.doesReturnType[String](header) || argument.doesReturnType[Double](header) || argument.doesReturnType[Float](header) || argument.doesReturnType[Long](header) || argument.doesReturnType[Int](header)
-    def doesReturnType[EvalType](header : TableResultHeader)(using evalTag: ClassTag[EvalType]): Boolean = evalTag.equals(classTag[Double])
+    def doesReturnType(t : ValueType, header : TableResultHeader): Boolean = evalTag.equals(classTag[Double])
     val arguments = Seq(argument)
 
     def resolve(header : TableResultHeader): ResolvedFunctionCall[Double] = {
         if !isWellTyped(header) then throw new IllegalArgumentException("Function not well typed, cannot resolve.")
         val resolvedArg = argument.resolve(header)
-        return ResolvedFunctionCall((row) => resolvedArg.evaluateAny(row) match {
-            case v : String => v.toDouble
-            case v : Double => v
-            case v : Float => v.toDouble
-            case v : Long => v.toDouble
-            case v : Int => v.toDouble
+        return ResolvedFunctionCall((row) => resolvedArg.evaluateAny(row) flatMap {
+            case v : String => Some(v.toDouble)
+            case v : Float => Some(v.toDouble)
+            case v : Long => Some(v.toDouble)
+            case v : Int => Some(v.toDouble)
+            case v : Double => Some(v)
             case v => throw new IllegalArgumentException("Cannot convert " + v.toString + " of type " + v.getClass + " to Long.")
         })
     }

@@ -10,12 +10,18 @@ class UnaryFieldComparisonSpec extends UnitSpec {
     // NOTE: currently nulls are not handled correctly (they will cause a not well-typed error, as intended)
     // Need to find some way of implementing them (likely Some/None syntax) so they are able to propagate through the system
     "A UnaryFieldComparison" should "evaluate null comparators correctly" in {
-        assertThrows[IllegalArgumentException] {
-            UnaryFieldComparison(V(null), UnaryComparator.IS_NULL).resolve(Map()).evaluate(Map()) should be (true)
-            UnaryFieldComparison(V(null), UnaryComparator.NULL).resolve(Map()).evaluate(Map()) should be (true)
-            UnaryFieldComparison(V(1), UnaryComparator.IS_NULL).resolve(Map()).evaluate(Map()) should be (false)
-            UnaryFieldComparison(V(1), UnaryComparator.NULL).resolve(Map()).evaluate(Map()) should be (false)
-        }
+        val inputs = Seq(
+            (V(null), UnaryComparator.IS_NULL, true),
+            (V(null), UnaryComparator.NULL, true),
+            (V(1), UnaryComparator.IS_NULL, false),
+            (V(1), UnaryComparator.NULL, false),
+        )
+
+        inputs.foreach((l, e, result) => {
+            assertThrows[IllegalArgumentException] {
+                UnaryFieldComparison(l, e).resolve(Map()).evaluate(Map()) should be (result)
+            }
+        })
     }
 
     it should "evaluate not null comparators correctly" in {
@@ -30,17 +36,29 @@ class UnaryFieldComparisonSpec extends UnitSpec {
 
 class EqualityFieldComparisonSpec extends UnitSpec {
     "An EqualityFieldComparison" should "compare strings correctly" in {
-        EqualityFieldComparison(V("s"), EqualsComparator.EQ, V("s")).resolve(Map()).evaluate(Map()) should be (true)
-        EqualityFieldComparison(V("s"), EqualsComparator.EQ, V("r")).resolve(Map()).evaluate(Map()) should be (false)
-        EqualityFieldComparison(V("s"), EqualsComparator.NE, V("s")).resolve(Map()).evaluate(Map()) should be (false)
-        EqualityFieldComparison(V("s"), EqualsComparator.NE, V("r")).resolve(Map()).evaluate(Map()) should be (true)
+        val inputs = Seq(
+            (V("s"), EqualsComparator.EQ, V("s"), true),
+            (V("s"), EqualsComparator.EQ, V("r"), false),
+            (V("s"), EqualsComparator.NE, V("s"), false),
+            (V("s"), EqualsComparator.NE, V("r"), true),
+        )
+
+        inputs.foreach((l, e, r, result) => {
+            EqualityFieldComparison(l, e, r).resolve(Map()).evaluate(Seq()) should be (result)
+        })
     }
 
     it should "compare Longs correctly" in {
-        EqualityFieldComparison(V(1), EqualsComparator.EQ, V(1)).resolve(Map()).evaluate(Map()) should be (true)
-        EqualityFieldComparison(V(1), EqualsComparator.EQ, V(2)).resolve(Map()).evaluate(Map()) should be (false)
-        EqualityFieldComparison(V(1), EqualsComparator.NE, V(1)).resolve(Map()).evaluate(Map()) should be (false)
-        EqualityFieldComparison(V(1), EqualsComparator.NE, V(2)).resolve(Map()).evaluate(Map()) should be (true)
+        val inputs = Seq(
+            (V(1), EqualsComparator.EQ, V(1), true),
+            (V(1), EqualsComparator.EQ, V(2), false),
+            (V(1), EqualsComparator.NE, V(1), false),
+            (V(1), EqualsComparator.NE, V(2), true),
+        )
+
+        inputs.foreach((l, e, r, result) => {
+            EqualityFieldComparison(l, e, r).resolve(Map()).evaluate(Seq()) should be (result)
+        })
     }
 
     it should "compare Doubles correctly" in {
@@ -48,6 +66,17 @@ class EqualityFieldComparisonSpec extends UnitSpec {
         EqualityFieldComparison(V(1.01), EqualsComparator.EQ, V(1.02)).resolve(Map()).evaluate(Map()) should be (false)
         EqualityFieldComparison(V(1.01), EqualsComparator.NE, V(1.01)).resolve(Map()).evaluate(Map()) should be (false)
         EqualityFieldComparison(V(1.01), EqualsComparator.NE, V(1.02)).resolve(Map()).evaluate(Map()) should be (true)
+
+        val inputs = Seq(
+            (V(1.01), EqualsComparator.EQ, V(1.01), true),
+            (V(1.01), EqualsComparator.EQ, V(1.02), false),
+            (V(1.01), EqualsComparator.NE, V(1.01), false),
+            (V(1.01), EqualsComparator.NE, V(1.02), true),
+        )
+
+        inputs.foreach((l, e, r, result) => {
+            EqualityFieldComparison(l, e, r).resolve(Map()).evaluate(Seq()) should be (result)
+        })
     }
 
     it should "compare DateTimes correctly" in {
