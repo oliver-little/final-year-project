@@ -26,5 +26,8 @@ class TableSpec extends UnitSpec {
         table.compute should be (TableResult(TableResultHeader(Seq(BaseIntField("a"))), Seq(Seq(Some(IntValue(3))))))
     }
 
-    // TODO: test multiple transformations sequentially
+    it should "compute sequential transformations correctly" in {
+        val table = Table(MockDataSource(), Seq(SelectTransformation(AddInt(F("a"), V(1)).as("a")), SelectTransformation(AddInt(F("a"), V(-3)).as("b"))))
+        table.compute should be (TableResult(TableResultHeader(Seq(BaseIntField("b"))), Seq(Seq(Some(IntValue(0))))))
+    }
 }
