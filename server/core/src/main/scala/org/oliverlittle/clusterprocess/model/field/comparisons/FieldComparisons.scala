@@ -73,8 +73,8 @@ enum StringComparator(val protobuf : Filter.FilterType):
 
 object UnaryFieldComparison:
     def evaluate(header : TableResultHeader, row : Seq[TableValue], comparator : UnaryComparator, expr : ResolvedFieldExpression) : Boolean = comparator match {
-        case isNull @ (UnaryComparator.IS_NULL | UnaryComparator.NULL) => expr.evaluateAny(header, row) == null
-        case isNotNull @ (UnaryComparator.IS_NOT_NULL | UnaryComparator.NOT_NULL) => expr.evaluateAny(header, row) != null
+        case isNull @ (UnaryComparator.IS_NULL | UnaryComparator.NULL) => expr.evaluateAny(row) == null
+        case isNotNull @ (UnaryComparator.IS_NOT_NULL | UnaryComparator.NOT_NULL) => expr.evaluateAny(row) != null
     }
 
 final case class UnaryFieldComparison(expression : FieldExpression, comparator : UnaryComparator) extends FieldComparison:
@@ -87,8 +87,8 @@ final case class UnaryFieldComparison(expression : FieldExpression, comparator :
 
 object EqualityFieldComparison:
     def evaluate(header : TableResultHeader, row : Seq[TableValue], left: ResolvedFieldExpression, comparator : EqualsComparator, right : ResolvedFieldExpression) : Boolean = comparator match {
-        case eq @ (EqualsComparator.EQ | EqualsComparator.EQUAL) => left.evaluateAny(header, row).equals(right.evaluateAny(header, row))
-        case ne @ (EqualsComparator.NE | EqualsComparator.NOT_EQUAL) => !left.evaluateAny(header, row).equals(right.evaluateAny(header, row))
+        case eq @ (EqualsComparator.EQ | EqualsComparator.EQUAL) => left.evaluateAny(row).equals(right.evaluateAny(row))
+        case ne @ (EqualsComparator.NE | EqualsComparator.NOT_EQUAL) => !left.evaluateAny(row).equals(right.evaluateAny(row))
     }
 
 final case class EqualityFieldComparison(left : FieldExpression, comparator : EqualsComparator, right : FieldExpression) extends FieldComparison:
@@ -101,7 +101,7 @@ final case class EqualityFieldComparison(left : FieldExpression, comparator : Eq
     }
 
 object OrderedFieldComparison:
-    def evaluate(header : TableResultHeader, row : Seq[TableValue], left : ResolvedFieldExpression, comparatorFunction : Int => Boolean, right : ResolvedFieldExpression) : Boolean = comparatorFunction((left.evaluateAny(header, row), right.evaluateAny(header, row)) match {
+    def evaluate(header : TableResultHeader, row : Seq[TableValue], left : ResolvedFieldExpression, comparatorFunction : Int => Boolean, right : ResolvedFieldExpression) : Boolean = comparatorFunction((left.evaluateAny(row), right.evaluateAny(row)) match {
         case (x : String, y : String) => x.compare(y)
         case (x : Long, y : Long)=> x.compare(y)
         case (x : Double, y : Double) => x.compare(y)
@@ -129,12 +129,12 @@ final case class OrderedFieldComparison(left : FieldExpression, comparator : Ord
 object StringFieldComparison:
     def evaluate(header : TableResultHeader, row : Seq[TableValue], left: ResolvedFieldExpression, comparator : StringComparator, right : ResolvedFieldExpression) : Boolean = {
             comparator match {
-                case c @ (StringComparator.CONTAINS) => left.evaluate[String](header, row).contains(right.evaluate[String](header, row))
-                case c @ (StringComparator.ICONTAINS) => left.evaluate[String](header, row).toLowerCase.contains(right.evaluate[String](header, row).toLowerCase)
-                case c @ (StringComparator.STARTS_WITH) => left.evaluate[String](header, row).startsWith(right.evaluate[String](header, row))
-                case c @ (StringComparator.ISTARTS_WITH) => left.evaluate[String](header, row).toLowerCase.startsWith(right.evaluate[String](header, row).toLowerCase)
-                case c @ (StringComparator.ENDS_WITH) => left.evaluate[String](header, row).endsWith(right.evaluate[String](header, row))
-                case c @ (StringComparator.IENDS_WITH) => left.evaluate[String](header, row).toLowerCase.endsWith(right.evaluate[String](header, row).toLowerCase)
+                case c @ (StringComparator.CONTAINS) => left.evaluate[String](row).contains(right.evaluate[String](row))
+                case c @ (StringComparator.ICONTAINS) => left.evaluate[String](row).toLowerCase.contains(right.evaluate[String](row).toLowerCase)
+                case c @ (StringComparator.STARTS_WITH) => left.evaluate[String](row).startsWith(right.evaluate[String](row))
+                case c @ (StringComparator.ISTARTS_WITH) => left.evaluate[String](row).toLowerCase.startsWith(right.evaluate[String](row).toLowerCase)
+                case c @ (StringComparator.ENDS_WITH) => left.evaluate[String](row).endsWith(right.evaluate[String](row))
+                case c @ (StringComparator.IENDS_WITH) => left.evaluate[String](row).toLowerCase.endsWith(right.evaluate[String](row).toLowerCase)
             }
         }
 

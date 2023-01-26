@@ -49,8 +49,9 @@ object ResolvedFieldExpression:
   */
 sealed abstract class ResolvedFieldExpression:
     // Evaluate this ResolvedFieldExpression from the top down, allowing the functions to resolve their own types.
-    def evaluateAny(header : TableResultHeader, row : Seq[TableValue]) : Any 
-    def evaluate[EvalType](header : TableResultHeader, row : Seq[TableValue])(using evalTag : ClassTag[EvalType]) : EvalType
+    // Headers should already be checked at the resolution phase, so should not be required
+    def evaluateAny(row : Seq[TableValue]) : Any 
+    def evaluate[EvalType](row : Seq[TableValue])(using evalTag : ClassTag[EvalType]) : EvalType
 
 object NamedFieldExpression:
     def fromProtobuf(protobuf : NamedExpression) : NamedFieldExpression = NamedFieldExpression(protobuf.name, FieldExpression.fromProtobuf(protobuf.expr.get))
@@ -60,11 +61,11 @@ final case class NamedFieldExpression(name : String, expr : FieldExpression):
         else throw new IllegalArgumentException("Expression is not well typed. Cannot resolve.")
 
     def outputTableField(header : TableResultHeader) : TableField = expr match {
-        case expr if expr.doesReturnType[String](header) => StringField(name)
-        case expr if expr.doesReturnType[Long](header) => IntField(name)
-        case expr if expr.doesReturnType[Double](header) => DoubleField(name)
-        case expr if expr.doesReturnType[Instant](header) => DateTimeField(name)
-        case expr if expr.doesReturnType[Boolean](header) => BoolField(name)
+        case expr if expr.doesReturnType[String](header) => BaseStringField(name)
+        case expr if expr.doesReturnType[Long](header) => BaseStringField(name)
+        case expr if expr.doesReturnType[Double](header) => BaseStringField(name)
+        case expr if expr.doesReturnType[Instant](header) => BaseStringField(name)
+        case expr if expr.doesReturnType[Boolean](header) => BaseStringField(name)
         case expr => throw new IllegalArgumentException("FieldExpression returns unknown type: " + expr.toString)
     }
 
@@ -78,7 +79,7 @@ final case class NamedResolvedFieldExpression(name : String, expr : ResolvedFiel
       * @param row The row being evaluated
       * @return A TableValue representing the evaluated NamedFieldExpression
       */
-    def evaluate(header : TableResultHeader, row : Seq[TableValue]) : TableValue = expr.evaluateAny(header, row) match {
+    def evaluate(row : Seq[TableValue]) : TableValue = expr.evaluateAny(row) match {
         case s : String => StringValue(s)
         case i : Long => IntValue(i)
         case f : Double => DoubleValue(f)
@@ -129,10 +130,10 @@ final case class V(inputValue : Any) extends ResolvedFieldExpression with FieldE
         }
     )
 
-    def evaluateAny(header : TableResultHeader, row : Seq[TableValue]): Any = value
+    def evaluateAny(row : Seq[TableValue]): Any = value
 
     // Returns this value as the provided type parameter, if possible.
-    def evaluate[EvalType](header : TableResultHeader, row : Seq[TableValue])(using evalTag : ClassTag[EvalType]): EvalType = getValueAsType
+    def evaluate[EvalType](row : Seq[TableValue])(using evalTag : ClassTag[EvalType]): EvalType = getValueAsType
 
     def getValueAsType[EvalType](using evalTag : ClassTag[EvalType]) : EvalType = {
         var clazz = evalTag.runtimeClass
@@ -192,8 +193,8 @@ final case class F(fieldName : String) extends FieldExpression:
     lazy val protobuf : Expression = Expression().withValue(Value().withField(fieldName))
 
 final case class ResolvedF(fieldName : String, header : TableResultHeader) extends ResolvedFieldExpression:
-    def evaluateAny(header : TableResultHeader, row : Seq[TableValue]): Any = row.lift(header.headerIndex.getOrElse(fieldName, throw new IllegalArgumentException("Field name not found: " + fieldName))).get.value
-    def evaluate[EvalType](header : TableResultHeader, row : Seq[TableValue])(using evalTag : ClassTag[EvalType]) : EvalType = {
+    def evaluateAny(row : Seq[TableValue]): Any = row.lift(header.headerIndex.getOrElse(fieldName, throw new IllegalArgumentException("Field name not found: " + fieldName))).get.value
+    def evaluate[EvalType](row : Seq[TableValue])(using evalTag : ClassTag[EvalType]) : EvalType = {
         val tableValue = row.lift(header.headerIndex.getOrElse(fieldName, throw new IllegalArgumentException("Field name not found: " + fieldName))).get
         if tableValue.compareClassTags(evalTag) then 
             return tableValue.value.asInstanceOf[EvalType]
@@ -217,8 +218,8 @@ abstract class FunctionCall(functionName : String) extends FieldExpression:
 // Defines an abstract function call with an unknown number of parameters and a fixed return type
 // The implicit (using) ClassTag[ReturnType] prevents the type erasure of the generic type ReturnType, which allows it 
 final case class ResolvedFunctionCall[ReturnType](runtimeFunction : Seq[TableValue] => ReturnType)(using retTag : ClassTag[ReturnType]) extends ResolvedFieldExpression:
-    def evaluateAny(header : TableResultHeader, row : Seq[TableValue]) : Any = runtimeFunction(row)
-    def evaluate[EvalType](header : TableResultHeader, row : Seq[TableValue])(using evalTag : ClassTag[EvalType]) : EvalType = if retTag.equals(evalTag) then runtimeFunction(row).asInstanceOf[EvalType] else throw new IllegalArgumentException("Function cannot return type " + evalTag.runtimeClass.toString)
+    def evaluateAny(row : Seq[TableValue]) : Any = runtimeFunction(row)
+    def evaluate[EvalType](row : Seq[TableValue])(using evalTag : ClassTag[EvalType]) : EvalType = if retTag.equals(evalTag) then runtimeFunction(row).asInstanceOf[EvalType] else throw new IllegalArgumentException("Function cannot return type " + evalTag.runtimeClass.toString)
 
 // Defines a function that takes one argument and returns a value
 final case class UnaryFunction[ArgType, ReturnType](functionName : String, function : (argument : ArgType) => ReturnType, argument : FieldExpression)(using tag : ClassTag[ArgType])(using retTag : ClassTag[ReturnType]) extends FunctionCall(functionName):
@@ -228,7 +229,7 @@ final case class UnaryFunction[ArgType, ReturnType](functionName : String, funct
     def resolve(header : TableResultHeader): ResolvedFunctionCall[ReturnType] = {
         if !isWellTyped(header) then throw new IllegalArgumentException("Function not well typed, cannot resolve.")
         val resolvedArg = argument.resolve(header)
-        return ResolvedFunctionCall((row) => function(resolvedArg.evaluateAny(header, row).asInstanceOf[ArgType]))
+        return ResolvedFunctionCall((row) => function(resolvedArg.evaluateAny(row).asInstanceOf[ArgType]))
     }
 
 // Defines a function that takes two arguments and returns a value
@@ -241,7 +242,7 @@ final case class BinaryFunction[LeftArgType, RightArgType, ReturnType](functionN
 
         val resolvedLeft = left.resolve(header)
         val resolvedRight = right.resolve(header)
-        return ResolvedFunctionCall((row) => function(resolvedLeft.evaluateAny(header, row).asInstanceOf[LeftArgType], resolvedRight.evaluateAny(header, row).asInstanceOf[RightArgType]))
+        return ResolvedFunctionCall((row) => function(resolvedLeft.evaluateAny(row).asInstanceOf[LeftArgType], resolvedRight.evaluateAny(row).asInstanceOf[RightArgType]))
     }
 
 // Defines a function that takes three arguments and returns a value
@@ -255,7 +256,7 @@ final case class TernaryFunction[ArgOneType, ArgTwoType, ArgThreeType, ReturnTyp
         val resolvedOne = one.resolve(header)
         val resolvedTwo = two.resolve(header)
         val resolvedThree = three.resolve(header)
-        return ResolvedFunctionCall((row) => function(resolvedOne.evaluateAny(header, row).asInstanceOf[ArgOneType], resolvedTwo.evaluateAny(header, row).asInstanceOf[ArgTwoType], resolvedThree.evaluateAny(header, row).asInstanceOf[ArgThreeType]))
+        return ResolvedFunctionCall((row) => function(resolvedOne.evaluateAny(row).asInstanceOf[ArgOneType], resolvedTwo.evaluateAny(row).asInstanceOf[ArgTwoType], resolvedThree.evaluateAny(row).asInstanceOf[ArgThreeType]))
     }
 
 // Polymorphic cast definitions (takes any argument, and returns the type or an error)
@@ -266,7 +267,7 @@ final case class ToString(argument: FieldExpression) extends FunctionCall("ToStr
     def resolve(header : TableResultHeader) : ResolvedFunctionCall[String] = {
         if !isWellTyped(header) then throw new IllegalArgumentException("Function not well typed, cannot resolve.")
         val resolvedArg = argument.resolve(header)
-        return ResolvedFunctionCall((row) => resolvedArg.evaluateAny(header, row).toString)
+        return ResolvedFunctionCall((row) => resolvedArg.evaluateAny(row).toString)
     }
 
 // ToString implementation specifically for Doubles, to enable specified precision
@@ -277,7 +278,7 @@ final case class DoubleToString(argument: FieldExpression, formatter : DecimalFo
     def resolve(header : TableResultHeader) : ResolvedFunctionCall[String] = {
         if !isWellTyped(header) then throw new IllegalArgumentException("Function not well typed, cannot resolve.")
         val resolvedArg = argument.resolve(header)
-        return ResolvedFunctionCall((row) => formatter.format(resolvedArg.evaluateAny(header, row)))
+        return ResolvedFunctionCall((row) => formatter.format(resolvedArg.evaluateAny(row)))
     }
 
 final case class ToInt(argument : FieldExpression) extends FunctionCall("ToInt"):
@@ -289,7 +290,7 @@ final case class ToInt(argument : FieldExpression) extends FunctionCall("ToInt")
 
     def resolve(header : TableResultHeader): ResolvedFunctionCall[Long] = {
         val resolvedArg = argument.resolve(header)
-        return ResolvedFunctionCall((row) => resolvedArg.evaluateAny(header, row) match {
+        return ResolvedFunctionCall((row) => resolvedArg.evaluateAny(row) match {
             case v : String => v.toLong
             case v : Double => v.toLong
             case v : Float => v.toLong
@@ -307,7 +308,7 @@ final case class ToDouble(argument : FieldExpression) extends FunctionCall("ToDo
     def resolve(header : TableResultHeader): ResolvedFunctionCall[Double] = {
         if !isWellTyped(header) then throw new IllegalArgumentException("Function not well typed, cannot resolve.")
         val resolvedArg = argument.resolve(header)
-        return ResolvedFunctionCall((row) => resolvedArg.evaluateAny(header, row) match {
+        return ResolvedFunctionCall((row) => resolvedArg.evaluateAny(row) match {
             case v : String => v.toDouble
             case v : Double => v
             case v : Float => v.toDouble

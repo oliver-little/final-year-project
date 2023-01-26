@@ -45,7 +45,7 @@ final case class SelectTransformation(selectColumns : NamedFieldExpression*) ext
 
 	def evaluate(data : TableResult) : TableResult = {
 		val resolved = selectColumns.map(_.resolve(data.header))
-		return TableResult(outputHeaders(data.header), data.rows.map(row => resolved.map(_.evaluate(data.header, row))))
+		return TableResult(outputHeaders(data.header), data.rows.map(row => resolved.map(_.evaluate(row))))
 	}
 
 	def outputHeaders(inputHeaders : TableResultHeader) : TableResultHeader = TableResultHeader(selectColumns.map(_.outputTableField(inputHeaders)))
