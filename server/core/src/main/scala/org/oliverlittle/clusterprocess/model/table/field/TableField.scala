@@ -4,6 +4,11 @@ import java.time.Instant
 import scala.reflect.{ClassTag, classTag}
 
 import org.oliverlittle.clusterprocess.table_model
+import org.oliverlittle.clusterprocess.table_model.DataType.STRING
+import org.oliverlittle.clusterprocess.table_model.DataType.DATETIME
+import org.oliverlittle.clusterprocess.table_model.DataType.BOOL
+import org.oliverlittle.clusterprocess.table_model.DataType.DOUBLE
+import org.oliverlittle.clusterprocess.table_model.DataType.INT
 
 object ValueType:
     given intType : IntType = IntTypeInstance()
@@ -20,6 +25,16 @@ abstract class ValueType:
     def compareClassTags[U](tag : ClassTag[U]) : Boolean = valueTag.equals(tag)
 
 // Interface for a field definition
+object TableField:
+    def fromProtobuf(field : table_model.TableResultHeader.Header) = field.dataType match {
+        case STRING => BaseStringField(field.fieldName)
+        case DATETIME => BaseDateTimeField(field.fieldName)
+        case BOOL => BaseBoolField(field.fieldName)
+        case DOUBLE => BaseDoubleField(field.fieldName)
+        case INT => BaseIntField(field.fieldName)
+        case x => throw new IllegalArgumentException("Unknown enum type" + x.toString)
+    }
+
 trait TableField extends ValueType:
     val name : String
     val protobufDataType : table_model.DataType
@@ -27,6 +42,15 @@ trait TableField extends ValueType:
 
 // Interface for a value from a field
 object TableValue:
+    def fromProtobuf(value : table_model.Value) : Option[TableValue] = value.value.number match {
+        case 2 => Some(StringValue(value.value.string.get))
+        case 3 => Some(DateTimeValue(Instant.parse(value.value.datetime.get)))
+        case 4 => Some(IntValue(value.value.int.get))
+        case 5 => Some(DoubleValue(value.value.double.get))
+        case 6 => Some(BoolValue(value.value.bool.get))
+        case 7 => None
+    }
+
     def valueToTableValue(value : Any) : TableValue = value match {
         case s : String => StringValue(s)
         case i : Int => IntValue(i.toLong)
@@ -38,7 +62,13 @@ object TableValue:
         case x => throw new IllegalArgumentException("Cannot convert " + x + " to TableValue.")
     }
 
-    def tableValueToProtobufValue(value : Option[TableValue]) : table_model.Value = value.map(v => v.protobuf).getOrElse(table_model.Value().withNull(true))
+    // Extend Option[TableValue] to add protobuf conversions natively
+    extension (optionTableValue : Option[TableValue]) {
+        def protobuf : table_model.Value = optionTableValue.map(_.protobuf) match {
+            case Some(v) => v
+            case None => table_model.Value().withNull(true)
+        }
+    }
 
     given stringValueDefault : StringValue = StringValue("")
     given intValueDefault : IntValue = IntValue(0)
