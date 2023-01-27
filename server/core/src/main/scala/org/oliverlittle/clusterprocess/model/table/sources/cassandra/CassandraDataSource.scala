@@ -14,6 +14,7 @@ import com.datastax.oss.driver.api.core.`type`.{DataTypes, DataType}
 import com.datastax.oss.driver.api.core.cql.Row
 import scala.jdk.CollectionConverters._
 import java.time.Instant
+import java.util.logging.Logger
 
 object CassandraDataSource:
     def inferDataSourceFromCassandra(keyspace : String, table : String, tokenRange : Option[CassandraTokenRange] = None) : DataSource = {
@@ -43,6 +44,8 @@ object CassandraDataSource:
   * @param primaryKey A list of strings representing the primary keys for this table
   */
 case class CassandraDataSource(keyspace : String, name : String, fields: Seq[CassandraField], partitionKey : Seq[String], primaryKey : Seq[String] = Seq(), tokenRange : Option[CassandraTokenRange] = None) extends DataSource:
+    private val logger = Logger.getLogger(classOf[CassandraDataSource].getName)    
+    logger.info(name)
     // Validity Checks
     val names : Set[String] = fields.map(_.name).toSet
     if fields.distinct.size != fields.size then throw new IllegalArgumentException("Field list must not contain duplicate names")
@@ -60,14 +63,18 @@ case class CassandraDataSource(keyspace : String, name : String, fields: Seq[Cas
     override val isCassandra : Boolean = true
     override val getCassandraProtobuf : Option[data_source.CassandraDataSource] = Some(data_source.CassandraDataSource(keyspace=keyspace, table=name))
 
-    lazy val getDataQuery = "SELECT * FROM " + keyspace + "." + name + (if tokenRange.isDefined then " WHERE" + tokenRange.get.toQueryString(partitionKey.reduce(_ + "," + _)))
+    lazy val getDataQuery = if tokenRange.isDefined then "SELECT * FROM " + keyspace + "." + name + " WHERE" + tokenRange.get.toQueryString(partitionKey.reduce((l, r) => l + "," + r)) + ";"
+        else "SELECT * FROM " + keyspace + "." + name + ";"
 
     /**
       * Cassandra Implementation of getData - for now this does not restrict the data received, it simply gets an entire table
       *
       * @return An iterator of rows, each row being a map from field name to a table value
       */
-    def getData : TableResult = LazyTableResult(getHeaders, CassandraConnector.getSession.execute(getDataQuery).asScala.map(row => fields.map(_.getTableValue(row))))
+    def getData : TableResult = {
+        logger.info(getDataQuery)
+        return LazyTableResult(getHeaders, CassandraConnector.getSession.execute(getDataQuery).asScala.map(row => fields.map(_.getTableValue(row))))
+    }
 
     def toCql(ifNotExists : Boolean = true) : String = {
         val ifNotExistsString = if ifNotExists then "IF NOT EXISTS " else "";

@@ -1,17 +1,21 @@
 package org.oliverlittle.clusterprocess.server
 
-import org.oliverlittle.clusterprocess.client_query.{TableClientServiceGrpc, ComputeTableRequest, ComputeTableResult}
 import org.oliverlittle.clusterprocess.worker_query
+import org.oliverlittle.clusterprocess.table_model
+import org.oliverlittle.clusterprocess.client_query
 import org.oliverlittle.clusterprocess.model.table.sources.DataSource
 import org.oliverlittle.clusterprocess.model.table.sources.cassandra.CassandraDataSource
 import org.oliverlittle.clusterprocess.model.table.{Table, TableTransformation}
 import org.oliverlittle.clusterprocess.scheduler.WorkExecutionScheduler
+import org.oliverlittle.clusterprocess.connector.grpc.StreamedTableResult
+
+import io.grpc.{ServerBuilder, ManagedChannelBuilder}
+import io.grpc.stub.StreamObserver
 
 import java.util.logging.Logger
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Properties.{envOrElse, envOrNone}
 import collection.JavaConverters._
-import io.grpc.{ServerBuilder, ManagedChannelBuilder}
 import com.typesafe.config.ConfigFactory
 
 object ClientQueryServer {
@@ -36,7 +40,7 @@ object ClientQueryServer {
 }
 
 class ClientQueryServer(executionContext: ExecutionContext, workerAddresses : Seq[(String, Int)]) {
-    private val server =  ServerBuilder.forPort(ClientQueryServer.port).addService(TableClientServiceGrpc.bindService(new ClientQueryServicer(new WorkerHandler(workerAddresses)), executionContext)).build.start
+    private val server =  ServerBuilder.forPort(ClientQueryServer.port).addService(client_query.TableClientServiceGrpc.bindService(new ClientQueryServicer(new WorkerHandler(workerAddresses)), executionContext)).build.start
     ClientQueryServer.logger.info("gRPC Server started, listening on " + ClientQueryServer.port)
     
     sys.addShutdownHook({
@@ -49,8 +53,8 @@ class ClientQueryServer(executionContext: ExecutionContext, workerAddresses : Se
 
     private def blockUntilShutdown(): Unit = server.awaitTermination()
 
-    private class ClientQueryServicer(workerHandler : WorkerHandler) extends TableClientServiceGrpc.TableClientService {
-        override def computeTable(request: ComputeTableRequest): Future[ComputeTableResult] = {
+    private class ClientQueryServicer(workerHandler : WorkerHandler) extends client_query.TableClientServiceGrpc.TableClientService {
+        override def computeTable(request: client_query.ComputeTableRequest, responseObserver : StreamObserver[table_model.StreamedTableResult]): Unit = {
             ClientQueryServer.logger.info("Compute table request received")
 
             // Parse table
@@ -59,17 +63,15 @@ class ClientQueryServer(executionContext: ExecutionContext, workerAddresses : Se
             val table = Table(dataSource, tableTransformations)
             ClientQueryServer.logger.info("Created table instance.")
             
-            if !table.isValid then throw new IllegalArgumentException("Table cannot be computed")
+            if !table.isValid then responseObserver.onError(new IllegalArgumentException("Table cannot be computed"))
             
             // Refactor into a subclassed server that specifically handles Cassandra (workerHandler should not be an argument)
             if dataSource.isCassandra then 
                 val cassandraDataSource = dataSource.asInstanceOf[CassandraDataSource]
                 val channelTokenRangeMap = workerHandler.distributeWorkToNodes(cassandraDataSource.keyspace, cassandraDataSource.name)
-                val actorSystem = WorkExecutionScheduler.startFromData(channelTokenRangeMap, table)
-                val response = ComputeTableResult(uuid="sample data")
-                Future.successful(response)
+                WorkExecutionScheduler.startFromData(channelTokenRangeMap, table, (result) => StreamedTableResult.sendTableResult(responseObserver, result))
             else
-                Future.failed(throw new IllegalArgumentException("Data Source type not supported."))
-        }
+                responseObserver.onError(new IllegalArgumentException("Data source is not supported."))
+        } 
     }
 }

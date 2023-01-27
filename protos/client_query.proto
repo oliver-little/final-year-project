@@ -6,14 +6,10 @@ import "table_model.proto";
 import "data_source.proto";
 
 service TableClientService {
-    rpc ComputeTable(ComputeTableRequest) returns (ComputeTableResult);
+    rpc ComputeTable(ComputeTableRequest) returns (stream StreamedTableResult);
 }
 
 message ComputeTableRequest {
     DataSource data_source = 1;
     Table table = 2; 
-}
-
-message ComputeTableResult {
-    string uuid = 1;
 }

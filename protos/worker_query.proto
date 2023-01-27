@@ -24,10 +24,3 @@ message ComputePartialResultCassandraRequest {
     CassandraDataSource dataSource = 2;
     CassandraTokenRange tokenRange = 3;
 }
-
-message StreamedTableResult {
-    oneof data {
-        TableResultHeader header = 1;
-        TableResultRow row = 2;
-    }
-}
