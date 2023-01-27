@@ -149,6 +149,44 @@ def test_create_table(mocker):
     mock_connector.create_keyspace.assert_called_once_with("test")
     mock_session.execute.assert_called_once_with("CREATE TABLE test.table (A timestamp, B1 bigint, C double, D boolean, E text, PRIMARY KEY ((A, B1), C));")
 
+def test_create_table_single_partition_primary_key(mocker):
+    mock_connector, mock_session = get_mock_connector(mocker)
+    mock_connector.has_table.return_value = False
+
+    upload_handler = CassandraUploadHandler(mock_connector)
+
+    upload_handler.create_table("test", "table", ["A", "B1", "C", "D", "E"], ["timestamp", "bigint", "double", "boolean", "text"], ["A"], ["C"])
+
+    assert mock_connector.get_session.called
+    mock_connector.create_keyspace.assert_called_once_with("test")
+    mock_session.execute.assert_called_once_with("CREATE TABLE test.table (A timestamp, B1 bigint, C double, D boolean, E text, PRIMARY KEY (A, C));")
+
+def test_create_table_no_primary_keys(mocker):
+    mock_connector, mock_session = get_mock_connector(mocker)
+    mock_connector.has_table.return_value = False
+
+    upload_handler = CassandraUploadHandler(mock_connector)
+
+    upload_handler.create_table("test", "table", ["A", "B1", "C", "D", "E"], ["timestamp", "bigint", "double", "boolean", "text"], ["A", "B1"], [])
+
+    assert mock_connector.get_session.called
+    mock_connector.create_keyspace.assert_called_once_with("test")
+    mock_session.execute.assert_called_once_with("CREATE TABLE test.table (A timestamp, B1 bigint, C double, D boolean, E text, PRIMARY KEY ((A, B1)));")
+
+def test_create_table_single_partition_key(mocker):
+    mock_connector, mock_session = get_mock_connector(mocker)
+    mock_connector.has_table.return_value = False
+
+    upload_handler = CassandraUploadHandler(mock_connector)
+
+    upload_handler.create_table("test", "table", ["A", "B1", "C", "D", "E"], ["timestamp", "bigint", "double", "boolean", "text"], ["A"], [])
+
+    assert mock_connector.get_session.called
+    mock_connector.create_keyspace.assert_called_once_with("test")
+    mock_session.execute.assert_called_once_with("CREATE TABLE test.table (A timestamp, B1 bigint, C double, D boolean, E text, PRIMARY KEY (A));")
+
+
+
 def test_create_table_invalid(mocker):
     mock_connector, mock_session = get_mock_connector(mocker)
     mock_connector.has_table.return_value = False

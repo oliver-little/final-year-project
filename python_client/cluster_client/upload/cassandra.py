@@ -99,10 +99,15 @@ class CassandraUploadHandler():
         elif any(key in partition_keys for key in primary_keys):
             raise ValueError("Partition Key cannot also be a Primary Key")
 
-        if len(primary_keys) == 0:
-            key_string = "(" + ", ".join(partition_keys) + ")"
+        if len(partition_keys) > 1:
+            partition_key_string = "(" + ", ".join(partition_keys) + ")"
         else:
-            key_string = "((" + ", ".join(partition_keys) + "), " + ", ".join(primary_keys) + ")"
+            partition_key_string = partition_keys[0]
+
+        if len(primary_keys) == 0:
+            key_string = "(" + partition_key_string + ")"
+        else:
+            key_string = "(" + partition_key_string  + ", " + ", ".join(primary_keys) + ")"
         
         column_string = ", ".join(" ".join(i) for i in zip(column_names, column_types))
 
