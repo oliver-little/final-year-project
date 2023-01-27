@@ -45,9 +45,9 @@ class WorkerQueryServer(executionContext: ExecutionContext) {
             // Parse table
             val cassandraSourcePB = request.dataSource.get
             // Deserialise protobuf token range and pass into datasource here:
-            val tokenRangeProtobuf = request.tokenRange
+            val tokenRangeProtobuf = request.tokenRange.get
             val tokenRange = CassandraTokenRange.fromLong(tokenRangeProtobuf.start, tokenRangeProtobuf.end)
-            val dataSource = CassandraDataSource.inferDataSourceFromCassandra(cassandraSourcePB.keyspace, cassandraSourcePB.table, tokenRange)
+            val dataSource = CassandraDataSource.inferDataSourceFromCassandra(cassandraSourcePB.keyspace, cassandraSourcePB.table, Some(tokenRange))
             val tableTransformations = TableTransformation.fromProtobuf(request.table.get)
             val table = Table(dataSource, tableTransformations)
             WorkerQueryServer.logger.info("Created table instance.")
