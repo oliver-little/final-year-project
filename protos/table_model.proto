@@ -11,7 +11,7 @@ message Value {
         sint64 int = 4;
         double double = 5;
         bool bool = 6;
-        bool isnull = 7; // Not sure if this is needed
+        bool null = 7; // Not sure if this is needed
     }
 }
 
@@ -152,7 +152,7 @@ message Window {
 // Result messages
 // TableResult can be used optionally as it might be better to instead use
 message TableResult {
-    TableResultHeaders headers = 1;
+    TableResultHeader headers = 1;
     repeated TableResultRow rows = 2;
 }
 
@@ -167,13 +167,13 @@ enum DataType {
 }
 
 // Headers defining the data types of a table
-message TableResultHeaders {
+message TableResultHeader {
     message Header {
         string fieldName = 1;
-        DataType type = 2;
+        DataType dataType = 2;
     }
 
-    repeated Header field_definitions = 1;
+    repeated Header fields = 1;
 }
 
 // A single row result in a table
