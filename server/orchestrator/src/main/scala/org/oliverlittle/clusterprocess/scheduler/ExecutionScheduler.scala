@@ -2,7 +2,7 @@ package org.oliverlittle.clusterprocess.scheduler
 
 import org.oliverlittle.clusterprocess.connector.grpc.ChannelManager
 import org.oliverlittle.clusterprocess.connector.cassandra.token._
-import org.oliverlittle.clusterprocess.model.table.{Table}
+import org.oliverlittle.clusterprocess.model.table.{Table, TableResult, LazyTableResult}
 import org.oliverlittle.clusterprocess.worker_query
 
 import akka.NotUsed
@@ -33,8 +33,9 @@ object WorkExecutionScheduler {
         // For each sequence of requests, create a producer (with a unique identifier)
         val mappedProducers = items.zipWithIndex.map((pair, index) => pair._1 -> context.spawn(WorkProducer(pair._2), "producer" + index.toString))
         val producers = mappedProducers.map(_._2)
+        val assembler = context.spawn(WorkAssembler(None), "assembler")
         // For each possible stub, and it's matched producer, create a consumer and give it a list of producers to consume from
-        val consumers = mappedProducers.map((stubs, producerRef) => stubs.zipWithIndex.map((stub, index) => context.spawn(WorkConsumer(stub, producerRef +: producers.filter(_ == producerRef)), "consumer" + index.toString))).flatten
+        val consumers = mappedProducers.map((stubs, producerRef) => stubs.zipWithIndex.map((stub, index) => context.spawn(WorkConsumer(stub, producerRef +: producers.filter(_ == producerRef), assembler), "consumer" + index.toString))).flatten
         // Watch all consumers for termination
         consumers.foreach(context.watch(_))
         val numConsumers = consumers.size

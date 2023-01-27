@@ -34,6 +34,8 @@ case class CassandraTokenRange(tokenMap : TokenMap, start : CassandraToken, end 
     lazy val toTokenRange : TokenRange = tokenMap.newTokenRange(start.toToken, end.toToken)
     lazy val protobuf : data_source.CassandraTokenRange = data_source.CassandraTokenRange(start=start.toLong, end=end.toLong)
 
+    def toQueryString(partitionKeyString : String) = "token(" + partitionKeyString + ") > " + start + " AND token(" + partitionKeyString + ") <= " + end
+
     def mergeWith(that : CassandraTokenRange) = CassandraTokenRange.fromTokenRange(tokenMap, toTokenRange.mergeWith(that.toTokenRange))
     def intersects(that : CassandraTokenRange) : Boolean = toTokenRange.intersects(that.toTokenRange)
     def intersectWith(that : CassandraTokenRange) : Iterable[CassandraTokenRange] = toTokenRange.intersectWith(that.toTokenRange).asScala.map(range => CassandraTokenRange.fromTokenRange(tokenMap, range))

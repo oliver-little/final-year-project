@@ -7,7 +7,7 @@ import "data_source.proto";
 
 service WorkerComputeService {
     // Computes a partial result
-    rpc ComputePartialResultCassandra(ComputePartialResultCassandraRequest) returns (ComputePartialResultCassandraResult);
+    rpc ComputePartialResultCassandra(ComputePartialResultCassandraRequest) returns (stream StreamedTableResult);
     rpc GetLocalCassandraNode(GetLocalCassandraNodeRequest) returns (GetLocalCassandraNodeResult);
 }
 
@@ -25,6 +25,9 @@ message ComputePartialResultCassandraRequest {
     CassandraTokenRange tokenRange = 3;
 }
 
-message ComputePartialResultCassandraResult {
-    bool success = 1;
+message StreamedTableResult {
+    oneof data {
+        TableResultHeader header = 1;
+        TableResultRow row = 2;
+    }
 }

@@ -9,7 +9,7 @@ import org.oliverlittle.clusterprocess.data_source
 
 class MockDataSource extends DataSource {
     def getHeaders = TableResultHeader(Seq(BaseIntField("a")))
-    def getData = TableResult(getHeaders, Seq(Seq(Some(IntValue(2)))))
+    def getData = EvaluatedTableResult(getHeaders, Seq(Seq(Some(IntValue(2)))))
     def protobuf = data_source.DataSource().withCassandra(data_source.CassandraDataSource(keyspace="test", table="test"))
 }
 
@@ -23,11 +23,11 @@ class TableSpec extends UnitSpec {
 
     it should "compute a single transformation correctly" in {
         val table = Table(MockDataSource(), Seq(SelectTransformation(AddInt(F("a"), V(1)).as("a"))))
-        table.compute should be (TableResult(TableResultHeader(Seq(BaseIntField("a"))), Seq(Seq(Some(IntValue(3))))))
+        table.compute should be (EvaluatedTableResult(TableResultHeader(Seq(BaseIntField("a"))), Seq(Seq(Some(IntValue(3))))))
     }
 
     it should "compute sequential transformations correctly" in {
         val table = Table(MockDataSource(), Seq(SelectTransformation(AddInt(F("a"), V(1)).as("a")), SelectTransformation(AddInt(F("a"), V(-3)).as("b"))))
-        table.compute should be (TableResult(TableResultHeader(Seq(BaseIntField("b"))), Seq(Seq(Some(IntValue(0))))))
+        table.compute should be (EvaluatedTableResult(TableResultHeader(Seq(BaseIntField("b"))), Seq(Seq(Some(IntValue(0))))))
     }
 }
