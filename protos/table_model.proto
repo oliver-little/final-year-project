@@ -180,3 +180,10 @@ message TableResultHeader {
 message TableResultRow {
     repeated Value values = 1;
 }
+
+message StreamedTableResult {
+    oneof data {
+        TableResultHeader header = 1;
+        TableResultRow row = 2;
+    }
+}

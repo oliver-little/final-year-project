@@ -5,7 +5,7 @@ import org.oliverlittle.clusterprocess.connector.cassandra.token.CassandraTokenR
 import java.net.InetSocketAddress
 import scala.jdk.CollectionConverters._
 import com.datastax.oss.driver.api.core.metadata.Node
-import com.datastax.oss.driver.api.core.metadata.Metadata
+import com.datastax.oss.driver.api.core.metadata.{TokenMap, Metadata}
 
 object CassandraNode {
     def getNodes(metadata : Metadata) : Seq[CassandraNode] = metadata.getNodes.asScala.values.map(node => 
@@ -35,5 +35,5 @@ case class CassandraNode(node : Node, primaryTokenRange : Set[CassandraTokenRang
       * @param chunkSizeMB The chunk size to ensure each token range is smaller than
       * @return A set of token ranges, each smaller than the chunk size
       */
-    def splitForFullSize(fullSizeMB : Double, chunkSizeMB : Double) : Seq[CassandraTokenRange] = primaryTokenRange.toSeq.map(tokenRange => tokenRange.splitForFullSize(fullSizeMB, chunkSizeMB)).flatten
+    def splitForFullSize(fullSizeMB : Double, chunkSizeMB : Double, tokenMap : TokenMap) : Seq[CassandraTokenRange] = primaryTokenRange.toSeq.map(tokenRange => tokenRange.splitForFullSize(fullSizeMB, chunkSizeMB, tokenMap)).flatten
 }

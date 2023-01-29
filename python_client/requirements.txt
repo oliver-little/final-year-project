@@ -1,5 +1,6 @@
 cassandra-driver>=3.25.0,<4.0
 grpcio
 grpcio-tools
+pandas
 pytest
 pytest-mock

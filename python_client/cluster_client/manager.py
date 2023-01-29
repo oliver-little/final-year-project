@@ -6,7 +6,9 @@ import grpc
 from cluster_client.connector.cluster import ClusterConnector
 from cluster_client.model.data_source import DataSource, CassandraDataSource
 from cluster_client.model.table_transformation import *
+from cluster_client.model.result_builder import StreamedTableResultBuilder
 import cluster_client.protobuf.client_query_pb2 as client_query_pb2
+import cluster_client.protobuf.data_source_pb2 as data_source_pb2
 
 # ClusterManager("address").cassandraTable().
 
@@ -26,9 +28,10 @@ class TableManager():
         self.data_source = data_source
         self.transformations = transformations
 
-    def evaluate(self) -> None:
+    def evaluate(self) -> StreamedTableResultBuilder:
         """Evaluates this table on the cluster"""
-        self.cluster_manager.connector.table_client_service.ComputeTable(client_query_pb2.ComputeTableRequest(data_source=self.data_source.to_protobuf(), table=self.transformations_to_protobuf()))
+        iterator = self.cluster_manager.connector.table_client_service.ComputeTable(client_query_pb2.ComputeTableRequest(data_source=self.data_source.to_protobuf(), table=self.transformations_to_protobuf()))
+        return StreamedTableResultBuilder(iterator)
 
     def select(self, *select_columns : FieldExpression) -> TableManager:
         """Creates a new table, applying a select operation:

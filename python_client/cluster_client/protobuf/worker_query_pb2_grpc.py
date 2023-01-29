@@ -2,6 +2,7 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
+from . import table_model_pb2 as table__model__pb2
 from . import worker_query_pb2 as worker__query__pb2
 
 
@@ -14,10 +15,15 @@ class WorkerComputeServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.ComputePartialResultCassandra = channel.unary_unary(
+        self.ComputePartialResultCassandra = channel.unary_stream(
                 '/WorkerComputeService/ComputePartialResultCassandra',
                 request_serializer=worker__query__pb2.ComputePartialResultCassandraRequest.SerializeToString,
-                response_deserializer=worker__query__pb2.ComputePartialResultCassandraResult.FromString,
+                response_deserializer=table__model__pb2.StreamedTableResult.FromString,
+                )
+        self.GetLocalCassandraNode = channel.unary_unary(
+                '/WorkerComputeService/GetLocalCassandraNode',
+                request_serializer=worker__query__pb2.GetLocalCassandraNodeRequest.SerializeToString,
+                response_deserializer=worker__query__pb2.GetLocalCassandraNodeResult.FromString,
                 )
 
 
@@ -31,13 +37,24 @@ class WorkerComputeServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetLocalCassandraNode(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_WorkerComputeServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'ComputePartialResultCassandra': grpc.unary_unary_rpc_method_handler(
+            'ComputePartialResultCassandra': grpc.unary_stream_rpc_method_handler(
                     servicer.ComputePartialResultCassandra,
                     request_deserializer=worker__query__pb2.ComputePartialResultCassandraRequest.FromString,
-                    response_serializer=worker__query__pb2.ComputePartialResultCassandraResult.SerializeToString,
+                    response_serializer=table__model__pb2.StreamedTableResult.SerializeToString,
+            ),
+            'GetLocalCassandraNode': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetLocalCassandraNode,
+                    request_deserializer=worker__query__pb2.GetLocalCassandraNodeRequest.FromString,
+                    response_serializer=worker__query__pb2.GetLocalCassandraNodeResult.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -60,8 +77,25 @@ class WorkerComputeService(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/WorkerComputeService/ComputePartialResultCassandra',
+        return grpc.experimental.unary_stream(request, target, '/WorkerComputeService/ComputePartialResultCassandra',
             worker__query__pb2.ComputePartialResultCassandraRequest.SerializeToString,
-            worker__query__pb2.ComputePartialResultCassandraResult.FromString,
+            table__model__pb2.StreamedTableResult.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def GetLocalCassandraNode(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/WorkerComputeService/GetLocalCassandraNode',
+            worker__query__pb2.GetLocalCassandraNodeRequest.SerializeToString,
+            worker__query__pb2.GetLocalCassandraNodeResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

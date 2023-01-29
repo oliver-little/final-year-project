@@ -2,6 +2,7 @@ package org.oliverlittle.clusterprocess.model.table.sources.cassandra
 
 
 import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
+import org.oliverlittle.clusterprocess.connector.cassandra.token._
 import org.oliverlittle.clusterprocess.model.field.expressions.F
 import org.oliverlittle.clusterprocess.model.table._
 import org.oliverlittle.clusterprocess.model.table.sources.DataSource
@@ -13,9 +14,10 @@ import com.datastax.oss.driver.api.core.`type`.{DataTypes, DataType}
 import com.datastax.oss.driver.api.core.cql.Row
 import scala.jdk.CollectionConverters._
 import java.time.Instant
+import java.util.logging.Logger
 
 object CassandraDataSource:
-    def inferDataSourceFromCassandra(keyspace : String, table : String) : DataSource = {
+    def inferDataSourceFromCassandra(keyspace : String, table : String, tokenRange : Option[CassandraTokenRange] = None) : DataSource = {
         val tableMetadata : TableMetadata = CassandraConnector.getTableMetadata(keyspace, table)
         
         // Map column definitions to (name, data type pairs)
@@ -29,7 +31,7 @@ object CassandraDataSource:
         }).toSeq
         val partitions = tableMetadata.getPartitionKey.asScala.map(_.getName.asInternal).toSeq
         val primaries = tableMetadata.getPrimaryKey.asScala.map(_.getName.asInternal).toSeq
-        return CassandraDataSource(keyspace, table, fields, partitions.toSeq, primaries.toSeq)
+        return CassandraDataSource(keyspace, table, fields, partitions.toSeq, primaries.toSeq, tokenRange)
     }
 
 /**
@@ -41,7 +43,9 @@ object CassandraDataSource:
   * @param partitionKey A list of strings representing the partition keys for this table
   * @param primaryKey A list of strings representing the primary keys for this table
   */
-case class CassandraDataSource(keyspace : String, name : String, fields: Seq[CassandraField], partitionKey : Seq[String], primaryKey : Seq[String] = Seq()) extends DataSource:
+case class CassandraDataSource(keyspace : String, name : String, fields: Seq[CassandraField], partitionKey : Seq[String], primaryKey : Seq[String] = Seq(), tokenRange : Option[CassandraTokenRange] = None) extends DataSource:
+    private val logger = Logger.getLogger(classOf[CassandraDataSource].getName)    
+    logger.info(name)
     // Validity Checks
     val names : Set[String] = fields.map(_.name).toSet
     if fields.distinct.size != fields.size then throw new IllegalArgumentException("Field list must not contain duplicate names")
@@ -59,12 +63,18 @@ case class CassandraDataSource(keyspace : String, name : String, fields: Seq[Cas
     override val isCassandra : Boolean = true
     override val getCassandraProtobuf : Option[data_source.CassandraDataSource] = Some(data_source.CassandraDataSource(keyspace=keyspace, table=name))
 
+    lazy val getDataQuery = if tokenRange.isDefined then "SELECT * FROM " + keyspace + "." + name + " WHERE " + tokenRange.get.toQueryString(partitionKey.reduce((l, r) => l + "," + r)) + ";"
+        else "SELECT * FROM " + keyspace + "." + name + ";"
+
     /**
       * Cassandra Implementation of getData - for now this does not restrict the data received, it simply gets an entire table
       *
       * @return An iterator of rows, each row being a map from field name to a table value
       */
-    def getData : TableResult = TableResult(getHeaders, CassandraConnector.getSession.execute("SELECT * FROM " + keyspace + "." + name).asScala.map(row => fields.map(_.getTableValue(row))).toSeq)
+    def getData : TableResult = {
+        logger.info(getDataQuery)
+        return LazyTableResult(getHeaders, CassandraConnector.getSession.execute(getDataQuery).asScala.map(row => fields.map(_.getTableValue(row))))
+    }
 
     def toCql(ifNotExists : Boolean = true) : String = {
         val ifNotExistsString = if ifNotExists then "IF NOT EXISTS " else "";
@@ -90,20 +100,20 @@ trait CassandraField extends TableField:
 
 final case class CassandraIntField(name : String) extends IntField with CassandraField:
     val fieldType = "bigint"
-    def getTableValue(rowData : Row) : Option[TableValue] = if rowData.isNull(name) then Some(IntValue(rowData.getLong(name))) else None
+    def getTableValue(rowData : Row) : Option[TableValue] = if !rowData.isNull(name) then Some(IntValue(rowData.getLong(name))) else None
 
 final case class CassandraDoubleField(name : String) extends DoubleField with CassandraField:
     val fieldType = "double"
-    def getTableValue(rowData : Row) : Option[TableValue] = if rowData.isNull(name) then Some(DoubleValue(rowData.getDouble(name))) else None
+    def getTableValue(rowData : Row) : Option[TableValue] = if !rowData.isNull(name) then Some(DoubleValue(rowData.getDouble(name))) else None
 
 final case class CassandraStringField(name : String) extends StringField with CassandraField:
     val fieldType = "text"
-    def getTableValue(rowData : Row) : Option[TableValue] = if rowData.isNull(name) then Some(StringValue(rowData.getString(name))) else None
+    def getTableValue(rowData : Row) : Option[TableValue] = if !rowData.isNull(name) then Some(StringValue(rowData.getString(name))) else None
 
 final case class CassandraBoolField(name : String) extends BoolField with CassandraField:
     val fieldType = "boolean"
-    def getTableValue(rowData : Row) : Option[TableValue] = if rowData.isNull(name) then Some(BoolValue(rowData.getBool(name))) else None
+    def getTableValue(rowData : Row) : Option[TableValue] = if !rowData.isNull(name) then Some(BoolValue(rowData.getBool(name))) else None
 
 final case class CassandraDateTimeField(name : String) extends DateTimeField with CassandraField:
     val fieldType = "timestamp"
-    def getTableValue(rowData : Row) : Option[TableValue] = if rowData.isNull(name) then Some(DateTimeValue(rowData.getInstant(name))) else None
+    def getTableValue(rowData : Row) : Option[TableValue] = if !rowData.isNull(name) then Some(DateTimeValue(rowData.getInstant(name))) else None

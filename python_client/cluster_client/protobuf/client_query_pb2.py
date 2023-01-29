@@ -15,7 +15,7 @@ from . import table_model_pb2 as table__model__pb2
 from . import data_source_pb2 as data__source__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x12\x63lient_query.proto\x1a\x11table_model.proto\x1a\x11\x64\x61ta_source.proto\"N\n\x13\x43omputeTableRequest\x12 \n\x0b\x64\x61ta_source\x18\x01 \x01(\x0b\x32\x0b.DataSource\x12\x15\n\x05table\x18\x02 \x01(\x0b\x32\x06.Table\"\"\n\x12\x43omputeTableResult\x12\x0c\n\x04uuid\x18\x01 \x01(\t2O\n\x12TableClientService\x12\x39\n\x0c\x43omputeTable\x12\x14.ComputeTableRequest\x1a\x13.ComputeTableResultB!\n\x1forg.oliverlittle.clusterprocessb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x12\x63lient_query.proto\x1a\x11table_model.proto\x1a\x11\x64\x61ta_source.proto\"N\n\x13\x43omputeTableRequest\x12 \n\x0b\x64\x61ta_source\x18\x01 \x01(\x0b\x32\x0b.DataSource\x12\x15\n\x05table\x18\x02 \x01(\x0b\x32\x06.Table2R\n\x12TableClientService\x12<\n\x0c\x43omputeTable\x12\x14.ComputeTableRequest\x1a\x14.StreamedTableResult0\x01\x42!\n\x1forg.oliverlittle.clusterprocessb\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'client_query_pb2', globals())
@@ -25,8 +25,6 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   DESCRIPTOR._serialized_options = b'\n\037org.oliverlittle.clusterprocess'
   _COMPUTETABLEREQUEST._serialized_start=60
   _COMPUTETABLEREQUEST._serialized_end=138
-  _COMPUTETABLERESULT._serialized_start=140
-  _COMPUTETABLERESULT._serialized_end=174
-  _TABLECLIENTSERVICE._serialized_start=176
-  _TABLECLIENTSERVICE._serialized_end=255
+  _TABLECLIENTSERVICE._serialized_start=140
+  _TABLECLIENTSERVICE._serialized_end=222
 # @@protoc_insertion_point(module_scope)

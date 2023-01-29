@@ -13,4 +13,4 @@ class CassandraDataSource(DataSource):
         self.server_url = server_url
 
     def to_protobuf(self) -> data_source_pb2.DataSource:
-        return data_source_pb2.DataSource(cassandra=data_source_pb2.CassandraDataSource(server_url = self.server_url, table = self.table, keyspace = self.keyspace))
+        return data_source_pb2.DataSource(cassandra=data_source_pb2.CassandraDataSource(table = self.table, keyspace = self.keyspace))

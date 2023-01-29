@@ -9,7 +9,7 @@ import collection.JavaConverters._
 object TableSizeEstimation {
     def estimateTableSize(session : CqlSession, keyspace : String, table : String) : TableSizeEstimation = {
         val res = session.execute("SELECT keyspace_name, table_name, range_start, range_end, mean_partition_size, partitions_count FROM system.size_estimates WHERE keyspace_name=? AND table_name=?", keyspace, table)
-        return TableSizeEstimation(res.iterator.asScala.map(row => SizeEstimatesRow(CassandraTokenRange.fromString(session.getMetadata.getTokenMap.get, row.getString("range_start"), row.getString("range_end")), row.getLong("mean_partition_size").toLong, row.getLong("partitions_count"))).toSeq)
+        return TableSizeEstimation(res.iterator.asScala.map(row => SizeEstimatesRow(CassandraTokenRange.fromString(row.getString("range_start"), row.getString("range_end")), row.getLong("mean_partition_size").toLong, row.getLong("partitions_count"))).toSeq)
     }
 }
 

@@ -7,7 +7,7 @@ import "data_source.proto";
 
 service WorkerComputeService {
     // Computes a partial result
-    rpc ComputePartialResultCassandra(ComputePartialResultCassandraRequest) returns (ComputePartialResultCassandraResult);
+    rpc ComputePartialResultCassandra(ComputePartialResultCassandraRequest) returns (stream StreamedTableResult);
     rpc GetLocalCassandraNode(GetLocalCassandraNodeRequest) returns (GetLocalCassandraNodeResult);
 }
 
@@ -23,8 +23,4 @@ message ComputePartialResultCassandraRequest {
     Table table = 1;
     CassandraDataSource dataSource = 2;
     CassandraTokenRange tokenRange = 3;
-}
-
-message ComputePartialResultCassandraResult {
-    bool success = 1;
 }
