@@ -11,12 +11,11 @@ object CassandraNode {
     def getNodes(metadata : Metadata) : Seq[CassandraNode] = metadata.getNodes.asScala.values.map(node => 
         CassandraNode(
             node, 
-            metadata.getTokenMap.get.getTokenRanges(node).asScala.map(range => CassandraTokenRange.fromTokenRange(metadata.getTokenMap.get, range)).toSet,
-            metadata.getTokenMap.get
+            metadata.getTokenMap.get.getTokenRanges(node).asScala.map(range => CassandraTokenRange.fromTokenRange(metadata.getTokenMap.get, range)).toSet
         )).toSeq
 }
 
-case class CassandraNode(node : Node, primaryTokenRange : Set[CassandraTokenRange], tokenMap : TokenMap) {
+case class CassandraNode(node : Node, primaryTokenRange : Set[CassandraTokenRange]) {
 
     lazy val getAddressAsString = node.getBroadcastRpcAddress.get.getHostName + ":" + node.getBroadcastRpcAddress.get.getPort.toString
     lazy val percentageOfFullRing = primaryTokenRange.map(_.percentageOfFullRing).sum
@@ -36,5 +35,5 @@ case class CassandraNode(node : Node, primaryTokenRange : Set[CassandraTokenRang
       * @param chunkSizeMB The chunk size to ensure each token range is smaller than
       * @return A set of token ranges, each smaller than the chunk size
       */
-    def splitForFullSize(fullSizeMB : Double, chunkSizeMB : Double) : Seq[CassandraTokenRange] = primaryTokenRange.toSeq.map(tokenRange => tokenRange.splitForFullSize(fullSizeMB, chunkSizeMB, tokenMap)).flatten
+    def splitForFullSize(fullSizeMB : Double, chunkSizeMB : Double, tokenMap : TokenMap) : Seq[CassandraTokenRange] = primaryTokenRange.toSeq.map(tokenRange => tokenRange.splitForFullSize(fullSizeMB, chunkSizeMB, tokenMap)).flatten
 }

@@ -13,7 +13,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11\x64\x61ta_source.proto\"A\n\nDataSource\x12)\n\tcassandra\x18\x01 \x01(\x0b\x32\x14.CassandraDataSourceH\x00\x42\x08\n\x06source\"J\n\x13\x43\x61ssandraDataSource\x12\x12\n\nserver_url\x18\x01 \x01(\t\x12\x10\n\x08keyspace\x18\x02 \x01(\t\x12\r\n\x05table\x18\x03 \x01(\t\"1\n\x13\x43\x61ssandraTokenRange\x12\r\n\x05start\x18\x01 \x01(\x12\x12\x0b\n\x03\x65nd\x18\x02 \x01(\x12\x42!\n\x1forg.oliverlittle.clusterprocessb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11\x64\x61ta_source.proto\"A\n\nDataSource\x12)\n\tcassandra\x18\x01 \x01(\x0b\x32\x14.CassandraDataSourceH\x00\x42\x08\n\x06source\"6\n\x13\x43\x61ssandraDataSource\x12\x10\n\x08keyspace\x18\x02 \x01(\t\x12\r\n\x05table\x18\x03 \x01(\t\"1\n\x13\x43\x61ssandraTokenRange\x12\r\n\x05start\x18\x01 \x01(\x12\x12\x0b\n\x03\x65nd\x18\x02 \x01(\x12\"/\n\x11InetSocketAddress\x12\x0c\n\x04host\x18\x01 \x01(\t\x12\x0c\n\x04port\x18\x02 \x01(\x05\x42!\n\x1forg.oliverlittle.clusterprocessb\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'data_source_pb2', globals())
@@ -24,7 +24,9 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _DATASOURCE._serialized_start=21
   _DATASOURCE._serialized_end=86
   _CASSANDRADATASOURCE._serialized_start=88
-  _CASSANDRADATASOURCE._serialized_end=162
-  _CASSANDRATOKENRANGE._serialized_start=164
-  _CASSANDRATOKENRANGE._serialized_end=213
+  _CASSANDRADATASOURCE._serialized_end=142
+  _CASSANDRATOKENRANGE._serialized_start=144
+  _CASSANDRATOKENRANGE._serialized_end=193
+  _INETSOCKETADDRESS._serialized_start=195
+  _INETSOCKETADDRESS._serialized_end=242
 # @@protoc_insertion_point(module_scope)

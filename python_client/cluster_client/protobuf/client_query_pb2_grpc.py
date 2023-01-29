@@ -3,6 +3,7 @@
 import grpc
 
 from . import client_query_pb2 as client__query__pb2
+from . import table_model_pb2 as table__model__pb2
 
 
 class TableClientServiceStub(object):
@@ -14,10 +15,10 @@ class TableClientServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.ComputeTable = channel.unary_unary(
+        self.ComputeTable = channel.unary_stream(
                 '/TableClientService/ComputeTable',
                 request_serializer=client__query__pb2.ComputeTableRequest.SerializeToString,
-                response_deserializer=client__query__pb2.ComputeTableResult.FromString,
+                response_deserializer=table__model__pb2.StreamedTableResult.FromString,
                 )
 
 
@@ -33,10 +34,10 @@ class TableClientServiceServicer(object):
 
 def add_TableClientServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'ComputeTable': grpc.unary_unary_rpc_method_handler(
+            'ComputeTable': grpc.unary_stream_rpc_method_handler(
                     servicer.ComputeTable,
                     request_deserializer=client__query__pb2.ComputeTableRequest.FromString,
-                    response_serializer=client__query__pb2.ComputeTableResult.SerializeToString,
+                    response_serializer=table__model__pb2.StreamedTableResult.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -59,8 +60,8 @@ class TableClientService(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/TableClientService/ComputeTable',
+        return grpc.experimental.unary_stream(request, target, '/TableClientService/ComputeTable',
             client__query__pb2.ComputeTableRequest.SerializeToString,
-            client__query__pb2.ComputeTableResult.FromString,
+            table__model__pb2.StreamedTableResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

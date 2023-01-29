@@ -13,7 +13,6 @@ import akka.actor.typed.{ActorRef, ActorSystem, Behavior, Terminated}
 object WorkExecutionScheduler {
     sealed trait AssemblerEvent
     final case class SendResult(result : TableResult) extends AssemblerEvent
-    final case class GetResult(replyTo : ActorRef[ResultData]) extends AssemblerEvent
 
     final case class ResultData(result : Option[TableResult])
 
@@ -37,24 +36,28 @@ object WorkExecutionScheduler {
         val system = ActorSystem(WorkExecutionScheduler(items, resultCallback), "WorkExecutionScheduler")
     }
 
-    def apply(items : Seq[(Seq[worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub], Seq[worker_query.ComputePartialResultCassandraRequest])], resultCallback : TableResult => Unit): Behavior[AssemblerEvent] = Behaviors.setup{context =>
+    def apply(items : Seq[(Seq[worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub], Seq[worker_query.ComputePartialResultCassandraRequest])], resultCallback : TableResult => Unit): Behavior[AssemblerEvent] = Behaviors.setup {context =>
         // For each sequence of requests, create a producer (with a unique identifier)
         val mappedProducers = items.zipWithIndex.map((pair, index) => pair._1 -> context.spawn(WorkProducer(pair._2), "producer" + index.toString))
         val producers = mappedProducers.map(_._2)
         // For each possible stub, and it's matched producer, create a consumer and give it a list of producers to consume from
         val consumers = mappedProducers.map((stubs, producerRef) => stubs.zipWithIndex.map((stub, index) => context.spawn(WorkConsumer(stub, producerRef +: producers.filter(_ == producerRef), context.self), "consumer" + index.toString))).flatten
         
-        assembleData(None, 0, consumers.size, resultCallback)
+        prepareAssembleData(None, items.map(_._2.size).sum, resultCallback)
     }
 
-    def assembleData(currentData : Option[TableResult], numResponses : Int, expectedResponses : Int, resultCallback : TableResult => Unit, assembler : (TableResult, TableResult) => TableResult = (l, r) => l ++ r) : Behavior[AssemblerEvent] = Behaviors.receiveMessage{
-        case SendResult(newResult) if numResponses >= expectedResponses => 
-            resultCallback(currentData.get)
-            Behaviors.stopped
-        case SendResult(newResult) if currentData.isEmpty => assembleData(Some(newResult), numResponses + 1, expectedResponses, resultCallback, assembler)
-        case SendResult(newResult) => assembleData(Some(assembler(currentData.get, newResult)), numResponses + 1, expectedResponses, resultCallback, assembler)
-        case GetResult(replyTo) => 
-            replyTo ! ResultData(currentData)
-            Behaviors.same
+    def prepareAssembleData(currentData : Option[TableResult], expectedResponses : Int, resultCallback : TableResult => Unit, assembler : (TableResult, TableResult) => TableResult = (l, r) => l ++ r) : Behavior[AssemblerEvent] = Behaviors.receiveMessage {
+        case SendResult(newResult) => assembleData(Some(newResult), 1, expectedResponses, resultCallback, assembler)
+    }
+
+    def assembleData(currentData : Option[TableResult], numResponses : Int, expectedResponses : Int, resultCallback : TableResult => Unit, assembler : (TableResult, TableResult) => TableResult) : Behavior[AssemblerEvent] = Behaviors.receiveMessage {
+        case SendResult(newResult) => 
+            if numResponses + 1 == expectedResponses then
+                println("Got all responses.")
+                resultCallback(currentData.get)
+                Behaviors.stopped
+            else
+                println("Got " + (numResponses + 1).toString + " responses, need " + expectedResponses.toString + " responses")
+                assembleData(Some(assembler(currentData.get, newResult)), numResponses + 1, expectedResponses, resultCallback, assembler)
     }
 }

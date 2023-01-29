@@ -1,15 +1,15 @@
 package org.oliverlittle.clusterprocess.worker
 
 import io.grpc.ServerBuilder
-import io.grpc.stub.StreamObserver
+import io.grpc.stub.{ServerCallStreamObserver, StreamObserver}
 import scala.concurrent.{ExecutionContext, Future}
 import java.util.logging.Logger
 
 import org.oliverlittle.clusterprocess.worker_query
 import org.oliverlittle.clusterprocess.data_source
 import org.oliverlittle.clusterprocess.table_model
-import org.oliverlittle.clusterprocess.model.table.sources.cassandra.CassandraDataSource
 import org.oliverlittle.clusterprocess.model.table.{Table, TableTransformation}
+import org.oliverlittle.clusterprocess.model.table.sources.cassandra.CassandraDataSource
 import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
 import org.oliverlittle.clusterprocess.connector.cassandra.token.CassandraTokenRange
 import org.oliverlittle.clusterprocess.connector.grpc.StreamedTableResult
@@ -53,8 +53,13 @@ class WorkerQueryServer(executionContext: ExecutionContext) {
             WorkerQueryServer.logger.info("Created table instance.")
             
             if !table.isValid then responseObserver.onError(new IllegalArgumentException("Table cannot be computed."))
+            
+            WorkerQueryServer.logger.info("Computing table result")
+            val result = table.compute
+            WorkerQueryServer.logger.info("Table result ready.")
 
-            StreamedTableResult.sendTableResult(responseObserver, table.compute)
+            // Able to make this unchecked cast because this is a response from a server
+            StreamedTableResult.sendTableResult(responseObserver.asInstanceOf[ServerCallStreamObserver[table_model.StreamedTableResult]], result)
         }
 
         override def getLocalCassandraNode(request : worker_query.GetLocalCassandraNodeRequest) : Future[worker_query.GetLocalCassandraNodeResult] = {

@@ -7,6 +7,7 @@ from cluster_client.connector.cluster import ClusterConnector
 from cluster_client.model.data_source import DataSource, CassandraDataSource
 from cluster_client.model.table_transformation import *
 import cluster_client.protobuf.client_query_pb2 as client_query_pb2
+import cluster_client.protobuf.data_source_pb2 as data_source_pb2
 
 # ClusterManager("address").cassandraTable().
 
@@ -28,7 +29,19 @@ class TableManager():
 
     def evaluate(self) -> None:
         """Evaluates this table on the cluster"""
-        self.cluster_manager.connector.table_client_service.ComputeTable(client_query_pb2.ComputeTableRequest(data_source=self.data_source.to_protobuf(), table=self.transformations_to_protobuf()))
+        header = None
+        rows = []
+        for result in self.cluster_manager.connector.table_client_service.ComputeTable(client_query_pb2.ComputeTableRequest(data_source=self.data_source.to_protobuf(), table=self.transformations_to_protobuf())):
+            if result.HasField("header"):
+                if header is not None:
+                    raise ValueError("Header sent twice by remote gRPC server.")
+                else:
+                    header = result.header
+            else:
+                rows.append(result.row)
+        print(header)
+        print(len(rows))
+        print("Done.")
 
     def select(self, *select_columns : FieldExpression) -> TableManager:
         """Creates a new table, applying a select operation:

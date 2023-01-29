@@ -63,7 +63,7 @@ case class CassandraDataSource(keyspace : String, name : String, fields: Seq[Cas
     override val isCassandra : Boolean = true
     override val getCassandraProtobuf : Option[data_source.CassandraDataSource] = Some(data_source.CassandraDataSource(keyspace=keyspace, table=name))
 
-    lazy val getDataQuery = if tokenRange.isDefined then "SELECT * FROM " + keyspace + "." + name + " WHERE" + tokenRange.get.toQueryString(partitionKey.reduce((l, r) => l + "," + r)) + ";"
+    lazy val getDataQuery = if tokenRange.isDefined then "SELECT * FROM " + keyspace + "." + name + " WHERE " + tokenRange.get.toQueryString(partitionKey.reduce((l, r) => l + "," + r)) + ";"
         else "SELECT * FROM " + keyspace + "." + name + ";"
 
     /**

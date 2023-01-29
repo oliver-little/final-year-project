@@ -5,12 +5,12 @@ import org.oliverlittle.clusterprocess.table_model
 import org.oliverlittle.clusterprocess.client_query
 import org.oliverlittle.clusterprocess.model.table.sources.DataSource
 import org.oliverlittle.clusterprocess.model.table.sources.cassandra.CassandraDataSource
-import org.oliverlittle.clusterprocess.model.table.{Table, TableTransformation}
+import org.oliverlittle.clusterprocess.model.table.{Table, TableTransformation, TableResult}
 import org.oliverlittle.clusterprocess.scheduler.WorkExecutionScheduler
 import org.oliverlittle.clusterprocess.connector.grpc.StreamedTableResult
 
 import io.grpc.{ServerBuilder, ManagedChannelBuilder}
-import io.grpc.stub.StreamObserver
+import io.grpc.stub.{ServerCallStreamObserver, StreamObserver}
 
 import java.util.logging.Logger
 import scala.concurrent.{ExecutionContext, Future}
@@ -69,9 +69,47 @@ class ClientQueryServer(executionContext: ExecutionContext, workerAddresses : Se
             if dataSource.isCassandra then 
                 val cassandraDataSource = dataSource.asInstanceOf[CassandraDataSource]
                 val channelTokenRangeMap = workerHandler.distributeWorkToNodes(cassandraDataSource.keyspace, cassandraDataSource.name)
-                WorkExecutionScheduler.startFromData(channelTokenRangeMap, table, (result) => StreamedTableResult.sendTableResult(responseObserver, result))
+
+                val serverCallStreamObserver = responseObserver.asInstanceOf[ServerCallStreamObserver[table_model.StreamedTableResult]]
+                val runnable = OutOfThreadTableResultRunnable(serverCallStreamObserver)
+                serverCallStreamObserver.setOnReadyHandler(runnable)
+
+                // Able to make this unchecked cast because this is a response from a server
+                WorkExecutionScheduler.startFromData(channelTokenRangeMap, table, {result =>
+                    ClientQueryServer.logger.info("Result ready")
+                    runnable.setData(result)
+                })
             else
                 responseObserver.onError(new IllegalArgumentException("Data source is not supported."))
         } 
+    }
+}
+
+class OutOfThreadTableResultRunnable(responseObserver : ServerCallStreamObserver[table_model.StreamedTableResult]) extends Runnable {
+    var data : Option[Iterator[table_model.StreamedTableResult]] = None
+    var closed = false;
+
+    private val logger = Logger.getLogger(classOf[OutOfThreadTableResultRunnable].getName)
+    def setData(tableResult : TableResult) : Unit = {
+        val header = table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Header(tableResult.header.protobuf))
+        val rows = tableResult.rowsProtobuf.map(row => table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Row(row)))
+        val iterator = Iterator(header) ++ rows
+        data = Some(iterator)
+        run()
+    }
+
+    def run(): Unit = {
+        if closed then return;
+        if data.isEmpty then return;
+
+        val iterator = data.get
+            
+        // Send data until we can't send anymore (either because the channel can't accept more yet, or because we don't have anything to send)
+        while responseObserver.isReady && iterator.hasNext do
+            responseObserver.onNext(iterator.next) 
+        if !iterator.hasNext then
+            logger.info("Completed sending data")
+            responseObserver.onCompleted
+            closed = true;
     }
 }

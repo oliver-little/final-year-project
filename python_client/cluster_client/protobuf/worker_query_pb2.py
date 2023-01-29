@@ -15,7 +15,7 @@ from . import table_model_pb2 as table__model__pb2
 from . import data_source_pb2 as data__source__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x12worker_query.proto\x1a\x11table_model.proto\x1a\x11\x64\x61ta_source.proto\"\x9b\x01\n$ComputePartialResultCassandraRequest\x12\x1f\n\x0ftransformations\x18\x01 \x01(\x0b\x32\x06.Table\x12(\n\ndataSource\x18\x02 \x01(\x0b\x32\x14.CassandraDataSource\x12(\n\ntokenRange\x18\x03 \x01(\x0b\x32\x14.CassandraTokenRange\"6\n#ComputePartialResultCassandraResult\x12\x0f\n\x07success\x18\x01 \x01(\x08\x32\x84\x01\n\x14WorkerComputeService\x12l\n\x1d\x43omputePartialResultCassandra\x12%.ComputePartialResultCassandraRequest\x1a$.ComputePartialResultCassandraResultB!\n\x1forg.oliverlittle.clusterprocessb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x12worker_query.proto\x1a\x11table_model.proto\x1a\x11\x64\x61ta_source.proto\"\x1e\n\x1cGetLocalCassandraNodeRequest\"B\n\x1bGetLocalCassandraNodeResult\x12#\n\x07\x61\x64\x64ress\x18\x01 \x01(\x0b\x32\x12.InetSocketAddress\"\x91\x01\n$ComputePartialResultCassandraRequest\x12\x15\n\x05table\x18\x01 \x01(\x0b\x32\x06.Table\x12(\n\ndataSource\x18\x02 \x01(\x0b\x32\x14.CassandraDataSource\x12(\n\ntokenRange\x18\x03 \x01(\x0b\x32\x14.CassandraTokenRange2\xcc\x01\n\x14WorkerComputeService\x12^\n\x1d\x43omputePartialResultCassandra\x12%.ComputePartialResultCassandraRequest\x1a\x14.StreamedTableResult0\x01\x12T\n\x15GetLocalCassandraNode\x12\x1d.GetLocalCassandraNodeRequest\x1a\x1c.GetLocalCassandraNodeResultB!\n\x1forg.oliverlittle.clusterprocessb\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'worker_query_pb2', globals())
@@ -23,10 +23,12 @@ if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
   DESCRIPTOR._serialized_options = b'\n\037org.oliverlittle.clusterprocess'
-  _COMPUTEPARTIALRESULTCASSANDRAREQUEST._serialized_start=61
-  _COMPUTEPARTIALRESULTCASSANDRAREQUEST._serialized_end=216
-  _COMPUTEPARTIALRESULTCASSANDRARESULT._serialized_start=218
-  _COMPUTEPARTIALRESULTCASSANDRARESULT._serialized_end=272
-  _WORKERCOMPUTESERVICE._serialized_start=275
-  _WORKERCOMPUTESERVICE._serialized_end=407
+  _GETLOCALCASSANDRANODEREQUEST._serialized_start=60
+  _GETLOCALCASSANDRANODEREQUEST._serialized_end=90
+  _GETLOCALCASSANDRANODERESULT._serialized_start=92
+  _GETLOCALCASSANDRANODERESULT._serialized_end=158
+  _COMPUTEPARTIALRESULTCASSANDRAREQUEST._serialized_start=161
+  _COMPUTEPARTIALRESULTCASSANDRAREQUEST._serialized_end=306
+  _WORKERCOMPUTESERVICE._serialized_start=309
+  _WORKERCOMPUTESERVICE._serialized_end=513
 # @@protoc_insertion_point(module_scope)

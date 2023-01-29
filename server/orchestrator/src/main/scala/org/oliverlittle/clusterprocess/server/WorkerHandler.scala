@@ -39,8 +39,9 @@ class WorkerHandler(workerAddresses : Seq[(String, Int)]) {
     def distributeWorkToNodes(keyspace : String, table : String) : Seq[(Seq[ChannelManager], Seq[CassandraTokenRange])] = {
         val session = CassandraConnector.getSession
         val metadata = session.getMetadata
+        val tokenMap = metadata.getTokenMap.get
         val sizeEstimator = TableSizeEstimation.estimateTableSize(session, keyspace, table)
-        val channelMap = getChannelMapping(channels)
+        val channelMap = getChannelMapping(channels, metadata)
 
         val chunkSize : Int = ConfigFactory.load.getString("clusterprocess.chunk.chunk_size_mb").toInt
 
@@ -49,7 +50,7 @@ class WorkerHandler(workerAddresses : Seq[(String, Int)]) {
         if (totalPercentage - 1).abs <= 0.01 then logger.info("Nodes do not cover entire ring: " + totalPercentage.toString + "% covered.")
 
         // For each node, split the token range to be small enough to fit the chunk size
-        return channelMap.map((node, matchedChannels) => (matchedChannels, node.splitForFullSize(sizeEstimator.estimatedTableSizeMB, chunkSize)))
+        return channelMap.map((node, matchedChannels) => (matchedChannels, node.splitForFullSize(sizeEstimator.estimatedTableSizeMB, chunkSize, tokenMap)))
     }
 
     /**
@@ -58,8 +59,7 @@ class WorkerHandler(workerAddresses : Seq[(String, Int)]) {
       * @param channelManagers The ChannelManagers to compare
       * @return A sequence of (CassandraNode, Seq[ChannelManager]) pairs, showing which ChannelManagers are colocated with a given CassandraNode
       */
-    def getChannelMapping(channelManagers : Seq[ChannelManager]) : Seq[(CassandraNode, Seq[ChannelManager])] = {
-        val metadata = CassandraConnector.getSession.getMetadata
+    def getChannelMapping(channelManagers : Seq[ChannelManager], metadata : Metadata) : Seq[(CassandraNode, Seq[ChannelManager])] = {
         val cassandraNodes : Seq[CassandraNode] = CassandraNode.getNodes(metadata)
         // For each known Cassandra node, try to match it up to a channel by comparing addresses
         val channelMap : Seq[(CassandraNode, Seq[ChannelManager])] = cassandraNodes.map(node => 
