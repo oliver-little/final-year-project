@@ -49,6 +49,7 @@ class WorkerQueryServer(executionContext: ExecutionContext) {
             val tokenRange = CassandraTokenRange.fromLong(tokenRangeProtobuf.start, tokenRangeProtobuf.end)
             val dataSource = CassandraDataSource.inferDataSourceFromCassandra(cassandraSourcePB.keyspace, cassandraSourcePB.table, Some(tokenRange))
             val tableTransformations = TableTransformation.fromProtobuf(request.table.get)
+            WorkerQueryServer.logger.info(tableTransformations.toString)
             val table = Table(dataSource, tableTransformations)
             WorkerQueryServer.logger.info("Created table instance.")
             

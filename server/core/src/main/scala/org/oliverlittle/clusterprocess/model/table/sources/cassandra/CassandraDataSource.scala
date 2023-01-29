@@ -100,20 +100,20 @@ trait CassandraField extends TableField:
 
 final case class CassandraIntField(name : String) extends IntField with CassandraField:
     val fieldType = "bigint"
-    def getTableValue(rowData : Row) : Option[TableValue] = if rowData.isNull(name) then Some(IntValue(rowData.getLong(name))) else None
+    def getTableValue(rowData : Row) : Option[TableValue] = if !rowData.isNull(name) then Some(IntValue(rowData.getLong(name))) else None
 
 final case class CassandraDoubleField(name : String) extends DoubleField with CassandraField:
     val fieldType = "double"
-    def getTableValue(rowData : Row) : Option[TableValue] = if rowData.isNull(name) then Some(DoubleValue(rowData.getDouble(name))) else None
+    def getTableValue(rowData : Row) : Option[TableValue] = if !rowData.isNull(name) then Some(DoubleValue(rowData.getDouble(name))) else None
 
 final case class CassandraStringField(name : String) extends StringField with CassandraField:
     val fieldType = "text"
-    def getTableValue(rowData : Row) : Option[TableValue] = if rowData.isNull(name) then Some(StringValue(rowData.getString(name))) else None
+    def getTableValue(rowData : Row) : Option[TableValue] = if !rowData.isNull(name) then Some(StringValue(rowData.getString(name))) else None
 
 final case class CassandraBoolField(name : String) extends BoolField with CassandraField:
     val fieldType = "boolean"
-    def getTableValue(rowData : Row) : Option[TableValue] = if rowData.isNull(name) then Some(BoolValue(rowData.getBool(name))) else None
+    def getTableValue(rowData : Row) : Option[TableValue] = if !rowData.isNull(name) then Some(BoolValue(rowData.getBool(name))) else None
 
 final case class CassandraDateTimeField(name : String) extends DateTimeField with CassandraField:
     val fieldType = "timestamp"
-    def getTableValue(rowData : Row) : Option[TableValue] = if rowData.isNull(name) then Some(DateTimeValue(rowData.getInstant(name))) else None
+    def getTableValue(rowData : Row) : Option[TableValue] = if !rowData.isNull(name) then Some(DateTimeValue(rowData.getInstant(name))) else None
