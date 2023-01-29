@@ -45,12 +45,13 @@ class WorkerHandler(workerAddresses : Seq[(String, Int)]) {
 
         val chunkSize : Int = ConfigFactory.load.getString("clusterprocess.chunk.chunk_size_mb").toInt
 
-        // Sense check
-        val totalPercentage = channelMap.map(_._1.percentageOfFullRing).sum
-        if (totalPercentage - 1).abs <= 0.01 then logger.info("Nodes do not cover entire ring: " + totalPercentage.toString + "% covered.")
-
         // For each node, split the token range to be small enough to fit the chunk size
-        return channelMap.map((node, matchedChannels) => (matchedChannels, node.splitForFullSize(sizeEstimator.estimatedTableSizeMB, chunkSize, tokenMap)))
+        val channelAssignment = channelMap.map((node, matchedChannels) => (matchedChannels, node.splitForFullSize(sizeEstimator.estimatedTableSizeMB, chunkSize, tokenMap)))
+        // Sense check
+        val totalPercentage = channelAssignment.map(_._2.map(range => range.percentageOfFullRing).sum)
+        logger.info("Ring covers: " + totalPercentage.toString + "% covered.")
+
+        return channelAssignment
     }
 
     /**

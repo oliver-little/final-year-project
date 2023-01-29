@@ -15,12 +15,9 @@ object WorkProducer {
     sealed trait ProducerEvent
     final case class RequestWork(replyTo : ActorRef[WorkConsumer.ConsumerEvent]) extends ProducerEvent
     
-    def apply(items : Seq[worker_query.ComputePartialResultCassandraRequest]) : Behavior[ProducerEvent] = {
-        println(items.size.toString + " items.")
-        return list(items)
-    }
+    def apply(items : Seq[worker_query.ComputePartialResultCassandraRequest]) : Behavior[ProducerEvent] = list(items)
 
-    private def list(items : Seq[worker_query.ComputePartialResultCassandraRequest]) : Behavior[ProducerEvent] = Behaviors.receiveMessage{
+    private def list(items : Seq[worker_query.ComputePartialResultCassandraRequest]) : Behavior[ProducerEvent] = Behaviors.receiveMessage {
         case RequestWork(replyTo) =>
             items.isEmpty match {
                 case true => 

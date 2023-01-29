@@ -12,7 +12,7 @@ import org.oliverlittle.clusterprocess.model.table.{Table, TableTransformation}
 import org.oliverlittle.clusterprocess.model.table.sources.cassandra.CassandraDataSource
 import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
 import org.oliverlittle.clusterprocess.connector.cassandra.token.CassandraTokenRange
-import org.oliverlittle.clusterprocess.connector.grpc.StreamedTableResult
+import org.oliverlittle.clusterprocess.connector.grpc.{StreamedTableResult, TableResultRunnable}
 
 object WorkerQueryServer {
     private val logger = Logger.getLogger(classOf[WorkerQueryServer].getName)
@@ -59,7 +59,14 @@ class WorkerQueryServer(executionContext: ExecutionContext) {
             WorkerQueryServer.logger.info("Table result ready.")
 
             // Able to make this unchecked cast because this is a response from a server
-            StreamedTableResult.sendTableResult(responseObserver.asInstanceOf[ServerCallStreamObserver[table_model.StreamedTableResult]], result)
+            val serverCallStreamObserver = responseObserver.asInstanceOf[ServerCallStreamObserver[table_model.StreamedTableResult]]
+            val data = StreamedTableResult.tableResultToIterator(result)
+
+            val runnable = TableResultRunnable(serverCallStreamObserver, data)
+
+            serverCallStreamObserver.setOnReadyHandler(runnable)
+            
+            runnable.run()
         }
 
         override def getLocalCassandraNode(request : worker_query.GetLocalCassandraNodeRequest) : Future[worker_query.GetLocalCassandraNodeResult] = {

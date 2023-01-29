@@ -50,14 +50,16 @@ object WorkExecutionScheduler {
         case SendResult(newResult) => assembleData(Some(newResult), 1, expectedResponses, resultCallback, assembler)
     }
 
-    def assembleData(currentData : Option[TableResult], numResponses : Int, expectedResponses : Int, resultCallback : TableResult => Unit, assembler : (TableResult, TableResult) => TableResult) : Behavior[AssemblerEvent] = Behaviors.receiveMessage {
-        case SendResult(newResult) => 
-            if numResponses + 1 == expectedResponses then
-                println("Got all responses.")
-                resultCallback(currentData.get)
-                Behaviors.stopped
-            else
-                println("Got " + (numResponses + 1).toString + " responses, need " + expectedResponses.toString + " responses")
-                assembleData(Some(assembler(currentData.get, newResult)), numResponses + 1, expectedResponses, resultCallback, assembler)
+    def assembleData(currentData : Option[TableResult], numResponses : Int, expectedResponses : Int, resultCallback : TableResult => Unit, assembler : (TableResult, TableResult) => TableResult) : Behavior[AssemblerEvent] = Behaviors.receive { (context, message) =>
+        message match {
+            case SendResult(newResult) => 
+                if numResponses + 1 == expectedResponses then
+                    context.log.info("Received all responses.")
+                    resultCallback(currentData.get)
+                    Behaviors.stopped
+                else
+                    context.log.info("Got " + (numResponses + 1).toString + " responses, need " + expectedResponses.toString + " responses")
+                    assembleData(Some(assembler(currentData.get, newResult)), numResponses + 1, expectedResponses, resultCallback, assembler)
+        }
     }
 }

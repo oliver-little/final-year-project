@@ -41,17 +41,19 @@ case class CassandraTokenRange(start : CassandraToken, end : CassandraToken) {
     def intersects(tokenMap : TokenMap, that : CassandraTokenRange) : Boolean = toTokenRange(tokenMap).intersects(that.toTokenRange(tokenMap))
     def intersectWith(tokenMap : TokenMap, that : CassandraTokenRange) : Iterable[CassandraTokenRange] = toTokenRange(tokenMap).intersectWith(that.toTokenRange(tokenMap)).asScala.map(range => CassandraTokenRange.fromTokenRange(tokenMap, range))
     def splitEvenly(tokenMap : TokenMap, numSplits : Int) : Iterable[CassandraTokenRange] = toTokenRange(tokenMap).splitEvenly(numSplits).asScala.map(range => CassandraTokenRange.fromTokenRange(tokenMap, range))
+    def unwrap(tokenMap : TokenMap) : Iterable[CassandraTokenRange] = toTokenRange(tokenMap).unwrap.asScala.map(range => CassandraTokenRange.fromTokenRange(tokenMap, range))
 
     /**
       * Splits this token range based on a given full size of the ring to ensure that each new range is at least smaller than a given chunk size.
+      * Also handles unwrapping if needed
       *
       * @param fullSizeMB The size of the data in MB for the full token range
       * @param chunkSizeMB The chunk size to ensure each token range is smaller than
       * @return A set of token ranges, each part of the original, and each smaller than the chunk size provided
       */
     def splitForFullSize(fullSizeMB : Double, chunkSizeMB : Double, tokenMap : TokenMap) : Seq[CassandraTokenRange] = ((fullSizeMB * percentageOfFullRing) / chunkSizeMB).abs match {
-        case x if x > 1 => splitEvenly(tokenMap, x.ceil.toInt).toSeq
-        case x => Seq(this)
+        case x if x > 1 => splitEvenly(tokenMap, x.ceil.toInt).toSeq.flatMap(_.unwrap(tokenMap)).toSeq
+        case x => unwrap(tokenMap).toSeq
     }
 }
 
