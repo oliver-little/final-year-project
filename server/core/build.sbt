@@ -12,6 +12,7 @@ lazy val root = project
     // ScalaTest
     "org.scalactic" %% "scalactic" % "3.2.14",
     "org.scalatest" %% "scalatest" % "3.2.14" % "test",
+    "org.scalatestplus" %% "mockito-4-6" % "3.2.15.0" % "test",
     // gRPC
     "io.grpc" % "grpc-netty" % scalapb.compiler.Version.grpcJavaVersion,
     // Protobufs in Scala
