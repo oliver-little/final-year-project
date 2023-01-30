@@ -43,23 +43,27 @@ object WorkExecutionScheduler {
         // For each possible stub, and it's matched producer, create a consumer and give it a list of producers to consume from
         val consumers = mappedProducers.map((stubs, producerRef) => stubs.zipWithIndex.map((stub, index) => context.spawn(WorkConsumer(stub, producerRef +: producers.filter(_ == producerRef), context.self), "consumer" + index.toString))).flatten
         
-        prepareAssembleData(None, items.map(_._2.size).sum, resultCallback)
+        prepareAssembleData(items.map(_._2.size).sum, resultCallback)
     }
 
-    def prepareAssembleData(currentData : Option[TableResult], expectedResponses : Int, resultCallback : TableResult => Unit, assembler : (TableResult, TableResult) => TableResult = (l, r) => l ++ r) : Behavior[AssemblerEvent] = Behaviors.receiveMessage {
-        case SendResult(newResult) => assembleData(Some(newResult), 1, expectedResponses, resultCallback, assembler)
+    def prepareAssembleData(expectedResponses : Int, resultCallback : TableResult => Unit, assembler : (TableResult, TableResult) => TableResult = (l, r) => l ++ r) : Behavior[AssemblerEvent] = Behaviors.receiveMessage {
+        case SendResult(newResult) => 
+            if expectedResponses == 1 then 
+                resultCallback(newResult)
+                Behaviors.stopped
+            else assembleData(newResult, 1, expectedResponses, resultCallback, assembler)
     }
 
-    def assembleData(currentData : Option[TableResult], numResponses : Int, expectedResponses : Int, resultCallback : TableResult => Unit, assembler : (TableResult, TableResult) => TableResult) : Behavior[AssemblerEvent] = Behaviors.receive { (context, message) =>
+    def assembleData(currentData : TableResult, numResponses : Int, expectedResponses : Int, resultCallback : TableResult => Unit, assembler : (TableResult, TableResult) => TableResult) : Behavior[AssemblerEvent] = Behaviors.receive { (context, message) =>
         message match {
             case SendResult(newResult) => 
                 if numResponses + 1 == expectedResponses then
                     context.log.info("Received all responses.")
-                    resultCallback(currentData.get)
+                    resultCallback(assembler(currentData, newResult))
                     Behaviors.stopped
                 else
                     context.log.info("Got " + (numResponses + 1).toString + " responses, need " + expectedResponses.toString + " responses")
-                    assembleData(Some(assembler(currentData.get, newResult)), numResponses + 1, expectedResponses, resultCallback, assembler)
+                    assembleData(assembler(currentData, newResult), numResponses + 1, expectedResponses, resultCallback, assembler)
         }
     }
 }

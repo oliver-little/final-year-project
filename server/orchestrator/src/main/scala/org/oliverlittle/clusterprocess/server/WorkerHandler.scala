@@ -11,10 +11,12 @@ import org.oliverlittle.clusterprocess.connector.cassandra.size_estimation.Table
 import com.datastax.oss.driver.api.core.cql.ResultSet
 import com.datastax.oss.driver.api.core.metadata._
 import com.datastax.oss.driver.api.core.metadata.token._
+
 import java.net.InetSocketAddress
-import scala.jdk.CollectionConverters._
 import java.util.logging.Logger
 import com.typesafe.config.ConfigFactory
+import scala.jdk.CollectionConverters._
+import scala.util.Try
 
 class WorkerHandler(workerAddresses : Seq[(String, Int)]) {
     private val logger = Logger.getLogger(classOf[WorkerHandler].getName)
@@ -45,11 +47,19 @@ class WorkerHandler(workerAddresses : Seq[(String, Int)]) {
 
         val chunkSize : Int = ConfigFactory.load.getString("clusterprocess.chunk.chunk_size_mb").toInt
 
-        // For each node, split the token range to be small enough to fit the chunk size
-        val channelAssignment = channelMap.map((node, matchedChannels) => (matchedChannels, node.splitForFullSize(sizeEstimator.estimatedTableSizeMB, chunkSize, tokenMap)))
+        // For each node, split the token range to be small enough to fit the chunk size (or if the table is really small, just output the full tokenRange)
+        val channelAssignment = if sizeEstimator.estimatedTableSizeMB < chunkSize then channelMap.map((node, matchedChannels) => (matchedChannels, Seq(CassandraTokenRange.FullRing)))
+            else channelMap.map((node, matchedChannels) => 
+                (matchedChannels, 
+                // Split the node's tokenRange as required
+                node.joinAndSplitForFullSize(sizeEstimator.estimatedTableSizeMB, chunkSize, tokenMap)
+                    // Unwrap the range if it crosses the ring boundary
+                    .flatMap(_.unwrap(tokenMap))
+                )
+            )
         // Sense check
-        val totalPercentage = channelAssignment.map(_._2.map(range => range.percentageOfFullRing).sum)
-        logger.info("Ring covers: " + totalPercentage.toString + "% covered.")
+        val fullRing = Try{channelAssignment.map(_._2).flatten.sorted.map(_.toTokenRange(tokenMap)).reduce(_ mergeWith _).isFullRing}.getOrElse(false)
+        logger.info("Ring is " + (if !fullRing then "not " else "") + "fully covered.")
 
         return channelAssignment
     }
