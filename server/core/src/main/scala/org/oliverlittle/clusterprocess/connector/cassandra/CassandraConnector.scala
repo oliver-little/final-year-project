@@ -10,48 +10,7 @@ import java.net.InetSocketAddress
 import scala.io.Source.fromFile
 import scala.util.Properties.{envOrElse, envOrNone}
 
-object CassandraConnector {
-    private val logger = Logger.getLogger("CassandraConnector")
-
-    var port : Int = envOrElse("CASSANDRA_PORT", "9042").toInt
-    var host : String = getHost(port)
-    var socket : InetSocketAddress = new InetSocketAddress(host, port)
-    var datacenter : String = envOrElse("CASSANDRA_DATACENTER", "datacenter1")
-
-    logger.info(f"Connected to $host%s:$port%s, datacenter $datacenter%s.")
-
-    var usernameFile : Option[String] = envOrNone("CASSANDRA_USERNAME_FILE")
-    var passwordFile : Option[String] = envOrNone("CASSANDRA_PASSWORD_FILE")
-    // Get username and password from file if they exist
-    var username : Option[String] = usernameFile.flatMap(f => Some(fromFile(f).getLines.mkString))
-    var password : Option[String] = passwordFile.flatMap(f => Some(fromFile(f).getLines.mkString))
-    var authProvider : Option[AuthProvider] = if username.isDefined && password.isDefined then Some(new ProgrammaticPlainTextAuthProvider(username.get, password.get)) else None
-
-    // Procedure style syntax to put the auth provider in if it exists
-    private var sessionBuilder = CqlSession.builder().addContactPoint(socket).withLocalDatacenter(datacenter)
-    if authProvider.isDefined then sessionBuilder.withAuthProvider(authProvider.get)
-    private var session : CqlSession = sessionBuilder.build()
-
-    def getSession : CqlSession = session
-
-    def getTableMetadata(keyspace : String, table : String) : TableMetadata = {
-        val ksObj = CassandraConnector.getSession.getMetadata.getKeyspace(keyspace)
-        if ksObj.isPresent then
-            val tableObj = ksObj.get.getTable(table)
-            if tableObj.isPresent then
-                return tableObj.get
-            throw new IllegalArgumentException("Table " + keyspace + "." + table + " not found.")
-        throw new IllegalArgumentException("Keyspace " + keyspace + " not found.")
-    }
-
-    def hasTable(keyspace : String, table : String) : Boolean = {
-        val metadata = CassandraConnector.getSession.getMetadata;
-        val ksObj = metadata.getKeyspace(keyspace)
-        return if ksObj.isPresent then return ksObj.get.getTable(table).isPresent else false
-    }
-
-    def verifyConnection : Boolean = !session.isClosed
-
+object CassandraConnector:
     def getHost(port : Int) : String = {
         val url = envOrNone("CASSANDRA_URL")
         val baseURL = envOrNone("CASSANDRA_BASE_URL")
@@ -66,4 +25,45 @@ object CassandraConnector {
             .filter(_._2.nonEmpty).sortBy(_._2) // Remove any failed connections and sort by latency ascending
             .headOption // Get the first element if it exists
             .flatMap((url : String, _) => Some(url)) // Get the URL portion of the tuple
+    
+    def verifyConnection : Boolean = !CassandraConnector().getSession.isClosed
+
+case class CassandraConnector(
+    socket : InetSocketAddress = new InetSocketAddress(getHost(envOrElse("CASSANDRA_PORT", "9042").toInt), envOrElse("CASSANDRA_PORT", "9042").toInt),
+    datacenter : String = envOrElse("CASSANDRA_DATACENTER", "datacenter1"),
+    usernameFile : Option[String] = envOrNone("CASSANDRA_USERNAME_FILE"),
+    passwordFile : Option[String] = envOrNone("CASSANDRA_PASSWORD_FILE"),
+        ) {
+
+    private val logger = Logger.getLogger("CassandraConnector")
+
+    // Get username and password from file if they exist
+    var username : Option[String] = usernameFile.flatMap(f => Some(fromFile(f).getLines.mkString))
+    var password : Option[String] = passwordFile.flatMap(f => Some(fromFile(f).getLines.mkString))
+    var authProvider : Option[AuthProvider] = if username.isDefined && password.isDefined then Some(new ProgrammaticPlainTextAuthProvider(username.get, password.get)) else None
+
+    // Procedure style syntax to put the auth provider in if it exists
+    private var sessionBuilder = CqlSession.builder().addContactPoint(socket).withLocalDatacenter(datacenter)
+    if authProvider.isDefined then sessionBuilder.withAuthProvider(authProvider.get)
+    private var session : CqlSession = sessionBuilder.build()
+
+    logger.info(f"Connected to ${socket.getHostName}%s:${socket.getPort}%s, datacenter $datacenter%s.")
+
+    def getSession : CqlSession = session
+
+    def getTableMetadata(keyspace : String, table : String) : TableMetadata = {
+        val ksObj = getSession.getMetadata.getKeyspace(keyspace)
+        if ksObj.isPresent then
+            val tableObj = ksObj.get.getTable(table)
+            if tableObj.isPresent then
+                return tableObj.get
+            throw new IllegalArgumentException("Table " + keyspace + "." + table + " not found.")
+        throw new IllegalArgumentException("Keyspace " + keyspace + " not found.")
+    }
+
+    def hasTable(keyspace : String, table : String) : Boolean = {
+        val metadata = getSession.getMetadata;
+        val ksObj = metadata.getKeyspace(keyspace)
+        return if ksObj.isPresent then return ksObj.get.getTable(table).isPresent else false
+    }
 }

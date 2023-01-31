@@ -1,7 +1,6 @@
 package org.oliverlittle.clusterprocess.connector.cassandra.size_estimation
 
 import org.oliverlittle.clusterprocess.connector.cassandra.token._
-import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
 
 import com.datastax.oss.driver.api.core.CqlSession
 import collection.JavaConverters._

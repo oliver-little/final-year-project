@@ -38,8 +38,8 @@ class WorkerHandler(workerAddresses : Seq[(String, Int)]) {
         return new InetSocketAddress(result.get.host, result.get.port)
     }
 
-    def distributeWorkToNodes(keyspace : String, table : String) : Seq[(Seq[ChannelManager], Seq[CassandraTokenRange])] = {
-        val session = CassandraConnector.getSession
+    def distributeWorkToNodes(connector : CassandraConnector, keyspace : String, table : String) : Seq[(Seq[ChannelManager], Seq[CassandraTokenRange])] = {
+        val session = connector.getSession
         val metadata = session.getMetadata
         val tokenMap = metadata.getTokenMap.get
         val sizeEstimator = TableSizeEstimation.estimateTableSize(session, keyspace, table)

@@ -19,13 +19,13 @@ object WorkerQueryServer {
     private val port = 50052
 
     def main(): Unit = {
-        val server = new WorkerQueryServer(ExecutionContext.global)
+        val server = new WorkerQueryServer(ExecutionContext.global, CassandraConnector())
         server.blockUntilShutdown()
     }
 }
 
-class WorkerQueryServer(executionContext: ExecutionContext) {
-    private val server =  ServerBuilder.forPort(WorkerQueryServer.port).addService(worker_query.WorkerComputeServiceGrpc.bindService(new WorkerQueryServicer, executionContext)).build.start
+class WorkerQueryServer(executionContext: ExecutionContext, connector : CassandraConnector) {
+    private val server =  ServerBuilder.forPort(WorkerQueryServer.port).addService(worker_query.WorkerComputeServiceGrpc.bindService(new WorkerQueryServicer(connector), executionContext)).build.start
     WorkerQueryServer.logger.info("gRPC Server started, listening on " + WorkerQueryServer.port)
     
     sys.addShutdownHook({
@@ -38,7 +38,7 @@ class WorkerQueryServer(executionContext: ExecutionContext) {
 
     private def blockUntilShutdown(): Unit = this.server.awaitTermination()
 
-    private class WorkerQueryServicer extends worker_query.WorkerComputeServiceGrpc.WorkerComputeService {
+    private class WorkerQueryServicer(connector : CassandraConnector) extends worker_query.WorkerComputeServiceGrpc.WorkerComputeService {
         override def computePartialResultCassandra(request : worker_query.ComputePartialResultCassandraRequest, responseObserver : StreamObserver[table_model.StreamedTableResult]) : Unit = {
             WorkerQueryServer.logger.info("computePartialResultCassandra")
 
@@ -47,7 +47,7 @@ class WorkerQueryServer(executionContext: ExecutionContext) {
             // Deserialise protobuf token range and pass into datasource here:
             val tokenRangeProtobuf = request.tokenRange.get
             val tokenRange = CassandraTokenRange.fromLong(tokenRangeProtobuf.start, tokenRangeProtobuf.end)
-            val dataSource = CassandraDataSource.inferDataSourceFromCassandra(cassandraSourcePB.keyspace, cassandraSourcePB.table, Some(tokenRange))
+            val dataSource = CassandraDataSource.inferDataSourceFromCassandra(connector, cassandraSourcePB.keyspace, cassandraSourcePB.table, Some(tokenRange))
             val tableTransformations = TableTransformation.fromProtobuf(request.table.get)
             WorkerQueryServer.logger.info(tableTransformations.toString)
             val table = Table(dataSource, tableTransformations)
@@ -72,8 +72,8 @@ class WorkerQueryServer(executionContext: ExecutionContext) {
 
         override def getLocalCassandraNode(request : worker_query.GetLocalCassandraNodeRequest) : Future[worker_query.GetLocalCassandraNodeResult] = {
             WorkerQueryServer.logger.info("getLocalCassandraNode")
-            WorkerQueryServer.logger.info("Host: " + CassandraConnector.socket.getHostName + ", port: " + CassandraConnector.socket.getPort.toString)
-            val response = worker_query.GetLocalCassandraNodeResult(address=Some(data_source.InetSocketAddress(host=CassandraConnector.socket.getHostName, port=CassandraConnector.socket.getPort)))
+            WorkerQueryServer.logger.info("Host: " + connector.socket.getHostName + ", port: " + connector.socket.getPort.toString)
+            val response = worker_query.GetLocalCassandraNodeResult(address=Some(data_source.InetSocketAddress(host=connector.socket.getHostName, port=connector.socket.getPort)))
             Future.successful(response)
         }
     }

@@ -17,8 +17,8 @@ import java.time.Instant
 import java.util.logging.Logger
 
 object CassandraDataSource:
-    def inferDataSourceFromCassandra(keyspace : String, table : String, tokenRange : Option[CassandraTokenRange] = None) : DataSource = {
-        val tableMetadata : TableMetadata = CassandraConnector.getTableMetadata(keyspace, table)
+    def inferDataSourceFromCassandra(connector : CassandraConnector, keyspace : String, table : String, tokenRange : Option[CassandraTokenRange] = None) : DataSource = {
+        val tableMetadata : TableMetadata = connector.getTableMetadata(keyspace, table)
         
         // Map column definitions to (name, data type pairs)
         val fields = tableMetadata.getColumns.asScala.map((k, v) => v.getType match {
@@ -31,7 +31,7 @@ object CassandraDataSource:
         }).toSeq
         val partitions = tableMetadata.getPartitionKey.asScala.map(_.getName.asInternal).toSeq
         val primaries = tableMetadata.getPrimaryKey.asScala.map(_.getName.asInternal).toSeq
-        return CassandraDataSource(keyspace, table, fields, partitions.toSeq, primaries.toSeq, tokenRange)
+        return CassandraDataSource(connector, keyspace, table, fields, partitions.toSeq, primaries.toSeq, tokenRange)
     }
 
 /**
@@ -43,7 +43,7 @@ object CassandraDataSource:
   * @param partitionKey A list of strings representing the partition keys for this table
   * @param primaryKey A list of strings representing the primary keys for this table
   */
-case class CassandraDataSource(keyspace : String, name : String, fields: Seq[CassandraField], partitionKey : Seq[String], primaryKey : Seq[String] = Seq(), tokenRange : Option[CassandraTokenRange] = None) extends DataSource:
+case class CassandraDataSource(connector : CassandraConnector, keyspace : String, name : String, fields: Seq[CassandraField], partitionKey : Seq[String], primaryKey : Seq[String] = Seq(), tokenRange : Option[CassandraTokenRange] = None) extends DataSource:
     private val logger = Logger.getLogger(classOf[CassandraDataSource].getName)    
     logger.info(name)
     // Validity Checks
@@ -73,7 +73,7 @@ case class CassandraDataSource(keyspace : String, name : String, fields: Seq[Cas
       */
     def getData : TableResult = {
         logger.info(getDataQuery)
-        return LazyTableResult(getHeaders, CassandraConnector.getSession.execute(getDataQuery).asScala.map(row => fields.map(_.getTableValue(row))))
+        return LazyTableResult(getHeaders, connector.getSession.execute(getDataQuery).asScala.map(row => fields.map(_.getTableValue(row))))
     }
 
     def toCql(ifNotExists : Boolean = true) : String = {
@@ -85,12 +85,12 @@ case class CassandraDataSource(keyspace : String, name : String, fields: Seq[Cas
     /**
       * Creates this table in the current Cassandra database if it doesn't already exist
       */
-    def createIfNotExists : Unit = CassandraConnector.getSession.execute(toCql(true))
+    def createIfNotExists : Unit = connector.getSession.execute(toCql(true))
 
     /**
       * Creates this table in the current Cassandra database
       */
-    def create : Unit = CassandraConnector.getSession.execute(toCql(false))
+    def create : Unit = connector.getSession.execute(toCql(false))
     
 // Fields
 trait CassandraField extends TableField:
