@@ -8,14 +8,13 @@ import com.datastax.oss.driver.api.core.metadata.{TokenMap, Metadata}
 
 import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.any
-// Overwrite mock to remove ambiguous import
-import org.mockito.Mockito.{mock => oldMock, _}
-import org.scalatestplus.mockito.MockitoSugar._
+import org.mockito.Mockito._
+import org.scalatestplus.mockito.MockitoSugar
 
 import java.net.InetSocketAddress
 import java.util.Optional
 
-class CassandraNodeTest extends UnitSpec {
+class CassandraNodeTest extends UnitSpec with MockitoSugar {
     "A CassandraNode" should "return the correct address as a string" in {
         val mockNode = mock[Node]
         val addr = new InetSocketAddress("localhost", 9000)

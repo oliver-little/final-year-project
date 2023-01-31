@@ -35,7 +35,7 @@ object CassandraTokenRange {
 }
 
 case class CassandraTokenRange(start : CassandraToken, end : CassandraToken) extends Ordered[CassandraTokenRange] {
-    lazy val percentageOfFullRing : Double = (((end.toBigInt - start.toBigInt) % CassandraToken.MAX_TOKEN) / CassandraToken.NUM_TOKENS).toDouble
+    lazy val percentageOfFullRing : Double = (((BigDecimal(end.toLong) - BigDecimal(start.toLong)) % BigDecimal(CassandraToken.MAX_TOKEN)) / BigDecimal(CassandraToken.NUM_TOKENS)).toDouble
     def toTokenRange(tokenMap : TokenMap) : TokenRange = tokenMap.newTokenRange(start.toToken(tokenMap), end.toToken(tokenMap))
     lazy val protobuf : data_source.CassandraTokenRange = data_source.CassandraTokenRange(start=start.toLong, end=end.toLong)
 
