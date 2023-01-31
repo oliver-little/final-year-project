@@ -1,6 +1,7 @@
 package org.oliverlittle.clusterprocess.connector.cassandra.node
 
 import org.oliverlittle.clusterprocess.connector.cassandra.token.CassandraTokenRange
+import org.oliverlittle.clusterprocess.util.PartialFold
 
 import com.datastax.oss.driver.api.core.metadata.Node
 import com.datastax.oss.driver.api.core.metadata.{TokenMap, Metadata}
@@ -20,7 +21,7 @@ object CassandraNode {
 case class CassandraNode(node : Node, primaryTokenRange : Set[CassandraTokenRange]) {
 
 	lazy val getAddressAsString = node.getBroadcastRpcAddress.get.getHostName + ":" + node.getBroadcastRpcAddress.get.getPort.toString
-	lazy val percentageOfFullRing = primaryTokenRange.map(_.percentageOfFullRing).sum
+	lazy val percentageOfFullRing = primaryTokenRange.toSeq.map(_.percentageOfFullRing).sum
 
 	/**
 		* Compares a given address to determine if this node is at the same address
@@ -28,7 +29,7 @@ case class CassandraNode(node : Node, primaryTokenRange : Set[CassandraTokenRang
 		* @param address The address to compare to
 		* @return A Cassandra Node
 		*/
-	def compareAddress(address : InetSocketAddress) : Boolean = node.getBroadcastRpcAddress.equals(address) || node.getEndPoint.resolve.equals(address)
+	def compareAddress(address : InetSocketAddress) : Boolean = node.getBroadcastRpcAddress.get.equals(address) || node.getEndPoint.resolve.equals(address)
 
 	/**
 		* Splits this Cassandra node's primary token range according to a given full size of the ring.
@@ -41,23 +42,20 @@ case class CassandraNode(node : Node, primaryTokenRange : Set[CassandraTokenRang
 	def splitForFullSize(fullSizeMB : Double, chunkSizeMB : Double, tokenMap : TokenMap) : Seq[CassandraTokenRange] = primaryTokenRange.toSeq.flatMap(tokenRange => tokenRange.splitForFullSize(fullSizeMB, chunkSizeMB, tokenMap))
 
 	/**
-		* Adapted from:
-		*	https://stackoverflow.com/questions/28423154/how-can-i-implement-partial-reduce-in-scala
+		*  Joins contiguous token ranges if they are smaller than the chunk size
 		*
 		* @param fullSizeMB The full size of the ring
 		* @param chunkSizeMB The chunk size to ensure each token range is around as large as
 		* @param tokenMap A TokenMap instance
 		* @return A seq of token ranges, joined if they were smaller than the chunk size and they intersected
 		*/
-	def joinForFullSize(fullSizeMB : Double, chunkSizeMB : Double, tokenMap : TokenMap) : Seq[CassandraTokenRange] = primaryTokenRange.toSeq.sorted.foldLeft(List[CassandraTokenRange]()) {
-    (rs, s) => 
-			// Check if the head element is smaller than the chunk size, and if it intersects with the next element
-      if (rs.nonEmpty && rs.head.percentageOfFullRing * fullSizeMB < chunkSizeMB) 
-				// If it does, merge them
-        Try{rs.head.mergeWith(tokenMap, s) :: rs.tail}.getOrElse(s :: rs)
-      else 
-        s :: rs
-  }.reverse
+	def joinForFullSize(fullSizeMB : Double, chunkSizeMB : Double, tokenMap : TokenMap) : Seq[CassandraTokenRange] = PartialFold.partialFold(
+		primaryTokenRange.toSeq.sorted,
+		l => l.nonEmpty && l.head.percentageOfFullRing * fullSizeMB < chunkSizeMB,
+		(list, item) => Try{list.head.mergeWith(tokenMap, item) :: list.tail}.getOrElse(item :: list)
+	)
+
+	
 
 	/**
 		* Performs a join, then splits for a given full size of a ring
