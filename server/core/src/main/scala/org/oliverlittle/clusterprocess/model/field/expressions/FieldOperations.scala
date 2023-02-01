@@ -15,7 +15,7 @@ object FieldOperations:
 		val Pow = (l, r) => BinaryFunction[Double, Double, Double]("Pow", (value, exp) => pow(value, exp), l, r)
 		val Substring = (stringToSlice, left, right) => TernaryFunction[String, Long, Long, String]("Substring", (s, l, r) => s.slice(l.toInt, r.toInt), stringToSlice, left, right)
 		val Left = (string, index) => BinaryFunction[String, Long, String]("Left", (s, i) => s.slice(0, i.toInt), string, index)
-		val Right = (string, index) => BinaryFunction[String, Long, String]("Right", (s, i) => s.slice(i.toInt, s.length), string, index)
+		val Right = (string, index) => BinaryFunction[String, Long, String]("Right", (s, i) => s.slice(i.toInt + 1, s.length), string, index)
 		val Add = (l, r) => PolyAdd(l ,r)
 
 /**
