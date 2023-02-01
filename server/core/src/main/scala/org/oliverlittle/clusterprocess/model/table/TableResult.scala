@@ -62,8 +62,6 @@ case class EvaluatedTableResult(header : TableResultHeader, rows : Seq[Seq[Optio
     def getCell(row : Int, col : Int) : Option[TableValue] = rows.lift(row).flatMap(_.lift(col)).flatten
     def getCell(row : Int, col : String) : Option[TableValue] = header.headerIndex.get(col).flatMap(index => rows.lift(row).flatMap(rowData => rowData.lift(index).flatten))
     def getRow(row : Int) : Option[Seq[Option[TableValue]]] = rows.lift(row)
-    
-    def addRows(newRows : Seq[Seq[Option[TableValue]]]) = copy(header, rows ++ newRows)
 
 object TableResultHeader:
     def fromProtobuf(header : table_model.TableResultHeader) = TableResultHeader(header.fields map {TableField.fromProtobuf(_)})
