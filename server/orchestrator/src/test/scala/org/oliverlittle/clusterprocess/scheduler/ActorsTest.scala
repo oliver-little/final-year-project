@@ -11,8 +11,6 @@ import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito._
 import org.scalatestplus.mockito.MockitoSugar
-import akka.actor.testkit.typed.CapturedLogEvent
-import akka.actor.testkit.typed.Effect._
 import akka.actor.testkit.typed.scaladsl.BehaviorTestKit
 import akka.actor.testkit.typed.scaladsl.TestInbox
 import akka.actor.typed._
