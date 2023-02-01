@@ -17,7 +17,7 @@ import java.time.Instant
 import java.util.logging.Logger
 
 object CassandraDataSource:
-    def inferDataSourceFromCassandra(connector : CassandraConnector, keyspace : String, table : String, tokenRange : Option[CassandraTokenRange] = None) : DataSource = {
+    def inferDataSourceFromCassandra(connector : CassandraConnector, keyspace : String, table : String, tokenRange : Option[CassandraTokenRange] = None) : CassandraDataSource  = {
         val tableMetadata : TableMetadata = connector.getTableMetadata(keyspace, table)
         
         // Map column definitions to (name, data type pairs)
@@ -48,9 +48,10 @@ case class CassandraDataSource(connector : CassandraConnector, keyspace : String
     logger.info(name)
     // Validity Checks
     val names : Set[String] = fields.map(_.name).toSet
-    if fields.distinct.size != fields.size then throw new IllegalArgumentException("Field list must not contain duplicate names")
+    if names.size != fields.size then throw new IllegalArgumentException("Field list must not contain duplicate names")
     if partitionKey.length == 0 then throw new IllegalArgumentException("Must have at least one partition key")
     if !(partitionKey.forall(names contains _) && primaryKey.forall(names contains _)) then throw new IllegalArgumentException("PartitionKey and PrimaryKey names must match field names")
+    if partitionKey.intersect(primaryKey).length != 0 then throw new IllegalArgumentException("Partition key cannot also be a primary key")
 
     lazy val primaryKeyBuilder : String = {
         val partition = if partitionKey.length > 1 then "(" + partitionKey.reduce((l, r) => l + "," + r) + ")" else partitionKey(0)
@@ -71,10 +72,7 @@ case class CassandraDataSource(connector : CassandraConnector, keyspace : String
       *
       * @return An iterator of rows, each row being a map from field name to a table value
       */
-    def getData : TableResult = {
-        logger.info(getDataQuery)
-        return LazyTableResult(getHeaders, connector.getSession.execute(getDataQuery).asScala.map(row => fields.map(_.getTableValue(row))))
-    }
+    def getData : TableResult = LazyTableResult(getHeaders, connector.getSession.execute(getDataQuery).asScala.map(row => fields.map(_.getTableValue(row))))
 
     def toCql(ifNotExists : Boolean = true) : String = {
         val ifNotExistsString = if ifNotExists then "IF NOT EXISTS " else "";
