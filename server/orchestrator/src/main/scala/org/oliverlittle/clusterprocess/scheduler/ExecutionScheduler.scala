@@ -60,6 +60,7 @@ object WorkExecutionScheduler {
                 if numResponses + 1 == expectedResponses then
                     context.log.info("Received all responses.")
                     resultCallback(assembler(currentData, newResult))
+                    context.system.terminate()
                     Behaviors.stopped
                 else
                     context.log.info("Got " + (numResponses + 1).toString + " responses, need " + expectedResponses.toString + " responses")

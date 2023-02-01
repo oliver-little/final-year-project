@@ -42,8 +42,10 @@ object WorkConsumer {
 
     private def computeWork(stub : worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub, producers : Seq[ActorRef[WorkProducer.ProducerEvent]], assembler : ActorRef[WorkExecutionScheduler.AssemblerEvent]) : Behavior[ConsumerEvent] = Behaviors.receive{(context, message) => 
         message match {
-            case NoWork() if producers.length == 0 => Behaviors.stopped
-            case NoWork() => computeWork(stub, producers.tail, assembler)
+            case NoWork() if producers.length == 1 => Behaviors.stopped
+            case NoWork() => 
+                producers.tail.head ! WorkProducer.RequestWork(context.self)
+                computeWork(stub, producers.tail, assembler)
             case HasWork(request) => 
                 // Make the request to the worker node
                 val results : Iterator[table_model.StreamedTableResult] = stub.computePartialResultCassandra(request)
