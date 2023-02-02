@@ -1,0 +1,48 @@
+\documentclass[12pt]{book}
+\usepackage[a4paper, top=3cm, bottom=3cm, inner=3cm, outer=2cm, head=15pt]{geometry}
+
+\usepackage{packages}
+
+\addbibresource{references.bib}
+
+\renewcommand{\maketitle}{\input{titlepage}}
+
+\pagestyle{plain}
+
+\begin{document}
+	\maketitle
+	
+	{\let\cleardoublepage\relax \frontmatter}
+	
+	\begingroup
+	\let\cleardoublepage\clearpage
+	\tableofcontents
+	\endgroup
+	\begingroup
+	\let\cleardoublepage\clearpage
+	\listoffigures
+	\endgroup
+	
+	% Abstract
+	
+	
+	\mainmatter
+	
+	\include{chapters/introduction}
+	
+	\include{chapters/design}
+	
+	\include{chapters/implementation}
+	
+	\include{chapters/testing}
+	
+	\include{chapters/evaluation}
+	
+	\backmatter
+	
+	\appendix
+	
+	\printbibliography
+	
+	
+\end{document}

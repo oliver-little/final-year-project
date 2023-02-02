@@ -1,0 +1,25 @@
+\chapter{Introduction}
+
+\section{Background}
+
+Data processing is required in some form by nearly every modern business. Commercial solutions exist to solve this problem for businesses of all sizes, but this project will explore solutions for doing this with datasets that are larger than the internal memory of most systems.
+
+\subsection{Project Aims}
+
+% High level aim
+The aim of this project is to create a software tool to transform and process tabular data across a distributed cluster of worker nodes. 
+
+% Larger than memory datasets, difficulties
+The datasets I worked with were usually 100GB in size or more, distributed over a number of source files. For many computers, this is too much data to keep in RAM all at once. In my role, the solution was to have a small number powerful SQL servers with a large amount of RAM which a number of users could connect to and perform their work on. This solution worked reasonably well for my use case, but executing scripts on the largest datasets could take upwards of a day. Furthermore, while a robust backup solution was in place for existing data, there was a risk of data loss while the execution was ongoing in the event of a server failure.
+
+% Other difficulties
+
+% Specific use case, don't highlight on this too much
+
+% Significance, why important
+
+\section{Prior Work}
+% Literature review
+% Surrounding work - pretty much anything related to distributed systems and ETL that could be useful
+% MapReduce
+% Spark
