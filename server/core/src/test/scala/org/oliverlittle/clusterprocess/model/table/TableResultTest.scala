@@ -60,15 +60,15 @@ class EvaluatedTableResultTest extends UnitSpec {
 
     it should "get a row by index" in {
         val one = EvaluatedTableResult(TableResultHeader(Seq(BaseStringField("one"))), Seq(Seq(Some(StringValue("a"))), Seq(Some(StringValue("b")))))
-        one.getRow(0) should be (Seq(Some(StringValue("a"))))
-        one.getRow(1) should be (Seq(Some(StringValue("b"))))
+        one.getRow(0) should be (Some(Seq(Some(StringValue("a")))))
+        one.getRow(1) should be (Some(Seq(Some(StringValue("b")))))
     }
 }
 
 class TableResultHeaderTest extends UnitSpec {
     "A TableResultHeader" should "calculate an index mapping" in {
         val header = TableResultHeader(Seq(BaseIntField("one"), BaseStringField("two")))
-        header.headerIndex should be (Map("one" -> 1, "two" -> 2))
+        header.headerIndex should be (Map("one" -> 0, "two" -> 1))
     }
 
     it should "calculate a name -> field mapping" in {

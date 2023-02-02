@@ -51,11 +51,13 @@ case class CassandraDataSource(connector : CassandraConnector, keyspace : String
     if names.size != fields.size then throw new IllegalArgumentException("Field list must not contain duplicate names")
     if partitionKey.length == 0 then throw new IllegalArgumentException("Must have at least one partition key")
     if !(partitionKey.forall(names contains _) && primaryKey.forall(names contains _)) then throw new IllegalArgumentException("PartitionKey and PrimaryKey names must match field names")
-    if partitionKey.intersect(primaryKey).length != 0 then throw new IllegalArgumentException("Partition key cannot also be a primary key")
+    if !partitionKey.forall(primaryKey contains _) then throw new IllegalArgumentException("All partition keys must be in primary key list")
+
+    val clusterKeys = primaryKey.diff(partitionKey)
 
     lazy val primaryKeyBuilder : String = {
         val partition = if partitionKey.length > 1 then "(" + partitionKey.reduce((l, r) => l + "," + r) + ")" else partitionKey(0)
-        val primary = if primaryKey.length > 0 then "," + primaryKey.reduce((l, r) => l + "," + r) else ""
+        val primary = if clusterKeys.length > 0 then "," + clusterKeys.reduce((l, r) => l + "," + r) else ""
         "(" + partition + primary + ")"
     }
 

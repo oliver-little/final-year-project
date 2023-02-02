@@ -5,9 +5,7 @@ import org.oliverlittle.clusterprocess.connector.cassandra.token._
 import org.oliverlittle.clusterprocess.model.table.{Table, TableResult, LazyTableResult}
 import org.oliverlittle.clusterprocess.worker_query
 
-import akka.NotUsed
-import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.scaladsl.LoggerOps
+import akka.actor.typed.scaladsl.{Behaviors, LoggerOps, ActorContext}
 import akka.actor.typed.{ActorRef, ActorSystem, Behavior, Terminated}
 
 object WorkExecutionScheduler {
@@ -16,7 +14,7 @@ object WorkExecutionScheduler {
 
     final case class ResultData(result : Option[TableResult])
 
-    
+    val DEFAULT_ASSEMBLER : (TableResult, TableResult) => TableResult = (l, r) => l ++ r
 
     def startFromData(channelTokenRangeMap : Seq[(Seq[ChannelManager], Seq[CassandraTokenRange])], table : Table, resultCallback : TableResult => Unit) : Unit = {
         val dataSourceProtobuf = table.dataSource.getCassandraProtobuf.get
@@ -43,28 +41,42 @@ object WorkExecutionScheduler {
         // For each possible stub, and it's matched producer, create a consumer and give it a list of producers to consume from
         val consumers = mappedProducers.map((stubs, producerRef) => stubs.zipWithIndex.map((stub, index) => context.spawn(WorkConsumer(stub, producerRef +: producers.filter(_ == producerRef), context.self), "consumer" + index.toString))).flatten
         
-        prepareAssembleData(items.map(_._2.size).sum, resultCallback)
+        new WorkExecutionScheduler(items.map(_._2.size).sum, resultCallback, WorkExecutionScheduler.DEFAULT_ASSEMBLER, context).getFirstData()
     }
+}
 
-    def prepareAssembleData(expectedResponses : Int, resultCallback : TableResult => Unit, assembler : (TableResult, TableResult) => TableResult = (l, r) => l ++ r) : Behavior[AssemblerEvent] = Behaviors.receiveMessage {
+class WorkExecutionScheduler private (expectedResponses : Int, resultCallback : TableResult => Unit, assembler : (TableResult, TableResult) => TableResult, context : ActorContext[WorkExecutionScheduler.AssemblerEvent]) {
+    import WorkExecutionScheduler._
+
+    /**
+     * Handles receiving the first response from any consumer
+     */
+    private def getFirstData() : Behavior[WorkExecutionScheduler.AssemblerEvent] = Behaviors.receiveMessage {
         case SendResult(newResult) => 
             if expectedResponses == 1 then 
-                resultCallback(newResult)
-                Behaviors.stopped
-            else assembleData(newResult, 1, expectedResponses, resultCallback, assembler)
+                onFinished(newResult)
+            else assembleData(newResult, 1)
     }
 
-    def assembleData(currentData : TableResult, numResponses : Int, expectedResponses : Int, resultCallback : TableResult => Unit, assembler : (TableResult, TableResult) => TableResult) : Behavior[AssemblerEvent] = Behaviors.receive { (context, message) =>
-        message match {
-            case SendResult(newResult) => 
-                if numResponses + 1 == expectedResponses then
-                    context.log.info("Received all responses.")
-                    resultCallback(assembler(currentData, newResult))
-                    context.system.terminate()
-                    Behaviors.stopped
-                else
-                    context.log.info("Got " + (numResponses + 1).toString + " responses, need " + expectedResponses.toString + " responses")
-                    assembleData(assembler(currentData, newResult), numResponses + 1, expectedResponses, resultCallback, assembler)
-        }
+    /**
+     *  Handles receiving all subsequent responses from consumers until expectedResponses is reached
+     */
+    private def assembleData(currentData : TableResult, numResponses : Int) : Behavior[WorkExecutionScheduler.AssemblerEvent] = Behaviors.receiveMessage {
+        case SendResult(newResult) => 
+            if numResponses + 1 == expectedResponses then
+                onFinished(assembler(currentData, newResult))
+            else
+                context.log.info("Got " + (numResponses + 1).toString + " responses, need " + expectedResponses.toString + " responses")
+                assembleData(assembler(currentData, newResult), numResponses + 1)
+    }
+
+    /**
+     * Handles system shutdown - calls the callback, terminates the system, and stops this Actor 
+     */
+    private def onFinished(result : TableResult) : Behavior[WorkExecutionScheduler.AssemblerEvent] = {
+        context.log.info("Received all responses, calling callback function.")
+        resultCallback(result)
+        context.system.terminate()
+        Behaviors.stopped
     }
 }
