@@ -30,17 +30,16 @@ class SelectTransformation(TableTransformation):
 
 class FilterTransformation(TableTransformation):
     """Filters the table according to some Filter criteria"""
-    def __init__(self, *filters: FieldComparison):
-        self.filters = filters
-        print(filters)
+    def __init__(self, filter: FieldComparison):
+        self.filter = filter
     
     def to_protobuf(self) -> protobuf_model.Table.TableTransformation:
-        return protobuf_model.Table.TableTransformation(filter=protobuf_model.Filter(filters=[filter.to_protobuf() for filter in self.filters]))
+        return protobuf_model.Table.TableTransformation(filter=self.filter.to_protobuf())
 
     def __str__(self):
         filter_data = ""
 
-        for filter in self.filters:
+        for filter in self.filter:
             filter_data += str(filter) + ", "
         filter_data = filter_data[:-2]
         return f"Filter({filter_data})"

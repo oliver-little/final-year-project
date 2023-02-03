@@ -243,38 +243,77 @@ class FieldComparison():
         if type(self) is FieldComparison:
             raise NotImplementedError("FieldComparison is an abstract class and cannot be instantiated directly.")
 
-    def to_protobuf(self):
+    def to_protobuf(self) -> protobuf_model.Filter:
         raise NotImplementedError("FieldComparison abstract class can't be converted to protobuf.")
+
+    def __and__(self, other : FieldComparison) -> FieldComparison:
+        if not isinstance(other, FieldComparison):
+            raise ValueError(f"Invalid argument for AND operation on FieldComparison: {other}")
+        return CombinedFieldComparison(self, "AND", other)
+
+    def __or__(self, other : FieldComparison) -> FieldComparison:
+        if not isinstance(other, FieldComparison):
+            raise ValueError(f"Invalid argument for OR operation on FieldComparison: {other}")
+        return CombinedFieldComparison(self, "OR", other)
+
+class CombinedFieldComparison(FieldComparison):
+    """Class for representing field comparisons joined by AND/OR operators"""
+    def __init__(self, left : FieldComparison, operator : str, right : FieldComparison):
+        self.left = left
+        self.right = right
+        try:
+            self.operator = protobuf_model.CombinedFilterExpression.BooleanOperator.Value(operator.upper())
+            self.operator_string = operator
+        except ValueError:
+            raise ValueError(f"Invalid operator provided {operator}")
+    
+    def to_protobuf(self) -> protobuf_model.Filter:
+        return protobuf_model.Filter(combinedFilter=protobuf_model.CombinedFilterExpression(
+            left_expression=self.left.to_protobuf(),
+            operator=self.operator,
+            right_expression=self.right.to_protobuf()
+        ))
+
+    def __str__(self) -> str:
+        left_str = str(self.left)
+        right_str = str(self.right)
+        return f"{left_str} {self.operator_string} {right_str}"
+
+    def __repr__(self) -> str:
+        left_repr = repr(self.left)
+        right_repr = repr(self.right)
+        return f"CombinedFieldComparison({left_repr}, {self.operator_string}, {right_repr})"
+    
 
 class UnaryFieldComparison(FieldComparison):
     VALID_COMPARATORS = {
-        protobuf_model.Filter.FilterType.IS_NULL,
-        protobuf_model.Filter.FilterType.NULL,
-        protobuf_model.Filter.FilterType.IS_NOT_NULL,
-        protobuf_model.Filter.FilterType.NOT_NULL
+        protobuf_model.FilterExpression.FilterType.IS_NULL,
+        protobuf_model.FilterExpression.FilterType.NULL,
+        protobuf_model.FilterExpression.FilterType.IS_NOT_NULL,
+        protobuf_model.FilterExpression.FilterType.NOT_NULL
     }
 
     def __init__(self, comparator : str, field_exp):
         self.field_exp = try_convert_model_value(field_exp)
         try:
-            self.filter_type = protobuf_model.Filter.FilterType.Value(comparator.upper())
+            self.filter_type = protobuf_model.FilterExpression.FilterType.Value(comparator.upper())
         except ValueError:
             raise ValueError(f"Invalid comparator provided {comparator}")
 
         if self.filter_type not in UnaryFieldComparison.VALID_COMPARATORS:
             raise ValueError(f"Invalid number of arguments provided for comparator {comparator}")
 
-    def to_protobuf(self) -> protobuf_model.FilterExpression:
-        return protobuf_model.Filter.FilterExpression(
+    def to_protobuf(self) -> protobuf_model.Filter:
+        return protobuf_model.Filter(filter=protobuf_model.FilterExpression(
             left_value=self.field_exp.to_protobuf(),
             filter_type=self.filter_type
-        )
+        ))
 
     def __str__(self):
-        return f"({str(self.field_exp)} {protobuf_model.Filter.FilterType.Name(self.filter_type)} )"
+        return f"({str(self.field_exp)} {protobuf_model.FilterExpression.FilterType.Name(self.filter_type)} )"
     
     def __repr__(self):
-        return f"UnaryFieldComparison({protobuf_model.Filter.FilterType.Name(self.filter_type)}, {repr(self.field_exp)})"
+        return f"UnaryFieldComparison({protobuf_model.FilterExpression.FilterType.Name(self.filter_type)}, {repr(self.field_exp)})"
 
 
 # FieldComparison code
@@ -287,34 +326,34 @@ class BinaryFieldComparison(FieldComparison):
     """
     # Defines the comparators that are valid with this comparison type
     VALID_COMPARATORS = {
-        protobuf_model.Filter.FilterType.EQUAL,
-        protobuf_model.Filter.FilterType.EQ,
-        protobuf_model.Filter.FilterType.NOT_EQUAL,
-        protobuf_model.Filter.FilterType.NE,
-        protobuf_model.Filter.FilterType.LESS_THAN,
-        protobuf_model.Filter.FilterType.LT,
-        protobuf_model.Filter.FilterType.LESS_THAN_EQUAL,
-        protobuf_model.Filter.FilterType.LTE,
-        protobuf_model.Filter.FilterType.GREATER_THAN,
-        protobuf_model.Filter.FilterType.GT,
-        protobuf_model.Filter.FilterType.GREATER_THAN_EQUAL,
-        protobuf_model.Filter.FilterType.GTE,
-        protobuf_model.Filter.FilterType.CONTAINS,
-        protobuf_model.Filter.FilterType.ICONTAINS,
-        protobuf_model.Filter.FilterType.STARTS_WITH,
-        protobuf_model.Filter.FilterType.ISTARTS_WITH,
-        protobuf_model.Filter.FilterType.ENDS_WITH,
-        protobuf_model.Filter.FilterType.IENDS_WITH
+        protobuf_model.FilterExpression.FilterType.EQUAL,
+        protobuf_model.FilterExpression.FilterType.EQ,
+        protobuf_model.FilterExpression.FilterType.NOT_EQUAL,
+        protobuf_model.FilterExpression.FilterType.NE,
+        protobuf_model.FilterExpression.FilterType.LESS_THAN,
+        protobuf_model.FilterExpression.FilterType.LT,
+        protobuf_model.FilterExpression.FilterType.LESS_THAN_EQUAL,
+        protobuf_model.FilterExpression.FilterType.LTE,
+        protobuf_model.FilterExpression.FilterType.GREATER_THAN,
+        protobuf_model.FilterExpression.FilterType.GT,
+        protobuf_model.FilterExpression.FilterType.GREATER_THAN_EQUAL,
+        protobuf_model.FilterExpression.FilterType.GTE,
+        protobuf_model.FilterExpression.FilterType.CONTAINS,
+        protobuf_model.FilterExpression.FilterType.ICONTAINS,
+        protobuf_model.FilterExpression.FilterType.STARTS_WITH,
+        protobuf_model.FilterExpression.FilterType.ISTARTS_WITH,
+        protobuf_model.FilterExpression.FilterType.ENDS_WITH,
+        protobuf_model.FilterExpression.FilterType.IENDS_WITH
     }
     
     # Defines the comparators which MUST have a Value literal on the right side of the expression
     RIGHT_VALUE_COMPARATORS = {
-        protobuf_model.Filter.FilterType.CONTAINS,
-        protobuf_model.Filter.FilterType.ICONTAINS,
-        protobuf_model.Filter.FilterType.STARTS_WITH,
-        protobuf_model.Filter.FilterType.ISTARTS_WITH,
-        protobuf_model.Filter.FilterType.ENDS_WITH,
-        protobuf_model.Filter.FilterType.IENDS_WITH
+        protobuf_model.FilterExpression.FilterType.CONTAINS,
+        protobuf_model.FilterExpression.FilterType.ICONTAINS,
+        protobuf_model.FilterExpression.FilterType.STARTS_WITH,
+        protobuf_model.FilterExpression.FilterType.ISTARTS_WITH,
+        protobuf_model.FilterExpression.FilterType.ENDS_WITH,
+        protobuf_model.FilterExpression.FilterType.IENDS_WITH
     }
     
     def __init__(self, comparator, left_field_exp, right_field_exp):
@@ -322,7 +361,7 @@ class BinaryFieldComparison(FieldComparison):
         self.left_field_exp = try_convert_model_value(left_field_exp)
         self.right_field_exp = try_convert_model_value(right_field_exp)
         try:
-            self.filter_type = protobuf_model.Filter.FilterType.Value(comparator.upper())
+            self.filter_type = protobuf_model.FilterExpression.FilterType.Value(comparator.upper())
         except ValueError:
             raise ValueError(f"Invalid comparator provided {comparator}")
 
@@ -332,28 +371,28 @@ class BinaryFieldComparison(FieldComparison):
             raise ValueError(f"Right operand {right_field_exp} must be a literal Value in order to use comparator {comparator}")
         
     def to_protobuf(self) -> protobuf_model.Filter:
-        return protobuf_model.Filter.FilterExpression(
+        return protobuf_model.Filter(filter=protobuf_model.FilterExpression(
             left_value=self.left_field_exp.to_protobuf(),
             filter_type=self.filter_type,
             right_value=self.right_field_exp.to_protobuf()
-        )
+        ))
 
     def __str__(self):
-        return f"({str(self.left_field_exp)} {protobuf_model.Filter.FilterType.Name(self.filter_type)} {str(self.right_field_exp)})"
+        return f"({str(self.left_field_exp)} {protobuf_model.FilterExpression.FilterType.Name(self.filter_type)} {str(self.right_field_exp)})"
     
     def __repr__(self):
-        return f"BinaryFieldComparison({protobuf_model.Filter.FilterType.Name(self.filter_type)}, {str(self.left_field_exp)}, {str(self.right_field_exp)})"
+        return f"BinaryFieldComparison({protobuf_model.FilterExpression.FilterType.Name(self.filter_type)}, {str(self.left_field_exp)}, {str(self.right_field_exp)})"
 
 def generate_field_comparison(comparator : str, *operands):
     """Performs a lookup on the provided comparator to determine which FieldComparison class to place it in"""
 
     operands = operands
     comparator = comparator.upper()
-    if protobuf_model.Filter.FilterType.Value(comparator) in BinaryFieldComparison.VALID_COMPARATORS:
+    if protobuf_model.FilterExpression.FilterType.Value(comparator) in BinaryFieldComparison.VALID_COMPARATORS:
         if len(operands) != 2:
             raise ValueError(f"Incorrect amount of arguments for comparator {comparator}, got {len(operands)}, expected 2.")
         return BinaryFieldComparison(comparator, operands[0], operands[1])
-    elif protobuf_model.Filter.FilterType.Value(comparator) in UnaryFieldComparison.VALID_COMPARATORS:
+    elif protobuf_model.FilterExpression.FilterType.Value(comparator) in UnaryFieldComparison.VALID_COMPARATORS:
         if len(operands) != 1:
             raise ValueError(f"Incorrect amount of arguments for comparator {comparator}, got {len(operands)}, expected 1.")
         return UnaryFieldComparison(comparator, operands[0])
