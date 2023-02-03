@@ -7,60 +7,60 @@ class AggregateExpression():
     def __init__(self, field_expression):
         self.field_expression = field_expression
 
-    def get_aggregate_type(self) -> protobuf_model.Aggregate.AggregateType:
+    def get_aggregate_type(self) -> protobuf_model.AggregateExpression.AggregateType:
         raise NotImplementedError("AggregateExpression abstract class has no defined aggregate type.")
 
     def get_optional_arg() -> str:
         return None
 
-    def to_protobuf(self) -> protobuf_model.Aggregate.AggregateExpression:
+    def to_protobuf(self) -> protobuf_model.AggregateExpression:
         optional_arg = self.get_optional_arg()
         if optional_arg is None:
-            return protobuf_model.Aggregate.AggregateExpression(aggregate_type=self.get_aggregate_type(), expr=self.field_expression.to_protobuf())
+            return protobuf_model.AggregateExpression(aggregate_type=self.get_aggregate_type(), expr=self.field_expression.to_protobuf())
         else:
-            return protobuf_model.Aggregate.AggregateExpression(aggregate_type=self.get_aggregate_type(), expr=self.field_expression.to_protobuf(), arg=optional_arg)
+            return protobuf_model.AggregateExpression(aggregate_type=self.get_aggregate_type(), expr=self.field_expression.to_protobuf(), arg=optional_arg)
 
 class Max(AggregateExpression):
     def __init__(self, field_expression : FieldExpression):
         super().__init__(field_expression)
     
-    def get_aggregate_type(self) -> protobuf_model.Aggregate.AggregateType:
-        return protobuf_model.Aggregate.AggregateType.MAX
+    def get_aggregate_type(self) -> protobuf_model.AggregateExpression.AggregateType:
+        return protobuf_model.AggregateExpression.AggregateType.MAX
     
 class Min(AggregateExpression):
     def __init__(self, field_expression : FieldExpression):
         super().__init__(field_expression)
     
-    def get_aggregate_type(self) -> protobuf_model.Aggregate.AggregateType:
-        return protobuf_model.Aggregate.AggregateType.MIN
+    def get_aggregate_type(self) -> protobuf_model.AggregateExpression.AggregateType:
+        return protobuf_model.AggregateExpression.AggregateType.MIN
 
 class Sum(AggregateExpression):
     def __init__(self, field_expression : FieldExpression):
         super().__init__(field_expression)
     
-    def get_aggregate_type(self) -> protobuf_model.Aggregate.AggregateType:
-        return protobuf_model.Aggregate.AggregateType.SUM
+    def get_aggregate_type(self) -> protobuf_model.AggregateExpression.AggregateType:
+        return protobuf_model.AggregateExpression.AggregateType.SUM
 
 class Avg(AggregateExpression):
     def __init__(self, field_expression : FieldExpression):
         super().__init__(field_expression)
     
-    def get_aggregate_type(self) -> protobuf_model.Aggregate.AggregateType:
-        return protobuf_model.Aggregate.AggregateType.AVG
+    def get_aggregate_type(self) -> protobuf_model.AggregateExpression.AggregateType:
+        return protobuf_model.AggregateExpression.AggregateType.AVG
 
 class Count(AggregateExpression):
     def __init__(self, field_expression : FieldExpression):
         super().__init__(field_expression)
     
-    def get_aggregate_type(self) -> protobuf_model.Aggregate.AggregateType:
-        return protobuf_model.Aggregate.AggregateType.COUNT
+    def get_aggregate_type(self) -> protobuf_model.AggregateExpression.AggregateType:
+        return protobuf_model.AggregateExpression.AggregateType.COUNT
 
 class DistinctCount(AggregateExpression):
     def __init__(self, field_expression : FieldExpression):
         super().__init__(field_expression)
     
-    def get_aggregate_type(self) -> protobuf_model.Aggregate.AggregateType:
-        return protobuf_model.Aggregate.AggregateType.COUNT_DISTINCT
+    def get_aggregate_type(self) -> protobuf_model.AggregateExpression.AggregateType:
+        return protobuf_model.AggregateExpression.AggregateType.COUNT_DISTINCT
 
 class StringConcat(AggregateExpression):
     def __init__(self, field_expression : FieldExpression, delimiter : str):
@@ -68,8 +68,8 @@ class StringConcat(AggregateExpression):
 
         self.delimiter = delimiter
     
-    def get_aggregate_type(self) -> protobuf_model.Aggregate.AggregateType:
-        return protobuf_model.Aggregate.AggregateType.STRING_CONCAT
+    def get_aggregate_type(self) -> protobuf_model.AggregateExpression.AggregateType:
+        return protobuf_model.AggregateExpression.AggregateType.STRING_CONCAT
 
     def get_optional_arg(self) -> str:
         return self.delimiter
@@ -80,8 +80,8 @@ class DistinctStringConcat(AggregateExpression):
 
         self.delimiter = delimiter
     
-    def get_aggregate_type(self) -> protobuf_model.Aggregate.AggregateType:
-        return protobuf_model.Aggregate.AggregateType.STRING_CONCAT_DISTINCT
+    def get_aggregate_type(self) -> protobuf_model.AggregateExpression.AggregateType:
+        return protobuf_model.AggregateExpression.AggregateType.STRING_CONCAT_DISTINCT
 
     def get_optional_arg(self) -> str:
         return self.delimiter
