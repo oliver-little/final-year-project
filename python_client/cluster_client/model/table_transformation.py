@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import List, Tuple
 
 from .field_expressions import *
+from .aggregate_expressions import AggregateExpression
 import cluster_client.protobuf.table_model_pb2 as protobuf_model
 
 class TableTransformation():
@@ -78,11 +79,11 @@ class GroupByTransformation(TableTransformation):
 
 class AggregateTransformation(TableTransformation):
     """Aggregates the data in the table by the provided expressions"""
-    def __init__(self, *aggregate_columns : FieldExpression):
+    def __init__(self, *aggregate_columns : AggregateExpression):
         self.aggregate_columns = aggregate_columns
 
     def to_protobuf(self) -> protobuf_model.Table.TableTransformation:
-        return protobuf_model.Table.TableTransformation(aggregate=protobuf_model.Aggregate(fields=[col.to_protobuf() for col in self.aggregate_columns]))
+        return protobuf_model.Table.TableTransformation(aggregate=protobuf_model.Aggregate(aggregate_fields=[col.to_protobuf() for col in self.aggregate_columns]))
 
     def __str__(self):
         aggregate_data = ""

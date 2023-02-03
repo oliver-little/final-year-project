@@ -135,7 +135,24 @@ message GroupBy {
 
 // An Aggregate statement is made up of any number of UnnamedFields (which should use Aggregate functions)
 message Aggregate {
-    repeated Expression aggregate_fields = 1;
+    enum AggregateType {
+        UNKNOWN_TYPE = 0;
+        MIN = 1;
+        MAX = 2;
+        SUM = 3;
+        AVG = 4;
+        COUNT = 5;
+        COUNT_DISTINCT = 6; 
+        STRING_CONCAT = 7;
+        STRING_CONCAT_DISTINCT = 8;
+    }
+
+    message AggregateExpression {
+        AggregateType aggregate_type = 1;
+        Expression expr = 2;
+        optional string arg = 3; // Used for optional args - e.g: STRING_AGG delimiter
+    }
+    repeated AggregateExpression aggregate_fields = 1;
 }
 
 // An OrderBy is made up of any number of Fields, with an ascending/descending flag
