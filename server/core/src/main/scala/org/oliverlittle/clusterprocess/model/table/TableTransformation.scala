@@ -9,7 +9,8 @@ import scala.util.Try
 
 object TableTransformation:
 	def fromProtobuf(table: table_model.Table) : Seq[TableTransformation] = table.transformations.map(_.instruction match {
-		case x if x.isSelect => SelectTransformation.fromProtobuf(x.select.get)
+		case table_model.Table.TableTransformation.Instruction.Select(expr) => SelectTransformation.fromProtobuf(expr)
+		case table_model.Table.TableTransformation.Instruction.Filter(expr) => FilterTransformation.fromProtobuf(expr)
 		case _ => throw new IllegalArgumentException("Not implemented yet")
 	})
 
@@ -26,16 +27,32 @@ sealed trait TableTransformation:
 	def isValid(header : TableResultHeader) : Boolean 
 
 	/**
-		* Evaluates this transformation on some provided source data
-		*
-		* @param data An iterable containing a map of field names to TableValues (field data and metadata)
-		* @return A new iterable of the same form, with the transformation applied
-		*/
+	 * Evaluates this transformation on some provided source data
+	 *
+	 * @param data An iterable containing a map of field names to TableValues (field data and metadata)
+	 * @return A new iterable of the same form, with the transformation applied
+	 */
 	def evaluate(data : TableResult) : TableResult
 
+	/**
+	 * Returns the headers that this transformation will output
+	 * 
+	 * @param inputHeaders The headers being input to this transformation
+	 * @return A TableResultHeader instance representing the output headers.
+	 */
 	def outputHeaders(inputHeaders : TableResultHeader) : TableResultHeader
 
 	def protobuf : table_model.Table.TableTransformation
+
+	/**
+	 * Function to combine partial results
+	 * Default function simply compares headers to ensure they are the same, then appends rows
+	 * 
+	 * @param left The first partial result
+	 * @param right The second partial result
+	 * @return A TableResult of the combined partial results
+	 */
+	def partialResultAssembler(left : TableResult, right : TableResult) : TableResult = left ++ right
 
 object SelectTransformation:
 	def fromProtobuf(select : table_model.Select) : SelectTransformation = SelectTransformation(select.fields.map(NamedFieldExpression.fromProtobuf(_))*)
