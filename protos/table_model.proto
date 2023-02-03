@@ -59,8 +59,26 @@ message Select {
 }
 
 // A Filter Statement is made up of two arguments 
-// Might need to add AND/ORs to this
 message Filter {
+    oneof expression {
+         FilterExpression filter = 1;
+         CombinedFilterExpression combinedFilter = 2;
+    }
+}
+
+message CombinedFilterExpression {
+    enum BooleanOperator {
+        UNKNOWN_TYPE = 0;
+        AND = 1;
+        OR = 2;
+    }
+
+    Filter left_expression = 1;
+    BooleanOperator operator = 2;
+    Filter right_expression = 3;
+}
+
+message FilterExpression {
     enum FilterType {
         option allow_alias = true;
         UNKNOWN_TYPE = 0;
@@ -88,13 +106,9 @@ message Filter {
         IENDS_WITH = 14;
     }
 
-    message FilterExpression {
-        Expression left_value = 1;
-        FilterType filter_type = 2;
-        optional Expression right_value = 3; // Right value is optional as null and not null do not require it
-    }
-
-    repeated FilterExpression filters = 1;
+    Expression left_value = 1;
+    FilterType filter_type = 2;
+    optional Expression right_value = 3; // Right value is optional as null and not null do not require it
 }
 
 // A Join statement is made up of two table names, and a join type.

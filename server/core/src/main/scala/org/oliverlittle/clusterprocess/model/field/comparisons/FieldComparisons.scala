@@ -9,67 +9,94 @@ import org.oliverlittle.clusterprocess.model.field.expressions.{FieldExpression,
 import org.oliverlittle.clusterprocess.model.table.TableResultHeader
 import org.oliverlittle.clusterprocess.model.table.field._
 
-// Need to add resolved/unresolved forms of FieldComparison
 object FieldComparison:
-    def fromProtobuf(f : Filter.FilterExpression, header : TableResultHeader) : FieldComparison = {
+    def fromProtobuf(f : Filter) : FieldComparison = f.expression match {
+        case Filter.Expression.Filter(expr) => FieldComparison.filterExpressionFromProtobuf(expr)
+        case Filter.Expression.CombinedFilter(expr) => FieldComparison.combinedFilterExpressionFromProtobuf(expr)
+        case Filter.Expression.Empty => throw new IllegalArgumentException("Cannot process this filter type")
+    }
+        
+    def filterExpressionFromProtobuf(f : FilterExpression) : FieldComparison = {
         val leftFieldExpression = FieldExpression.fromProtobuf(f.leftValue.getOrElse(throw new IllegalArgumentException("Missing required left value for FieldComparison")))
         f.filterType match {
-            case u @ (Filter.FilterType.IS_NULL | Filter.FilterType.NULL | Filter.FilterType.IS_NOT_NULL | Filter.FilterType.NOT_NULL) => UnaryFieldComparison(leftFieldExpression, UnaryComparator.valueOf(f.filterType.name))
-            case e @ (Filter.FilterType.EQ | Filter.FilterType.EQUAL | Filter.FilterType.NE | Filter.FilterType.NOT_EQUAL) => {
+            case u @ (FilterExpression.FilterType.IS_NULL | FilterExpression.FilterType.NULL | FilterExpression.FilterType.IS_NOT_NULL | FilterExpression.FilterType.NOT_NULL) => UnaryFieldComparison(leftFieldExpression, UnaryComparator.valueOf(f.filterType.name))
+            case e @ (FilterExpression.FilterType.EQ | FilterExpression.FilterType.EQUAL | FilterExpression.FilterType.NE | FilterExpression.FilterType.NOT_EQUAL) => {
                 val rightFieldExpression = FieldExpression.fromProtobuf(f.rightValue.getOrElse(throw new IllegalArgumentException("Missing required right value for EqualityFieldComparison")))
                 EqualityFieldComparison(leftFieldExpression, EqualsComparator.valueOf(f.filterType.name), rightFieldExpression)
             }
-            case o @ (Filter.FilterType.LESS_THAN | Filter.FilterType.LT | Filter.FilterType.LESS_THAN_EQUAL | Filter.FilterType.LTE | Filter.FilterType.GREATER_THAN | Filter.FilterType.GT | Filter.FilterType.GREATER_THAN_EQUAL | Filter.FilterType.GTE) => {
+            case o @ (FilterExpression.FilterType.LESS_THAN | FilterExpression.FilterType.LT | FilterExpression.FilterType.LESS_THAN_EQUAL | FilterExpression.FilterType.LTE | FilterExpression.FilterType.GREATER_THAN | FilterExpression.FilterType.GT | FilterExpression.FilterType.GREATER_THAN_EQUAL | FilterExpression.FilterType.GTE) => {
                 val rightFieldExpression = FieldExpression.fromProtobuf(f.rightValue.getOrElse(throw new IllegalArgumentException("Missing required right value for OrderedFieldComparison")))
                 OrderedFieldComparison(leftFieldExpression, OrderedComparator.valueOf(f.filterType.name), rightFieldExpression)
             }
-            case s @ (Filter.FilterType.CONTAINS | Filter.FilterType.ICONTAINS | Filter.FilterType.STARTS_WITH | Filter.FilterType.ISTARTS_WITH | Filter.FilterType.ENDS_WITH | Filter.FilterType.IENDS_WITH) =>  {
+            case s @ (FilterExpression.FilterType.CONTAINS | FilterExpression.FilterType.ICONTAINS | FilterExpression.FilterType.STARTS_WITH | FilterExpression.FilterType.ISTARTS_WITH | FilterExpression.FilterType.ENDS_WITH | FilterExpression.FilterType.IENDS_WITH) =>  {
                 val string : Value = f.rightValue.getOrElse(throw new IllegalArgumentException("Missing required right value for StringFieldComparison")).expr._value.getOrElse(throw new IllegalArgumentException("Right argument for StringFieldComparison must be a string literal."))
                 StringFieldComparison(leftFieldExpression, StringComparator.valueOf(f.filterType.name), V.fromProtobuf(string))
             }
             case _ => throw new IllegalArgumentException("Cannot process this filter type.")
         }
     }
+
+    def combinedFilterExpressionFromProtobuf(f : CombinedFilterExpression) : CombinedFieldComparison = CombinedFieldComparison(
+        FieldComparison.fromProtobuf(f.leftExpression.get),
+        BooleanOperator.valueOf(f.operator.name),
+        FieldComparison.fromProtobuf(f.rightExpression.get)
+    )
+
 sealed abstract class FieldComparison:
-    lazy val protobuf : Filter.FilterExpression
+    lazy val protobuf : Filter
 
     def resolve(header : TableResultHeader) : ResolvedFieldComparison
 
 sealed abstract class ResolvedFieldComparison:
     def evaluate(row : Seq[Option[TableValue]]) : Boolean
 
+enum BooleanOperator(val protobuf : CombinedFilterExpression.BooleanOperator):
+    case AND extends BooleanOperator(CombinedFilterExpression.BooleanOperator.AND)
+    case OR extends BooleanOperator(CombinedFilterExpression.BooleanOperator.OR)
+
+final case class CombinedFieldComparison(left : FieldComparison, operator : BooleanOperator, right : FieldComparison) extends FieldComparison:
+    def resolve(header: TableResultHeader): ResolvedFieldComparison = ResolvedCombinedFieldComparison(left.resolve(header), operator, right.resolve(header))
+
+    lazy val protobuf : Filter = Filter().withCombinedFilter(CombinedFilterExpression(Some(left.protobuf), operator.protobuf, Some(right.protobuf)))
+
+final case class ResolvedCombinedFieldComparison(left : ResolvedFieldComparison, operator : BooleanOperator, right : ResolvedFieldComparison) extends ResolvedFieldComparison:
+    def evaluate(row: Seq[Option[TableValue]]): Boolean = operator match {
+        case BooleanOperator.AND => left.evaluate(row) && right.evaluate(row)
+        case BooleanOperator.OR => left.evaluate(row) || right.evaluate(row)
+    }
+
 final case class FieldComparisonCall(runtimeFunction : Seq[Option[TableValue]] => Boolean) extends ResolvedFieldComparison:
     def evaluate(row : Seq[Option[TableValue]]): Boolean = runtimeFunction(row)
 
-enum UnaryComparator(val protobuf : Filter.FilterType):
-    case IS_NULL extends UnaryComparator(Filter.FilterType.IS_NULL)
-    case NULL extends UnaryComparator(Filter.FilterType.NULL)
-    case IS_NOT_NULL extends UnaryComparator(Filter.FilterType.IS_NOT_NULL)
-    case NOT_NULL extends UnaryComparator(Filter.FilterType.NOT_NULL)
+enum UnaryComparator(val protobuf : FilterExpression.FilterType):
+    case IS_NULL extends UnaryComparator(FilterExpression.FilterType.IS_NULL)
+    case NULL extends UnaryComparator(FilterExpression.FilterType.NULL)
+    case IS_NOT_NULL extends UnaryComparator(FilterExpression.FilterType.IS_NOT_NULL)
+    case NOT_NULL extends UnaryComparator(FilterExpression.FilterType.NOT_NULL)
 
-enum EqualsComparator(val protobuf : Filter.FilterType):
-    case EQUAL extends EqualsComparator(Filter.FilterType.EQUAL)
-    case EQ extends EqualsComparator(Filter.FilterType.EQ)
-    case NOT_EQUAL extends EqualsComparator(Filter.FilterType.NOT_EQUAL)
-    case NE extends EqualsComparator(Filter.FilterType.NE)
+enum EqualsComparator(val protobuf : FilterExpression.FilterType):
+    case EQUAL extends EqualsComparator(FilterExpression.FilterType.EQUAL)
+    case EQ extends EqualsComparator(FilterExpression.FilterType.EQ)
+    case NOT_EQUAL extends EqualsComparator(FilterExpression.FilterType.NOT_EQUAL)
+    case NE extends EqualsComparator(FilterExpression.FilterType.NE)
 
-enum OrderedComparator(val protobuf : Filter.FilterType):
-    case LESS_THAN extends OrderedComparator(Filter.FilterType.LESS_THAN)
-    case LT extends OrderedComparator(Filter.FilterType.LT)
-    case LESS_THAN_EQUAL extends OrderedComparator(Filter.FilterType.LESS_THAN_EQUAL)
-    case LTE extends OrderedComparator(Filter.FilterType.LTE)
-    case GREATER_THAN extends OrderedComparator(Filter.FilterType.GREATER_THAN)
-    case GT extends OrderedComparator(Filter.FilterType.GT)
-    case GREATER_THAN_EQUAL extends OrderedComparator(Filter.FilterType.GREATER_THAN_EQUAL)
-    case GTE extends OrderedComparator(Filter.FilterType.GTE)
+enum OrderedComparator(val protobuf : FilterExpression.FilterType):
+    case LESS_THAN extends OrderedComparator(FilterExpression.FilterType.LESS_THAN)
+    case LT extends OrderedComparator(FilterExpression.FilterType.LT)
+    case LESS_THAN_EQUAL extends OrderedComparator(FilterExpression.FilterType.LESS_THAN_EQUAL)
+    case LTE extends OrderedComparator(FilterExpression.FilterType.LTE)
+    case GREATER_THAN extends OrderedComparator(FilterExpression.FilterType.GREATER_THAN)
+    case GT extends OrderedComparator(FilterExpression.FilterType.GT)
+    case GREATER_THAN_EQUAL extends OrderedComparator(FilterExpression.FilterType.GREATER_THAN_EQUAL)
+    case GTE extends OrderedComparator(FilterExpression.FilterType.GTE)
 
-enum StringComparator(val protobuf : Filter.FilterType):
-    case CONTAINS extends StringComparator(Filter.FilterType.CONTAINS)
-    case ICONTAINS extends StringComparator(Filter.FilterType.ICONTAINS)
-    case STARTS_WITH extends StringComparator(Filter.FilterType.STARTS_WITH)
-    case ISTARTS_WITH extends StringComparator(Filter.FilterType.ISTARTS_WITH)
-    case ENDS_WITH extends StringComparator(Filter.FilterType.ENDS_WITH)
-    case IENDS_WITH extends StringComparator(Filter.FilterType.IENDS_WITH)
+enum StringComparator(val protobuf : FilterExpression.FilterType):
+    case CONTAINS extends StringComparator(FilterExpression.FilterType.CONTAINS)
+    case ICONTAINS extends StringComparator(FilterExpression.FilterType.ICONTAINS)
+    case STARTS_WITH extends StringComparator(FilterExpression.FilterType.STARTS_WITH)
+    case ISTARTS_WITH extends StringComparator(FilterExpression.FilterType.ISTARTS_WITH)
+    case ENDS_WITH extends StringComparator(FilterExpression.FilterType.ENDS_WITH)
+    case IENDS_WITH extends StringComparator(FilterExpression.FilterType.IENDS_WITH)
 
 object UnaryFieldComparison:
     def evaluate(header : TableResultHeader, row : Seq[Option[TableValue]], comparator : UnaryComparator, expr : ResolvedFieldExpression) : Boolean = comparator match {
@@ -78,7 +105,7 @@ object UnaryFieldComparison:
     }
 
 final case class UnaryFieldComparison(expression : FieldExpression, comparator : UnaryComparator) extends FieldComparison:
-    lazy val protobuf: Filter.FilterExpression = Filter.FilterExpression(leftValue=Some(expression.protobuf), filterType=comparator.protobuf)
+    lazy val protobuf: Filter = Filter().withFilter(FilterExpression(leftValue=Some(expression.protobuf), filterType=comparator.protobuf))
 
     def resolve(header : TableResultHeader): ResolvedFieldComparison = {
         val resolvedExpr = expression.resolve(header)
@@ -92,7 +119,7 @@ object EqualityFieldComparison:
     }
 
 final case class EqualityFieldComparison(left : FieldExpression, comparator : EqualsComparator, right : FieldExpression) extends FieldComparison:
-    lazy val protobuf: Filter.FilterExpression = Filter.FilterExpression(leftValue=Some(left.protobuf), filterType=comparator.protobuf, rightValue=Some(right.protobuf))
+    lazy val protobuf: Filter = Filter().withFilter(FilterExpression(leftValue=Some(left.protobuf), filterType=comparator.protobuf, rightValue=Some(right.protobuf)))
 
     def resolve(header : TableResultHeader): ResolvedFieldComparison = {
         val resolvedLeft = left.resolve(header)
@@ -121,7 +148,7 @@ object OrderedFieldComparison:
     }
 
 final case class OrderedFieldComparison(left : FieldExpression, comparator : OrderedComparator, right : FieldExpression)extends FieldComparison:
-    lazy val protobuf: Filter.FilterExpression = Filter.FilterExpression(leftValue=Some(left.protobuf), filterType=comparator.protobuf, rightValue=Some(right.protobuf))    
+    lazy val protobuf: Filter = Filter().withFilter(FilterExpression(leftValue=Some(left.protobuf), filterType=comparator.protobuf, rightValue=Some(right.protobuf)))   
 
     val mappedComparator = comparator match {
         case lt @ (OrderedComparator.LESS_THAN | OrderedComparator.LT) => (x : Int) => x < 0
@@ -157,7 +184,7 @@ object StringFieldComparison:
         }
 
 final case class StringFieldComparison(left : FieldExpression, comparator : StringComparator, right : V) extends FieldComparison:
-    lazy val protobuf: Filter.FilterExpression = Filter.FilterExpression(leftValue=Some(left.protobuf), filterType=comparator.protobuf, rightValue=Some(right.protobuf))
+    lazy val protobuf: Filter = Filter().withFilter(FilterExpression(leftValue=Some(left.protobuf), filterType=comparator.protobuf, rightValue=Some(right.protobuf)))
     
     def resolve(header : TableResultHeader): ResolvedFieldComparison = {
         if !(left.doesReturnType[String](header) && right.doesReturnType[String](header)) then throw new IllegalArgumentException("Left and right expressions must return Strings in StringFieldComparison")

@@ -52,14 +52,27 @@ final case class SelectTransformation(selectColumns : NamedFieldExpression*) ext
 
 	lazy val protobuf = table_model.Table.TableTransformation().withSelect(table_model.Select(selectColumns.map(_.protobuf)))
 
-abstract final case class FilterTransformation(filters : FieldComparison*) extends TableTransformation
+object FilterTransformation:
+	def fromProtobuf(filter : table_model.Filter) : FilterTransformation = FilterTransformation(FieldComparison.fromProtobuf(filter))
 
-abstract final case class JoinTransformation(joinType : table_model.Join.JoinType, joinTable : Table) extends TableTransformation
+final case class FilterTransformation(filter : FieldComparison) extends TableTransformation:
+	def isValid(header : TableResultHeader) : Boolean = Try(filter.resolve(header)).isSuccess
 
-abstract final case class GroupByTransformation(groupByColumns : FieldExpression*) extends TableTransformation
+	def evaluate(data: TableResult): TableResult = {
+		val resolved = filter.resolve(data.header)
+		return LazyTableResult(data.header, data.rows.filter(resolved.evaluate(_)))
+	}
+
+	def outputHeaders(inputHeaders : TableResultHeader) : TableResultHeader = inputHeaders
+
+	lazy val protobuf = table_model.Table.TableTransformation().withFilter(filter.protobuf)
 
 abstract final case class AggregateTransformation(aggregateColumns : FieldExpression*) extends TableTransformation
 
 abstract final case class OrderByTransformation(orderByColumns : (FieldExpression, table_model.OrderBy.OrderByType)) extends TableTransformation
+
+abstract final case class GroupByTransformation(groupByColumns : FieldExpression*) extends TableTransformation
+
+abstract final case class JoinTransformation(joinType : table_model.Join.JoinType, joinTable : Table) extends TableTransformation
 
 abstract final case class WindowTransformation(windowFunctions : Seq[FieldExpression], partitionFields : Seq[FieldExpression], orderBy : OrderByTransformation) extends TableTransformation
