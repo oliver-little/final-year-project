@@ -1,6 +1,6 @@
 package org.oliverlittle.clusterprocess.model.table
 
-import org.oliverlittle.clusterprocess.model.field.expressions.{NamedFieldExpression, FieldExpression}
+import org.oliverlittle.clusterprocess.model.field.expressions.{NamedFieldExpression, FieldExpression, AggregateExpression}
 import org.oliverlittle.clusterprocess.model.field.comparisons.FieldComparison
 import org.oliverlittle.clusterprocess.model.table.field.{TableField, TableValue}
 import org.oliverlittle.clusterprocess.table_model
@@ -84,7 +84,17 @@ final case class FilterTransformation(filter : FieldComparison) extends TableTra
 
 	lazy val protobuf = table_model.Table.TableTransformation().withFilter(filter.protobuf)
 
-abstract final case class AggregateTransformation(aggregateColumns : FieldExpression*) extends TableTransformation
+final case class AggregateTransformation(aggregateColumns : AggregateExpression*) extends TableTransformation:
+	def isValid(header : TableResultHeader) : Boolean = Try{aggregateColumns.map(_.resolve(header))}.isSuccess
+
+	def evaluate(data : TableResult) : TableResult = {
+		val resolved = aggregateColumns.map(_.resolve(data.header))
+		return LazyTableResult(outputHeaders(data.header), Seq(resolved.map(_(data.rows))))
+	}
+
+	def outputHeaders(inputHeader : TableResultHeader) : TableResultHeader = TableResultHeader(aggregateColumns.map(_.outputTableField(inputHeader)).toSeq)
+
+	lazy val protobuf = table_model.Table.TableTransformation().withAggregate(table_model.Aggregate(aggregateColumns.map(_.protobuf)))
 
 abstract final case class OrderByTransformation(orderByColumns : (FieldExpression, table_model.OrderBy.OrderByType)) extends TableTransformation
 

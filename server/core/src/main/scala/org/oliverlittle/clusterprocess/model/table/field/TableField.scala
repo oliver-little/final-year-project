@@ -21,7 +21,6 @@ object ValueType:
 abstract class ValueType:
     type T
     val valueTag : ClassTag[T]
-    // Unsure if this is the best solution
     def compareClassTags[U](tag : ClassTag[U]) : Boolean = valueTag.equals(tag)
 
 // Interface for a field definition
@@ -62,7 +61,7 @@ object TableValue:
         case x => throw new IllegalArgumentException("Cannot convert " + x + " to TableValue.")
     }
 
-    // Extend Option[TableValue] to add protobuf conversions natively
+    // Extend Option[TableValue] to add protobuf conversions natively and comparisons
     extension (optionTableValue : Option[TableValue]) {
         def protobuf : table_model.Value = optionTableValue.map(_.protobuf) match {
             case Some(v) => v
