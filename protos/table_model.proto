@@ -152,7 +152,7 @@ message AggregateExpression {
     }
 
     AggregateType aggregate_type = 1;
-    Expression expr = 2;
+    NamedExpression expr = 2;
     optional string arg = 3; // Used for optional args - e.g: STRING_AGG delimiter
 }
 
