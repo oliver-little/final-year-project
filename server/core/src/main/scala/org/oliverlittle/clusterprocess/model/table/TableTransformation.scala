@@ -35,12 +35,28 @@ sealed trait TableTransformation:
 	def evaluate(data : TableResult) : TableResult
 
 	/**
+	  * Combines a set of partial results into a final output
+	  *
+	  * @param data An iterable containing TableResults, already partially evaluated by this transformation (field data and metadata)
+	  * @return A new iterable of the same form, with all TableResults combined
+	  */
+	def assemblePartial(data : Iterable[TableResult]) : TableResult
+
+	/**
 	 * Returns the headers that this transformation will output
 	 * 
 	 * @param inputHeaders The headers being input to this transformation
 	 * @return A TableResultHeader instance representing the output headers.
 	 */
 	def outputHeaders(inputHeaders : TableResultHeader) : TableResultHeader
+
+	/**
+	  * Returns the headers that this transformation will output when producing a partial result
+	  *
+	  * @param inputHeaders
+	  * @return
+	  */
+	def outputPartialHeaders(inputHeaders : TableResultHeader) : TableResultHeader
 
 	def protobuf : table_model.Table.TableTransformation
 
@@ -65,7 +81,11 @@ final case class SelectTransformation(selectColumns : NamedFieldExpression*) ext
 		return LazyTableResult(outputHeaders(data.header), data.rows.map(row => resolved.map(_.evaluate(row))))
 	}
 
+	def assemblePartial(data: Iterable[TableResult]): TableResult = data.reduce(_ ++ _)
+
 	def outputHeaders(inputHeaders : TableResultHeader) : TableResultHeader = TableResultHeader(selectColumns.map(_.outputTableField(inputHeaders)))
+
+	def outputPartialHeaders(inputHeaders: TableResultHeader): TableResultHeader = outputHeaders(inputHeaders)
 
 	lazy val protobuf = table_model.Table.TableTransformation().withSelect(table_model.Select(selectColumns.map(_.protobuf)))
 
@@ -80,19 +100,41 @@ final case class FilterTransformation(filter : FieldComparison) extends TableTra
 		return LazyTableResult(data.header, data.rows.filter(resolved.evaluate(_)))
 	}
 
+	def assemblePartial(data: Iterable[TableResult]): TableResult = data.reduce(_ ++ _)
+
 	def outputHeaders(inputHeaders : TableResultHeader) : TableResultHeader = inputHeaders
+
+	def outputPartialHeaders(inputHeaders: TableResultHeader): TableResultHeader = outputHeaders(inputHeaders)
 
 	lazy val protobuf = table_model.Table.TableTransformation().withFilter(filter.protobuf)
 
 final case class AggregateTransformation(aggregateColumns : AggregateExpression*) extends TableTransformation:
 	def isValid(header : TableResultHeader) : Boolean = Try{aggregateColumns.map(_.resolve(header))}.isSuccess
 
-	def evaluate(data : TableResult) : TableResult = {
-		val resolved = aggregateColumns.map(_.resolve(data.header))
-		return LazyTableResult(outputHeaders(data.header), Seq(resolved.map(_(data.rows))))
+
+	def evaluate(data : TableResult) : TableResult = LazyTableResult(
+		// Get partial headers
+		outputPartialHeaders(data.header), 
+		// For each aggregate column, calculate its output, pivot all outputs to become one row, and return this
+		Seq(aggregateColumns.map(_.resolve(data.header)(data.rows)).flatten)
+	)
+
+	def assemblePartial(data: Iterable[TableResult]): TableResult = {
+		// Sense check: do the headers of all partial results match.
+		if !data.forall(_.header == data.head.header) then throw new IllegalArgumentException("Headers of all results do not match.")
+		return LazyTableResult(
+			outputPartialHeaders(data.head.header),
+			// Lots of data pivoting going on here:
+			// Assemble takes a header (we pick the first as we know they're all the same now)
+			// We also have to give it a list of rows, but we already have a list of tables, so we append all the tables together.
+			// We then flatten the results of each aggregate output to get the final table
+			Seq(aggregateColumns.map(_.assemble(data.head.header)(data.map(_.rows).reduce(_ ++ _))).flatten)
+		)
 	}
 
-	def outputHeaders(inputHeader : TableResultHeader) : TableResultHeader = TableResultHeader(aggregateColumns.map(_.outputTableField(inputHeader)).toSeq)
+	def outputHeaders(inputHeaders : TableResultHeader) : TableResultHeader = TableResultHeader(aggregateColumns.flatMap(_.outputTableFields(inputHeaders)))
+
+	def outputPartialHeaders(inputHeaders: TableResultHeader): TableResultHeader = TableResultHeader(aggregateColumns.flatMap(_.outputPartialTableFields(inputHeaders)))
 
 	lazy val protobuf = table_model.Table.TableTransformation().withAggregate(table_model.Aggregate(aggregateColumns.map(_.protobuf)))
 
