@@ -31,4 +31,12 @@ case class Table(dataSource : DataSource, transformations : Seq[TableTransformat
         return data
     }
 
+    /**
+     *  Computes the full table result locally.
+     *  Note: the Table instance has no awareness of whether the dataSource it is using is partial or not.
+     *  For example, if you are using a CassandraDataSource with a partial TokenRange, computeFull will not
+     *  produce a complete result of the entire source Cassandra table
+     */
+    def computeFull : TableResult = assemble(Seq(computePartial))
+
     def assemble(partialResults : Iterable[TableResult]) : TableResult = transformations.last.assemblePartial(partialResults)
