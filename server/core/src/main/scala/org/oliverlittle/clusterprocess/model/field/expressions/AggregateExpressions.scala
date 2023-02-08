@@ -113,7 +113,7 @@ case class Max(namedExpression : NamedFieldExpression) extends AggregateExpressi
 case class Min(namedExpression : NamedFieldExpression) extends AggregateExpression:
     val protobufAggregateType = table_model.AggregateExpression.AggregateType.MIN
 
-    val name : String = "Max_" + namedExpression.name
+    val name : String = "Min_" + namedExpression.name
 
     def outputPartialTableFields(header : TableResultHeader) : Seq[TableField] = if namedExpression.expr.doesReturnType[String](header) then Seq(BaseStringField(name))
         else if namedExpression.expr.doesReturnType[Long](header) then Seq(BaseIntField(name))
@@ -170,7 +170,7 @@ case class Sum(namedExpression : NamedFieldExpression) extends AggregateExpressi
         if items.isEmpty then return Seq(None)
 
         return if fieldExpr.doesReturnType[Long](header) then Seq(Some(IntValue(items.map(resolved.evaluate(_).map(_.value.asInstanceOf[Long])).flatten.sum)))
-        else if fieldExpr.doesReturnType[Double](header) then Seq(Some(DoubleValue(items.map(resolved.evaluate(_).map(_.value.asInstanceOf[Long])).flatten.sum)))
+        else if fieldExpr.doesReturnType[Double](header) then Seq(Some(DoubleValue(items.map(resolved.evaluate(_).map(_.value.asInstanceOf[Double])).flatten.sum)))
         else throw new IllegalArgumentException("Cannot sum expression" + fieldExpr)
     }
 
@@ -179,9 +179,38 @@ object Avg:
     def partialAverageDouble(items : Iterable[Double]) : Seq[Option[TableValue]] = Seq(Some(DoubleValue(items.sum)), Some(IntValue(items.size)))
     def partialAverageDateTime(items : Iterable[Instant]) : Seq[Option[TableValue]] = Seq(Some(StringValue(items.map(i => BigInt(i.toEpochMilli)).sum.toString)), Some(IntValue(items.size)))
 
-    def averageLong(items : Iterable[(IntValue, IntValue)]) : DoubleValue = DoubleValue((items.map((sum, size) => BigDecimal(sum.value)).sum / items.map((sum, size) => BigDecimal(size.value)).sum).toDouble)
-    def averageDouble(items : Iterable[(DoubleValue, IntValue)]) : DoubleValue = DoubleValue((items.map((sum, size) => BigDecimal(sum.value)).sum / items.map((sum, size) => BigDecimal(size.value)).sum).toDouble)
-    def averageDateTime(items : Iterable[(StringValue, IntValue)]) : DateTimeValue = DateTimeValue(Instant.ofEpochMilli((items.map((sum, size) => BigDecimal(sum.value)).sum / items.map((sum, size) => BigDecimal(size.value)).sum).setScale(0, RoundingMode.HALF_UP).toLong))
+    def averageLong(items : Iterable[(IntValue, IntValue)]) : Option[DoubleValue] = Try{
+            Some(
+                DoubleValue(
+                    (items.map((sum, size) => 
+                        BigDecimal(sum.value)).sum / 
+                        items.map((sum, size) => BigDecimal(size.value)).sum)
+                    .toDouble
+                )
+            )
+        }.getOrElse(None)
+
+    def averageDouble(items : Iterable[(DoubleValue, IntValue)]) : Option[DoubleValue] = Try{
+            Some(
+                DoubleValue(
+                    (items.map((sum, size) => 
+                        BigDecimal(sum.value)).sum / 
+                        items.map((sum, size) => BigDecimal(size.value)).sum)
+                    .toDouble
+                )
+            )
+        }.getOrElse(None)
+    def averageDateTime(items : Iterable[(StringValue, IntValue)]) : Option[DateTimeValue] = Try{
+            Some(
+                DateTimeValue(
+                    Instant.ofEpochMilli(
+                        (items.map((sum, size) => BigDecimal(sum.value)).sum / 
+                        items.map((sum, size) => BigDecimal(size.value)).sum)
+                        .setScale(0, RoundingMode.HALF_UP).toLong
+                    )
+                )
+            )
+        }.getOrElse(None)
 
 case class Avg(namedExpression : NamedFieldExpression) extends AggregateExpression:
     val protobufAggregateType = table_model.AggregateExpression.AggregateType.AVG
@@ -197,12 +226,13 @@ case class Avg(namedExpression : NamedFieldExpression) extends AggregateExpressi
       * @return
       */
     override def outputTableFields(header : TableResultHeader) : Seq[TableField] = 
-        if header.headerIndex.contains(outputSumName) && header.headerIndex.contains(outputCountName) then
-            if namedExpression.expr.doesReturnType[Long](header) then Seq(BaseDoubleField(name))
-            else if namedExpression.expr.doesReturnType[Double](header) then Seq(BaseDoubleField(name))
-            else if namedExpression.expr.doesReturnType[Instant](header) then Seq(BaseDateTimeField(name))
-            else throw new IllegalArgumentException("FieldExpression returns invalid type: " + namedExpression.expr.toString)
-        else throw new IllegalArgumentException("Missing columns to calculate Average: " + outputSumName + " and " + outputCountName)
+        if header.headerIndex.contains(outputCountName) && header.headerMap.contains(outputSumName) then header.headerMap(outputSumName) match {
+            case _ : IntField => Seq(BaseIntField(name))
+            case _ : DoubleField => Seq(BaseDoubleField(name))
+            case _ : DateTimeField => Seq(BaseDateTimeField(name))
+            case x => throw new IllegalArgumentException("Cannot average given type " + x.toString)
+        }
+        else throw new IllegalArgumentException("Missing required  column information to calculate average.")
 
     /**
       * Partial table fields for avg is a sum and a count
@@ -210,7 +240,7 @@ case class Avg(namedExpression : NamedFieldExpression) extends AggregateExpressi
       * @param header
       * @return
       */
-    def outputPartialTableFields(header : TableResultHeader) : Seq[TableField] = if namedExpression.expr.doesReturnType[Long](header) then Seq(BaseDoubleField(outputSumName), BaseIntField(outputCountName))
+    def outputPartialTableFields(header : TableResultHeader) : Seq[TableField] = if namedExpression.expr.doesReturnType[Long](header) then Seq(BaseIntField(outputSumName), BaseIntField(outputCountName))
         else if namedExpression.expr.doesReturnType[Double](header) then Seq(BaseDoubleField(outputSumName), BaseIntField(outputCountName))
         else if namedExpression.expr.doesReturnType[Instant](header) then Seq(BaseDateTimeField(outputSumName), BaseIntField(outputCountName))
         else throw new IllegalArgumentException("FieldExpression returns invalid type: " + namedExpression.expr.toString)
@@ -229,10 +259,12 @@ case class Avg(namedExpression : NamedFieldExpression) extends AggregateExpressi
         val sumIndex = header.headerIndex(outputSumName)
         val countIndex = header.headerIndex(outputCountName)
 
-        return if namedExpression.expr.doesReturnType[Long](header) then Seq(Some(Avg.averageLong(items.map(i => (i(sumIndex).getOrElse(IntValue(0)).asInstanceOf[IntValue], i(countIndex).getOrElse(IntValue(0)).asInstanceOf[IntValue])))))
-            else if namedExpression.expr.doesReturnType[Double](header) then Seq(Some(Avg.averageDouble(items.map(i => (i(sumIndex).getOrElse(DoubleValue(0)).asInstanceOf[DoubleValue], i(countIndex).getOrElse(IntValue(0)).asInstanceOf[IntValue])))))
-            else if namedExpression.expr.doesReturnType[Instant](header) then Seq(Some(Avg.averageDateTime(items.map(i => (i(sumIndex).getOrElse(StringValue("0")).asInstanceOf[StringValue], i(countIndex).getOrElse(IntValue(0)).asInstanceOf[IntValue])))))
-            else throw new IllegalArgumentException("Cannot average expression" + namedExpression.expr)
+        return header.headerMap(outputSumName) match {
+            case _ : IntField => Seq(Avg.averageLong(items.map(i => (i(sumIndex).getOrElse(IntValue(0)).asInstanceOf[IntValue], i(countIndex).getOrElse(IntValue(0)).asInstanceOf[IntValue]))))
+            case _ : DoubleField => Seq(Avg.averageDouble(items.map(i => (i(sumIndex).getOrElse(DoubleValue(0)).asInstanceOf[DoubleValue], i(countIndex).getOrElse(IntValue(0)).asInstanceOf[IntValue]))))
+            case _ : DateTimeField => Seq(Avg.averageDateTime(items.map(i => (i(sumIndex).getOrElse(StringValue("0")).asInstanceOf[StringValue], i(countIndex).getOrElse(IntValue(0)).asInstanceOf[IntValue]))))
+            case x => throw new IllegalArgumentException("Cannot average expression with sum type: " + x.toString)
+        }
     }
 
 case class Count(namedExpression : NamedFieldExpression) extends AggregateExpression:
@@ -263,6 +295,7 @@ case class DistinctCount(namedExpression : NamedFieldExpression) extends Aggrega
     def outputPartialTableFields(header : TableResultHeader) = Seq(BaseStringField(name))
 
     def resolve(header : TableResultHeader)(items : Iterable[Seq[Option[TableValue]]]) : Seq[Option[TableValue]] = {
+        if !namedExpression.expr.isWellTyped(header) then throw new IllegalArgumentException("FieldExpression is not well typed, cannot resolve.")
         val resolved = namedExpression.expr.resolve(header)
         val uniqueItems = items.map(resolved.evaluate(_)).flatten.map(_.value.toString).toSet
         return Seq(Some(StringValue(uniqueItems.reduce(_ + delimiter + _))))
