@@ -89,10 +89,10 @@ case class Max(namedExpression : NamedFieldExpression) extends AggregateExpressi
         val resolved = fieldExpr.resolve(header)
 
         // Match on the output type of the expression, then for each row in the expression, evaluate it to its output value, remove any empty values, and calculate the maximum
-        return if namedExpression.expr.doesReturnType[Long](header) then aggregateIterableMax[IntValue](resolved)(items)
-        else if namedExpression.expr.doesReturnType[Double](header) then aggregateIterableMax[DoubleValue](resolved)(items)
-        else if namedExpression.expr.doesReturnType[String](header) then aggregateIterableMax[StringValue](resolved)(items)
-        else if namedExpression.expr.doesReturnType[Instant](header) then aggregateIterableMax[DateTimeValue](resolved)(items)
+        return if fieldExpr.doesReturnType[Long](header) then aggregateIterableMax[IntValue](resolved)(items)
+        else if fieldExpr.doesReturnType[Double](header) then aggregateIterableMax[DoubleValue](resolved)(items)
+        else if fieldExpr.doesReturnType[String](header) then aggregateIterableMax[StringValue](resolved)(items)
+        else if fieldExpr.doesReturnType[Instant](header) then aggregateIterableMax[DateTimeValue](resolved)(items)
         else throw new IllegalArgumentException("Cannot calculate max for expression" + fieldExpr)
     }
 
@@ -132,10 +132,10 @@ case class Min(namedExpression : NamedFieldExpression) extends AggregateExpressi
         val resolved = fieldExpr.resolve(header)
 
         // Match on the output type of the expression, then for each row in the expression, evaluate it to its output value, remove any empty values, and calculate the maximum
-        return if namedExpression.expr.doesReturnType[Long](header) then aggregateIterableMin[IntValue](resolved)(items)
-        else if namedExpression.expr.doesReturnType[Double](header) then aggregateIterableMin[DoubleValue](resolved)(items)
-        else if namedExpression.expr.doesReturnType[String](header) then aggregateIterableMin[StringValue](resolved)(items)
-        else if namedExpression.expr.doesReturnType[Instant](header) then aggregateIterableMin[DateTimeValue](resolved)(items)
+        return if fieldExpr.doesReturnType[Long](header) then aggregateIterableMin[IntValue](resolved)(items)
+        else if fieldExpr.doesReturnType[Double](header) then aggregateIterableMin[DoubleValue](resolved)(items)
+        else if fieldExpr.doesReturnType[String](header) then aggregateIterableMin[StringValue](resolved)(items)
+        else if fieldExpr.doesReturnType[Instant](header) then aggregateIterableMin[DateTimeValue](resolved)(items)
         else throw new IllegalArgumentException("Cannot calculate max for expression" + fieldExpr)
     }
 
