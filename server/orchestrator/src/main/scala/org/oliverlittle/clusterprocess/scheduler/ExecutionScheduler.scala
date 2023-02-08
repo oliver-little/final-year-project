@@ -14,8 +14,6 @@ object WorkExecutionScheduler {
 
     final case class ResultData(result : Option[TableResult])
 
-    val DEFAULT_ASSEMBLER : (TableResult, TableResult) => TableResult = (l, r) => l ++ r
-
     def startFromData(channelTokenRangeMap : Seq[(Seq[ChannelManager], Seq[CassandraTokenRange])], table : Table, resultCallback : TableResult => Unit) : Unit = {
         val dataSourceProtobuf = table.dataSource.getCassandraProtobuf.get
         val tableProtobuf = table.protobuf
@@ -27,25 +25,25 @@ object WorkExecutionScheduler {
             )
         )
 
-        startExecution(parsedItems, resultCallback : TableResult => Unit)
+        startExecution(parsedItems, table.transformations.last.assemblePartial, resultCallback : TableResult => Unit)
     }
 
-    def startExecution(items : Seq[(Seq[worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub], Seq[worker_query.ComputePartialResultCassandraRequest])], resultCallback : TableResult => Unit) : Unit = {
-        val system = ActorSystem(WorkExecutionScheduler(items, resultCallback), "WorkExecutionScheduler")
+    def startExecution(items : Seq[(Seq[worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub], Seq[worker_query.ComputePartialResultCassandraRequest])], assembler : Iterable[TableResult] => TableResult, resultCallback : TableResult => Unit) : Unit = {
+        val system = ActorSystem(WorkExecutionScheduler(items, assembler, resultCallback), "WorkExecutionScheduler")
     }
 
-    def apply(items : Seq[(Seq[worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub], Seq[worker_query.ComputePartialResultCassandraRequest])], resultCallback : TableResult => Unit): Behavior[AssemblerEvent] = Behaviors.setup {context =>
+    def apply(items : Seq[(Seq[worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub], Seq[worker_query.ComputePartialResultCassandraRequest])], assembler : Iterable[TableResult] => TableResult, resultCallback : TableResult => Unit): Behavior[AssemblerEvent] = Behaviors.setup {context =>
         // For each sequence of requests, create a producer (with a unique identifier)
         val mappedProducers = items.zipWithIndex.map((pair, index) => pair._1 -> context.spawn(WorkProducer(pair._2), "producer" + index.toString))
         val producers = mappedProducers.map(_._2)
         // For each possible stub, and it's matched producer, create a consumer and give it a list of producers to consume from
         val consumers = mappedProducers.map((stubs, producerRef) => stubs.zipWithIndex.map((stub, index) => context.spawn(WorkConsumer(stub, producerRef +: producers.filter(_ == producerRef), context.self), "consumer" + index.toString))).flatten
         
-        new WorkExecutionScheduler(items.map(_._2.size).sum, resultCallback, WorkExecutionScheduler.DEFAULT_ASSEMBLER, context).getFirstData()
+        new WorkExecutionScheduler(items.map(_._2.size).sum, resultCallback, assembler, context).getFirstData()
     }
 }
 
-class WorkExecutionScheduler private (expectedResponses : Int, resultCallback : TableResult => Unit, assembler : (TableResult, TableResult) => TableResult, context : ActorContext[WorkExecutionScheduler.AssemblerEvent]) {
+class WorkExecutionScheduler private (expectedResponses : Int, resultCallback : TableResult => Unit, assembler : Iterable[TableResult] => TableResult, context : ActorContext[WorkExecutionScheduler.AssemblerEvent]) {
     import WorkExecutionScheduler._
 
     /**
@@ -55,19 +53,19 @@ class WorkExecutionScheduler private (expectedResponses : Int, resultCallback : 
         case SendResult(newResult) => 
             if expectedResponses == 1 then 
                 onFinished(newResult)
-            else assembleData(newResult, 1)
+            else assembleData(Seq(newResult), 1)
     }
 
     /**
      *  Handles receiving all subsequent responses from consumers until expectedResponses is reached
      */
-    private def assembleData(currentData : TableResult, numResponses : Int) : Behavior[WorkExecutionScheduler.AssemblerEvent] = Behaviors.receiveMessage {
+    private def assembleData(currentData : Seq[TableResult], numResponses : Int) : Behavior[WorkExecutionScheduler.AssemblerEvent] = Behaviors.receiveMessage {
         case SendResult(newResult) => 
             if numResponses + 1 == expectedResponses then
-                onFinished(assembler(currentData, newResult))
+                onFinished(assembler(currentData :+ newResult))
             else
                 context.log.info("Got " + (numResponses + 1).toString + " responses, need " + expectedResponses.toString + " responses")
-                assembleData(assembler(currentData, newResult), numResponses + 1)
+                assembleData(currentData :+ newResult, numResponses + 1)
     }
 
     /**

@@ -23,10 +23,12 @@ case class Table(dataSource : DataSource, transformations : Seq[TableTransformat
         return validStages.size == transformations.size
     }
 
-    def compute : TableResult = {
+    def computePartial : TableResult = {
         var data = dataSource.getData
         for (transformation <- transformations) {
             data = transformation.evaluate(data)
         }
         return data
     }
+
+    def assemble(partialResults : Iterable[TableResult]) : TableResult = transformations.last.assemblePartial(partialResults)
