@@ -87,7 +87,6 @@ sealed trait TableValue extends ValueType:
     lazy val innerValueProtobuf : table_model.Value.Value
     lazy val protobuf : table_model.Value = table_model.Value(value = innerValueProtobuf)
 
-
 trait IntType extends ValueType:
     type T = Long
     val valueTag : ClassTag[Long] = classTag[Long]
@@ -99,8 +98,10 @@ trait IntField extends TableField with IntType:
 
 case class BaseIntField(name : String) extends IntField
     
-case class IntValue(value : Long) extends TableValue with IntType:
+case class IntValue(value : Long) extends TableValue with IntType with Ordered[IntValue]:
     lazy val innerValueProtobuf : table_model.Value.Value = table_model.Value.Value.Int(value)
+
+    override def compare(that: IntValue): Int = value.compare(that.value)
 
 
 trait DoubleType extends ValueType:
@@ -114,9 +115,10 @@ trait DoubleField extends TableField with DoubleType:
 
 case class BaseDoubleField(name : String) extends DoubleField
     
-case class DoubleValue(value : Double) extends TableValue with DoubleType:
+case class DoubleValue(value : Double) extends TableValue with DoubleType with Ordered[DoubleValue]:
     lazy val innerValueProtobuf : table_model.Value.Value = table_model.Value.Value.Double(value)
 
+    override def compare(that: DoubleValue): Int = value.compare(that.value)
 
 trait StringType extends ValueType:
     type T = String
@@ -129,8 +131,10 @@ trait StringField extends TableField with StringType:
 
 case class BaseStringField(name : String) extends StringField
 
-case class StringValue(value : String) extends TableValue with StringType:
+case class StringValue(value : String) extends TableValue with StringType with Ordered[StringValue]:
     lazy val innerValueProtobuf : table_model.Value.Value = table_model.Value.Value.String(value)
+
+    override def compare(that: StringValue): Int = value.compare(that.value)
 
 
 trait BoolType extends ValueType:
@@ -159,5 +163,7 @@ trait DateTimeField extends TableField with DateTimeType:
 
 final case class BaseDateTimeField(name : String) extends DateTimeField
 
-final case class DateTimeValue(value : Instant) extends TableValue with DateTimeType:
+final case class DateTimeValue(value : Instant) extends TableValue with DateTimeType with Ordered[DateTimeValue]:
     lazy val innerValueProtobuf : table_model.Value.Value = table_model.Value.Value.Datetime(value.toString())
+
+    override def compare(that: DateTimeValue): Int = value.compareTo(that.value)

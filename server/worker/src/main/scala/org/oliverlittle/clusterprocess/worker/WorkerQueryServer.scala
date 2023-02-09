@@ -56,7 +56,7 @@ class WorkerQueryServer(executionContext: ExecutionContext, connector : Cassandr
             if !table.isValid then responseObserver.onError(new IllegalArgumentException("Table cannot be computed."))
             
             WorkerQueryServer.logger.info("Computing table result")
-            val result = table.compute
+            val result = table.computePartial
             WorkerQueryServer.logger.info("Table result ready.")
 
             // Able to make this unchecked cast because this is a response from a server

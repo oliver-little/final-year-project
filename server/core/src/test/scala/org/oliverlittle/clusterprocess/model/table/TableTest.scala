@@ -23,11 +23,11 @@ class TableSpec extends UnitSpec {
 
     it should "compute a single transformation correctly" in {
         val table = Table(MockDataSource(), Seq(SelectTransformation(AddInt(F("a"), V(1)).as("a"))))
-        table.compute should be (LazyTableResult(TableResultHeader(Seq(BaseIntField("a"))), Seq(Seq(Some(IntValue(3))))))
+        table.computePartial should be (LazyTableResult(TableResultHeader(Seq(BaseIntField("a"))), Seq(Seq(Some(IntValue(3))))))
     }
 
     it should "compute sequential transformations correctly" in {
         val table = Table(MockDataSource(), Seq(SelectTransformation(AddInt(F("a"), V(1)).as("a")), SelectTransformation(AddInt(F("a"), V(-3)).as("b"))))
-        table.compute should be (LazyTableResult(TableResultHeader(Seq(BaseIntField("b"))), Seq(Seq(Some(IntValue(0))))))
+        table.computePartial should be (LazyTableResult(TableResultHeader(Seq(BaseIntField("b"))), Seq(Seq(Some(IntValue(0))))))
     }
 }
