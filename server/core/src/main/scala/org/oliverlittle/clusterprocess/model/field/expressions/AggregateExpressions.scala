@@ -8,6 +8,7 @@ import scala.math.max
 import scala.util.{Try, Success, Failure}
 import java.time.Instant
 import BigDecimal._
+import java.util.regex.Pattern
 
 object AggregateExpression:
     def fromProtobuf(expr : table_model.AggregateExpression) : AggregateExpression = expr.aggregateType match {
@@ -274,7 +275,12 @@ case class Count(namedExpression : NamedFieldExpression) extends AggregateExpres
 
     def outputPartialTableFields(header : TableResultHeader) = Seq(BaseIntField(name))
 
-    def resolve(header : TableResultHeader)(items : Iterable[Seq[Option[TableValue]]]) : Seq[Option[TableValue]] = Seq(Some(IntValue(items.size)))
+    def resolve(header : TableResultHeader)(items : Iterable[Seq[Option[TableValue]]]) : Seq[Option[TableValue]] = {
+        if !namedExpression.expr.isWellTyped(header) then throw new IllegalArgumentException("FieldExpression is not well typed, cannot resolve.")
+        val resolved = namedExpression.expr.resolve(header)
+        val itemCount = items.map(resolved.evaluate(_)).flatten.size
+        return Seq(Some(IntValue(itemCount)))
+    }
 
     def assemble(header: TableResultHeader)(items: Iterable[Seq[Option[TableValue]]]): Seq[Option[TableValue]] = {
         val resolved = F(name).resolve(header)
@@ -288,9 +294,14 @@ case class DistinctCount(namedExpression : NamedFieldExpression) extends Aggrega
 
     // Attempting to choose a nonsense delimiter that shouldn't come up in real text
     // Need a better solution than this
-    val delimiter : String = "£&>^"
+    val delimiter : String = ">^<"
 
     val name : String = "CountDistinct_" + namedExpression.name
+
+    override def outputTableFields(header : TableResultHeader) = header.headerMap(name) match {
+        case _ : StringField => Seq(BaseIntField(name))
+        case x => throw new IllegalArgumentException("Invalid field type for partial DistinctCount" + x.toString)
+    }
 
     def outputPartialTableFields(header : TableResultHeader) = Seq(BaseStringField(name))
 
@@ -298,14 +309,14 @@ case class DistinctCount(namedExpression : NamedFieldExpression) extends Aggrega
         if !namedExpression.expr.isWellTyped(header) then throw new IllegalArgumentException("FieldExpression is not well typed, cannot resolve.")
         val resolved = namedExpression.expr.resolve(header)
         val uniqueItems = items.map(resolved.evaluate(_)).flatten.map(_.value.toString).toSet
-        return Seq(Some(StringValue(uniqueItems.reduce(_ + delimiter + _))))
+        return Seq(Some(StringValue(uniqueItems.reduceOption(_ + delimiter + _).getOrElse(""))))
     }
 
     def assemble(header: TableResultHeader)(items: Iterable[Seq[Option[TableValue]]]): Seq[Option[TableValue]] = {
         val resolved = F(name).resolve(header)
 
         // Parse all delimited strings to get unique items
-        val uniqueItems = items.map(resolved.evaluate(_)).flatten.map(_.value.asInstanceOf[String].split(delimiter)).flatten.toSet
+        val uniqueItems = items.map(resolved.evaluate(_)).flatten.map(_.asInstanceOf[StringValue].value.split(Pattern.quote(delimiter))).flatten.toSet
 
         return Seq(Some(IntValue(uniqueItems.size)))
     }
@@ -352,7 +363,7 @@ case class DistinctStringConcat(namedExpression : NamedFieldExpression, delimite
 
     def assemble(header: TableResultHeader)(items: Iterable[Seq[Option[TableValue]]]): Seq[Option[TableValue]] = {
         val resolved = F(name).resolve(header)
-        return items.map(resolved.evaluate(_)).flatten.flatMap(_.value.asInstanceOf[String].split(delimiter)).toSet.reduceOption(_ + delimiter + _) match {
+        return items.map(resolved.evaluate(_)).flatten.flatMap(_.value.asInstanceOf[String].split(Pattern.quote(delimiter))).toSet.reduceOption(_ + delimiter + _) match {
             case Some(s) => Seq(Some(StringValue(s)))
             case None => Seq(None)
         }

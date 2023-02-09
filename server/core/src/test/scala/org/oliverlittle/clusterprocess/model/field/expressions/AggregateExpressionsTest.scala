@@ -342,4 +342,202 @@ class AvgTest extends UnitSpec {
     }
 }
 
-// TODO: Count (Distinct), String Concat (Distinct)
+class CountTest extends UnitSpec {
+    "A CountExpression" should "convert to protobuf correctly" in {
+        val namedExpression = table_model.NamedExpression("name", Some(table_model.Expression().withValue(table_model.Value().withField("name"))))
+        Count(F("name")).protobuf should be (table_model.AggregateExpression(table_model.AggregateExpression.AggregateType.COUNT, Some(namedExpression)))
+    }
+
+    it should "output a correct partial table field based on the input type" in {
+        val inputResults = Map(
+            Seq(BaseStringField("name")) -> Seq(BaseIntField("Count_name")),
+            Seq(BaseIntField("name")) -> Seq(BaseIntField("Count_name")),
+            Seq(BaseDoubleField("name")) -> Seq(BaseIntField("Count_name")),
+            Seq(BaseDateTimeField("name")) -> Seq(BaseIntField("Count_name")),
+            Seq(BaseBoolField("name")) -> Seq(BaseIntField("Count_name")),
+        )
+
+        inputResults.foreach((i, o) => Count(F("name")).outputPartialTableFields(TableResultHeader(i)) should be (o))
+    }
+
+    it should "output a correct final table field based on the input type" in {
+        val inputResults = Map(
+            Seq(BaseIntField("Count_name")) -> Seq(BaseIntField("Count_name"))
+        )
+
+        inputResults.foreach((i, o) => Count(F("name")).outputTableFields(TableResultHeader(i)) should be (o))
+    }
+
+    it should "produce a partial result" in {
+        val inputResults : Seq[(TableResultHeader, Seq[Seq[Option[TableValue]]], Seq[Option[TableValue]])] = Seq(
+            (TableResultHeader(Seq(BaseStringField("name"))), Seq(Seq(Some(StringValue("a"))), Seq(Some(StringValue("b"))), Seq(Some(StringValue("a")))), Seq(Some(IntValue(3))))
+        )
+
+        inputResults.foreach((header, items, output) => Count(F("name")).resolve(header)(items) should be (output))
+    }
+
+    it should "exclude None from counts" in {
+        val inputResults : Seq[(TableResultHeader, Seq[Seq[Option[TableValue]]], Seq[Option[TableValue]])] = Seq(
+            (TableResultHeader(Seq(BaseStringField("name"))), Seq(Seq(None), Seq(None), Seq(None)), Seq(Some(IntValue(0)))),
+
+        )
+
+        inputResults.foreach((header, items, output) => Count(F("name")).resolve(header)(items) should be (output))
+    }
+
+    it should "produce a final result" in {
+        val inputResults : Seq[(TableResultHeader, Seq[Seq[Option[TableValue]]], Seq[Option[TableValue]])] = Seq(
+            (TableResultHeader(Seq(BaseIntField("Count_name"))), Seq(Seq(Some(IntValue(3))), Seq(Some(IntValue(3)))), Seq(Some(IntValue(6)))),
+        )
+
+        inputResults.foreach((header, items, output) => Count(F("name")).assemble(header)(items) should be (output))
+    }
+}
+
+class DistinctCountTest extends UnitSpec {
+    "A CountExpression" should "convert to protobuf correctly" in {
+        val namedExpression = table_model.NamedExpression("name", Some(table_model.Expression().withValue(table_model.Value().withField("name"))))
+        DistinctCount(F("name")).protobuf should be (table_model.AggregateExpression(table_model.AggregateExpression.AggregateType.COUNT_DISTINCT, Some(namedExpression)))
+    }
+
+    it should "output a correct partial table field based on the input type" in {
+        val inputResults = Map(
+            Seq(BaseStringField("name")) -> Seq(BaseStringField("CountDistinct_name")),
+            Seq(BaseIntField("name")) -> Seq(BaseStringField("CountDistinct_name")),
+            Seq(BaseDoubleField("name")) -> Seq(BaseStringField("CountDistinct_name")),
+            Seq(BaseDateTimeField("name")) -> Seq(BaseStringField("CountDistinct_name")),
+            Seq(BaseBoolField("name")) -> Seq(BaseStringField("CountDistinct_name")),
+        )
+
+        inputResults.foreach((i, o) => DistinctCount(F("name")).outputPartialTableFields(TableResultHeader(i)) should be (o))
+    }
+
+    it should "output a correct final table field based on the input type" in {
+        val inputResults = Map(
+            Seq(BaseStringField("CountDistinct_name")) -> Seq(BaseIntField("CountDistinct_name"))
+        )
+
+        inputResults.foreach((i, o) => DistinctCount(F("name")).outputTableFields(TableResultHeader(i)) should be (o))
+    }
+
+    it should "produce a partial result" in {
+        val inputResults : Seq[(TableResultHeader, Seq[Seq[Option[TableValue]]], Seq[Option[TableValue]])] = Seq(
+            (TableResultHeader(Seq(BaseStringField("name"))), Seq(Seq(Some(StringValue("a"))), Seq(Some(StringValue("b"))), Seq(Some(StringValue("a")))), Seq(Some(StringValue("a>^<b"))))
+        )
+
+        inputResults.foreach((header, items, output) => DistinctCount(F("name")).resolve(header)(items) should be (output))
+    }
+
+    it should "exclude None from concatenations" in {
+        val inputResults : Seq[(TableResultHeader, Seq[Seq[Option[TableValue]]], Seq[Option[TableValue]])] = Seq(
+            (TableResultHeader(Seq(BaseStringField("name"))), Seq(Seq(None), Seq(None), Seq(None)), Seq(Some(StringValue("")))),
+
+        )
+
+        inputResults.foreach((header, items, output) => DistinctCount(F("name")).resolve(header)(items) should be (output))
+    }
+
+    it should "produce a final result" in {
+        val inputResults : Seq[(TableResultHeader, Seq[Seq[Option[TableValue]]], Seq[Option[TableValue]])] = Seq(
+            (TableResultHeader(Seq(BaseIntField("CountDistinct_name"))), Seq(Seq(Some(StringValue("a>^<b"))), Seq(Some(StringValue("c>^<d>^<e")))), Seq(Some(IntValue(5)))),
+        )
+
+        inputResults.foreach((header, items, output) => DistinctCount(F("name")).assemble(header)(items) should be (output))
+    }
+}
+
+class StringConcatTest extends UnitSpec {
+    "A CountExpression" should "convert to protobuf correctly" in {
+        val namedExpression = table_model.NamedExpression("name", Some(table_model.Expression().withValue(table_model.Value().withField("name"))))
+        StringConcat(F("name"), ",").protobuf should be (table_model.AggregateExpression(table_model.AggregateExpression.AggregateType.STRING_CONCAT, Some(namedExpression), Some(",")))
+    }
+
+    it should "output a correct partial table field based on the input type" in {
+        val inputResults = Map(
+            Seq(BaseStringField("name")) -> Seq(BaseStringField("StringConcat_name"))
+        )
+
+        inputResults.foreach((i, o) => StringConcat(F("name"), ",").outputPartialTableFields(TableResultHeader(i)) should be (o))
+    }
+
+    it should "output a correct final table field based on the input type" in {
+        val inputResults = Map(
+            Seq(BaseStringField("StringConcat_name")) -> Seq(BaseStringField("StringConcat_name"))
+        )
+
+        inputResults.foreach((i, o) => StringConcat(F("name"), ",").outputTableFields(TableResultHeader(i)) should be (o))
+    }
+
+    it should "produce a partial result" in {
+        val inputResults : Seq[(TableResultHeader, Seq[Seq[Option[TableValue]]], Seq[Option[TableValue]])] = Seq(
+            (TableResultHeader(Seq(BaseStringField("name"))), Seq(Seq(Some(StringValue("a"))), Seq(Some(StringValue("b"))), Seq(Some(StringValue("a")))), Seq(Some(StringValue("a,b,a"))))
+        )
+
+        inputResults.foreach((header, items, output) => StringConcat(F("name"), ",").resolve(header)(items) should be (output))
+    }
+
+    it should "return None if all elements are None" in {
+        val inputResults : Seq[(TableResultHeader, Seq[Seq[Option[TableValue]]], Seq[Option[TableValue]])] = Seq(
+            (TableResultHeader(Seq(BaseStringField("name"))), Seq(Seq(None), Seq(None), Seq(None)), Seq(None))
+
+        )
+
+        inputResults.foreach((header, items, output) => StringConcat(F("name"), ",").resolve(header)(items) should be (output))
+    }
+
+    it should "produce a final result" in {
+        val inputResults : Seq[(TableResultHeader, Seq[Seq[Option[TableValue]]], Seq[Option[TableValue]])] = Seq(
+            (TableResultHeader(Seq(BaseIntField("StringConcat_name"))), Seq(Seq(Some(StringValue("a,b,a"))), Seq(Some(StringValue("c,e")))), Seq(Some(StringValue("a,b,a,c,e"))))
+        )
+
+        inputResults.foreach((header, items, output) => StringConcat(F("name"), ",").assemble(header)(items) should be (output))
+    }
+}
+
+class DistinctStringConcatTest extends UnitSpec {
+    "A CountExpression" should "convert to protobuf correctly" in {
+        val namedExpression = table_model.NamedExpression("name", Some(table_model.Expression().withValue(table_model.Value().withField("name"))))
+        DistinctStringConcat(F("name"), ",").protobuf should be (table_model.AggregateExpression(table_model.AggregateExpression.AggregateType.STRING_CONCAT_DISTINCT, Some(namedExpression), Some(",")))
+    }
+
+    it should "output a correct partial table field based on the input type" in {
+        val inputResults = Map(
+            Seq(BaseStringField("name")) -> Seq(BaseStringField("StringConcatDistinct_name"))
+        )
+
+        inputResults.foreach((i, o) => DistinctStringConcat(F("name"), ",").outputPartialTableFields(TableResultHeader(i)) should be (o))
+    }
+
+    it should "output a correct final table field based on the input type" in {
+        val inputResults = Map(
+            Seq(BaseStringField("StringConcatDistinct_name")) -> Seq(BaseStringField("StringConcatDistinct_name"))
+        )
+
+        inputResults.foreach((i, o) => DistinctStringConcat(F("name"), ",").outputTableFields(TableResultHeader(i)) should be (o))
+    }
+
+    it should "produce a partial result" in {
+        val inputResults : Seq[(TableResultHeader, Seq[Seq[Option[TableValue]]], Seq[Option[TableValue]])] = Seq(
+            (TableResultHeader(Seq(BaseStringField("name"))), Seq(Seq(Some(StringValue("a"))), Seq(Some(StringValue("b"))), Seq(Some(StringValue("a")))), Seq(Some(StringValue("a,b"))))
+        )
+
+        inputResults.foreach((header, items, output) => DistinctStringConcat(F("name"), ",").resolve(header)(items) should be (output))
+    }
+
+    it should "return None if all elements are None" in {
+        val inputResults : Seq[(TableResultHeader, Seq[Seq[Option[TableValue]]], Seq[Option[TableValue]])] = Seq(
+            (TableResultHeader(Seq(BaseStringField("name"))), Seq(Seq(None), Seq(None), Seq(None)), Seq(None))
+
+        )
+
+        inputResults.foreach((header, items, output) => DistinctStringConcat(F("name"), ",").resolve(header)(items) should be (output))
+    }
+
+    it should "produce a final result" in {
+        val inputResults : Seq[(TableResultHeader, Seq[Seq[Option[TableValue]]], Seq[Option[TableValue]])] = Seq(
+            (TableResultHeader(Seq(BaseIntField("StringConcatDistinct_name"))), Seq(Seq(Some(StringValue("a,b"))), Seq(Some(StringValue("a,e")))), Seq(Some(StringValue("a,b,e"))))
+        )
+
+        inputResults.foreach((header, items, output) => DistinctStringConcat(F("name"), ",").assemble(header)(items) should be (output))
+    }
+}
