@@ -1,25 +1,48 @@
 \chapter{Introduction}
 
+% Very high level overview of project aims
+
 \section{Background}
 
-Data processing is required in some form by nearly every modern business. Commercial solutions exist to solve this problem for businesses of all sizes, but this project will explore solutions for doing this with datasets that are larger than the internal memory of most systems.
-
-\subsection{Project Aims}
-
-% High level aim
-The aim of this project is to create a software tool to transform and process tabular data across a distributed cluster of worker nodes. 
-
-% Larger than memory datasets, difficulties
-The datasets I worked with were usually 100GB in size or more, distributed over a number of source files. For many computers, this is too much data to keep in RAM all at once. In my role, the solution was to have a small number powerful SQL servers with a large amount of RAM which a number of users could connect to and perform their work on. This solution worked reasonably well for my use case, but executing scripts on the largest datasets could take upwards of a day. Furthermore, while a robust backup solution was in place for existing data, there was a risk of data loss while the execution was ongoing in the event of a server failure.
-
-% Other difficulties
-
-% Specific use case, don't highlight on this too much
-
-% Significance, why important
+% Why is this area important, why am I investigating it
+% More general big data references here - difficulties faced due to larger than memory data sets
+% References to ETL if possible, and how this is an increasingly important workflow.
 
 \section{Prior Work}
 % Literature review
-% Surrounding work - pretty much anything related to distributed systems and ETL that could be useful
-% MapReduce
-% Spark
+% General topics within distributed data processing
+
+Distributed Data Processing has existed conceptually since as early as the 1970s. An paper by Philip Enslow Jr. from this period \cite{enslow1978distributed} sets out characteristics across three 'dimensions' of decentralisation - hardware, control and database. Enslow argued that these dimensions defined a distributed system, while also acknowledging that the technology of the period was not equipped to fulfil the goals he laid out.
+
+Research into solutions for distributed data processing has generally resulted in two kinds of solutions \cite{yaqoob2016big}:
+\begin{itemize}
+	\item \textbf{Batch processing:} where data is gathered, processed and output all at the same time. This includes solutions like MapReduce \cite{dean2008mapreduce} and Spark \cite{zaharia2016spark}, and works best for data that can be considered 'complete' at some stage.
+	\item \textbf{Stream processing:} data is processed and output as it arrives. This includes solutions like Apache Flink \cite{carbone2015flink}, Storm \cite{toshniwal2014storm}, and Spark Streaming \cite{armbrust2018sparkstreaming}, and works best for data that is being constantly generated, and needs to be analysed as it arrives.
+\end{itemize}
+
+MapReduce, a framework introduced by Google \cite{dean2008mapreduce} in the mid 2000s could be considered the breakthrough framework for performing massively scalable, parallelised data processing. This framework later became one of the core modules for the Apache Hadoop suite of tools. It provided a simple API, where developers could describe a job as a \textit{map} and a \textit{reduce} step, and the framework would handle the specifics of the distributed system. 
+
+While MapReduce was Google's offering, other large technology companies had similar solutions, including Microsoft, who created DryadLINQ in 2009 \cite{fetterly2009dryadlinq}. However, due to the massive success of MapReduce, Microsoft discontinued DryadLINQ in 2011.
+
+MapReduce was not without flaws, and many papers were published in the years following its initial release which performed performance benchmarks, and analysed its strengths and weaknesses \cite{lee2012parallel}. Crucially, MapReduce appears to particularly struggle with iterative algorithms, like the PageRank algorithm used by Google's own search engine. A number of popular extensions to MapReduce were introduced to improve the performance on iterative algorithms, like Twister \cite{ekanayake2010twister} and HaLoop \cite{bu2010haloop} both in 2010. 
+
+MapReduce's popularity also resulted in a number of tools being created to improve its usability and accessibility. Hive \cite{thusoo2010hive} is one such tool, which features SQL-like language called HiveQL to allow users to write declarative programs that compiled into MapReduce jobs. Pig Latin \cite{olston2008pig} is similar, and features a mixed declarative and imperative language style that again compiles down into MapReduce jobs. 
+
+Further tools in the wider areas of the field were introduced around 2010, including another project by Google named Pregel \cite{malewicz2010pregel}, specialised for performing distributed data processing on large-scale graphs.
+
+% Spark - initial creation, talk specifically about RDDs
+In 2010, the first paper on Spark \cite{zaharia2010spark} was released. Spark aims to improve upon MapReduce's weaknesses, by storing data in memory, and providing fault tolerance by tracking the 'lineage' of data. This means for any set of data, Spark knows how the data was constructed from another persistent, fault tolerant data source, and can use that to reconstruct any lost data in the event of failure. This in-memory storage, known as a resilient distributed dataset (RDD) \cite{zaharia2012rdd} allows Spark to improve on MapReduce's performance for iterative jobs, whilst also allowing it to quickly perform ad-hoc queries.  Effectively, Spark is strong at performing long batch jobs, as well as short interactive queries. This is something that I would like my solution to feature, as users of the framework will need to design long-running scripts to run on large amounts of data, as well as run ad-hoc queries to perform investigation.
+
+% Spark - extensions - SQL, Streaming
+Spark quickly grew in popularity, with a number of extensions being added to improve its usability, including a SQL-style engine with a query optimiser \cite{armbrust2015sparksql}, as well as an engine to modify Spark to support stream processing \cite{armbrust2018sparkstreaming}. A second paper released in 2016 \cite{zaharia2016spark} stated that Spark was in use in thousands of organisations, with the largest deployment running an 8,000 node cluster holding 100PB of data. 
+% TODO: reference this claim
+One area where Spark struggles is with grouped data, as performing grouped operations requires shuffling the data between all nodes. I aim to improve upon this in my solution through the design of the system as a whole.
+
+% Stream processing tools - not entirely what I'm looking at, but still within the field - Kafka, Storm
+More recent research indicates that the future of the field is moving away from batch processing, and towards stream processing for data that is constantly being generated. A 2015 paper by Google \cite{akidau2015dataflow} argues that the volumes of data, the fact that datasets can no longer ever be considered 'complete', along with demands for improved insight into the data means that streaming 'dataflow' models are the way forward. Google publicly stated in their 2014 'Google I/O' Keynote \cite{googleio2014} that they were phasing out MapReduce in their internal systems. The data I will be using is not being received at this constant rate, and as such designing for a streaming solution is not required in this case.
+
+\section{Project Aims}
+
+% Reiterate high level aim, explain how my solution will differ from prior work discussed
+% Focus on grouped data, and improving access efficiency for that
+% Easy-to-use Python interface

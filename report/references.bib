@@ -1,4 +1,8 @@
-@article{zaharia2016apache,
+% Spark related references
+
+% General Spark
+% Overview of all spark tooling 2010-2016
+@article{zaharia2016spark,
 	title={Apache spark: a unified engine for big data processing},
 	author={Zaharia, Matei and Xin, Reynold S and Wendell, Patrick and Das, Tathagata and Armbrust, Michael and Dave, Ankur and Meng, Xiangrui and Rosen, Josh and Venkataraman, Shivaram and Franklin, Michael J and others},
 	journal={Communications of the ACM},
@@ -7,16 +11,52 @@
 	pages={56--65},
 	year={2016},
 	publisher={ACM New York, NY, USA},
-	doi = {10.1145/2934664}
+	doi = {10.1145/2934664},
+	url = {https://doi.org/10.1145/2934664}
 }
 
+% Introductory paper
 @inproceedings{zaharia2010spark,
 	title={Spark: Cluster computing with working sets},
 	author={Zaharia, Matei and Chowdhury, Mosharaf and Franklin, Michael J and Shenker, Scott and Stoica, Ion},
 	booktitle={2nd USENIX Workshop on Hot Topics in Cloud Computing (HotCloud 10)},
-	year={2010}
+	year={2010},
+	url = {https://www.usenix.org/event/hotcloud10/tech/full_papers/Zaharia.pdf},
 }
 
+% Introduces RDDs
+@inproceedings{zaharia2012rdd,
+	title={Resilient distributed datasets: A fault-tolerant abstraction for in-memory cluster computing},
+	author={Zaharia, Matei and Chowdhury, Mosharaf and Das, Tathagata and Dave, Ankur and Ma, Justin and McCauly, Murphy and Franklin, Michael J and Shenker, Scott and Stoica, Ion},
+	booktitle={Presented as part of the 9th $\{$USENIX$\}$ Symposium on Networked Systems Design and Implementation ($\{$NSDI$\}$ 12)},
+	pages={15--28},
+	year={2012}
+}
+
+% Spark SQL
+@inproceedings{armbrust2015sparksql,
+	title={Spark sql: Relational data processing in spark},
+	author={Armbrust, Michael and Xin, Reynold S and Lian, Cheng and Huai, Yin and Liu, Davies and Bradley, Joseph K and Meng, Xiangrui and Kaftan, Tomer and Franklin, Michael J and Ghodsi, Ali and others},
+	booktitle={Proceedings of the 2015 ACM SIGMOD international conference on management of data},
+	pages={1383--1394},
+	year={2015},
+	doi = {10.1145/2723372.2742797},
+	url = {https://doi.org/10.1145/2723372.2742797}
+}
+
+@inproceedings{xin2013shark,
+	title={Shark: SQL and rich analytics at scale},
+	author={Xin, Reynold S and Rosen, Josh and Zaharia, Matei and Franklin, Michael J and Shenker, Scott and Stoica, Ion},
+	booktitle={Proceedings of the 2013 ACM SIGMOD International Conference on Management of data},
+	pages={13--24},
+	year={2013},
+	doi = {10.1145/2463676.2465288},
+	url = {https://doi.org/10.1145/2463676.2465288},
+}
+
+
+% MapReduce related references
+% Introductory paper
 @article{dean2008mapreduce,
 	title={MapReduce: simplified data processing on large clusters},
 	author={Dean, Jeffrey and Ghemawat, Sanjay},
@@ -25,5 +65,397 @@
 	number={1},
 	pages={107--113},
 	year={2008},
-	publisher={ACM New York, NY, USA}
+	publisher={ACM New York, NY, USA},
+	doi = {10.1145/1327452.1327492},
+	url = {https://doi.org/10.1145/1327452.1327492}
+}
+
+% Some introduction, mostly discusses comparison 2009 paper below
+@article{dean2010mapreduce,
+	title={MapReduce: a flexible data processing tool},
+	author={Dean, Jeffrey and Ghemawat, Sanjay},
+	journal={Communications of the ACM},
+	volume={53},
+	number={1},
+	pages={72--77},
+	year={2010},
+	publisher={ACM New York, NY, USA},
+	doi = {10.1145/1629175.1629198},
+	url = {https://doi.org/10.1145/1629175.1629198}
+}
+
+% Criticised by MapReduce 2010 above
+@inproceedings{pavlo2009comparison,
+	title={A comparison of approaches to large-scale data analysis},
+	author={Pavlo, Andrew and Paulson, Erik and Rasin, Alexander and Abadi, Daniel J and DeWitt, David J and Madden, Samuel and Stonebraker, Michael},
+	booktitle={Proceedings of the 2009 ACM SIGMOD International Conference on Management of data},
+	pages={165--178},
+	year={2009},
+	doi = {10.1145/1559845.1559865},
+	url = {https://doi.org/10.1145/1559845.1559865}
+}
+
+% Discussion of advantages and disadvantages of MapReduce
+@article{lee2012parallel,
+	title={Parallel data processing with MapReduce: a survey},
+	author={Lee, Kyong-Ha and Lee, Yoon-Joon and Choi, Hyunsik and Chung, Yon Dohn and Moon, Bongki},
+	journal={AcM sIGMoD record},
+	volume={40},
+	number={4},
+	pages={11--20},
+	year={2012},
+	publisher={ACM New York, NY, USA},
+	doi = {10.1145/2094114.2094118},
+	url = {https://doi.org/10.1145/2094114.2094118}
+}
+
+% Another review of MapReduce, bibliographic analysis and analysis of extensions
+@article{hashem2016mapreduce,
+	title={MapReduce: Review and open challenges},
+	author={Hashem, Ibrahim Abaker Targio and Anuar, Nor Badrul and Gani, Abdullah and Yaqoob, Ibrar and Xia, Feng and Khan, Samee Ullah},
+	journal={Scientometrics},
+	volume={109},
+	pages={389--422},
+	year={2016},
+	publisher={Springer}
+} 
+
+% Study of MapReduce performance, argues against issues stated in Comparison 2009 paper above
+@article{jiang2010performance,
+	title={The performance of mapreduce: An in-depth study},
+	author={Jiang, Dawei and Ooi, Beng Chin and Shi, Lei and Wu, Sai},
+	journal={Proceedings of the VLDB Endowment},
+	volume={3},
+	number={1-2},
+	pages={472--483},
+	year={2010},
+	publisher={VLDB Endowment},
+	doi = {10.14778/1920841.1920903},
+	url = {https://doi.org/10.14778/1920841.1920903}
+}
+
+% Various MapReduce extensions
+
+% Alternative MapReduce scheduler
+@inproceedings{zaharia2008improving,
+	title={Improving MapReduce performance in heterogeneous environments.},
+	author={Zaharia, Matei and Konwinski, Andy and Joseph, Anthony D and Katz, Randy H and Stoica, Ion},
+	booktitle={Osdi},
+	volume={8},
+	number={4},
+	pages={7},
+	year={2008}
+}
+
+% Twister - iterative MapReduce 1
+@inproceedings{ekanayake2010twister,
+	title={Twister: a runtime for iterative mapreduce},
+	author={Ekanayake, Jaliya and Li, Hui and Zhang, Bingjing and Gunarathne, Thilina and Bae, Seung-Hee and Qiu, Judy and Fox, Geoffrey},
+	booktitle={Proceedings of the 19th ACM international symposium on high performance distributed computing},
+	pages={810--818},
+	year={2010},
+	doi = {10.1145/1851476.1851593},
+	url = {https://doi.org/10.1145/1851476.1851593}
+}
+
+% HaLoop - iterative MapReduce 2
+@article{bu2010haloop,
+	title={HaLoop: Efficient iterative data processing on large clusters},
+	author={Bu, Yingyi and Howe, Bill and Balazinska, Magdalena and Ernst, Michael D},
+	journal={Proceedings of the VLDB Endowment},
+	volume={3},
+	number={1-2},
+	pages={285--296},
+	year={2010},
+	publisher={VLDB Endowment},
+	doi = {10.14778/1920841.1920881},
+	url = {https://doi.org/10.14778/1920841.1920881}
+}
+
+% Hive - MapReduce extension for data warehousin and querying
+@inproceedings{thusoo2010hive,
+	title={Hive-a petabyte scale data warehouse using hadoop},
+	author={Thusoo, Ashish and Sarma, Joydeep Sen and Jain, Namit and Shao, Zheng and Chakka, Prasad and Zhang, Ning and Antony, Suresh and Liu, Hao and Murthy, Raghotham},
+	booktitle={2010 IEEE 26th international conference on data engineering (ICDE 2010)},
+	pages={996--1005},
+	year={2010},
+	organization={IEEE}
+}
+
+% Pig Latin - Declarative/Procedural mixed language built on top of MapReduce/Hadoop
+@inproceedings{olston2008pig,
+	title={Pig latin: a not-so-foreign language for data processing},
+	author={Olston, Christopher and Reed, Benjamin and Srivastava, Utkarsh and Kumar, Ravi and Tomkins, Andrew},
+	booktitle={Proceedings of the 2008 ACM SIGMOD international conference on Management of data},
+	pages={1099--1110},
+	year={2008},
+	doi = {10.1145/1376616.1376726},
+	url = {https://doi.org/10.1145/1376616.1376726}
+}
+
+% Batch processing framework references
+% DryadLINQ - batch-based distributed computing framework (C#/.NET)
+@article{fetterly2009dryadlinq,
+	title={DryadLINQ: A system for general-purpose distributed data-parallel computing using a high-level language},
+	author={Fetterly, Yuan Yu Michael Isard Dennis and Budiu, Mihai and Erlingsson, {\'U}lfar and Currey, Pradeep Kumar Gunda Jon},
+	journal={Proc. LSDS-IR},
+	volume={8},
+	year={2009}
+}
+
+% Pregel - large scale graph processing
+@inproceedings{malewicz2010pregel,
+	title={Pregel: a system for large-scale graph processing},
+	author={Malewicz, Grzegorz and Austern, Matthew H and Bik, Aart JC and Dehnert, James C and Horn, Ilan and Leiser, Naty and Czajkowski, Grzegorz},
+	booktitle={Proceedings of the 2010 ACM SIGMOD International Conference on Management of data},
+	pages={135--146},
+	year={2010},
+	doi = {10.1145/1807167.1807184},
+	url = {https://doi.org/10.1145/1807167.1807184}
+}
+
+% Streaming framework references
+% Spark streaming
+@inproceedings{armbrust2018sparkstreaming,
+	title={Structured streaming: A declarative api for real-time applications in apache spark},
+	author={Armbrust, Michael and Das, Tathagata and Torres, Joseph and Yavuz, Burak and Zhu, Shixiong and Xin, Reynold and Ghodsi, Ali and Stoica, Ion and Zaharia, Matei},
+	booktitle={Proceedings of the 2018 International Conference on Management of Data},
+	pages={601--613},
+	year={2018},
+	doi = {10.1145/3183713.3190664},
+	url = {https://doi.org/10.1145/3183713.3190664}
+}
+
+% D-Streams
+@inproceedings{zaharia2013discretized,
+	title={Discretized streams: Fault-tolerant streaming computation at scale},
+	author={Zaharia, Matei and Das, Tathagata and Li, Haoyuan and Hunter, Timothy and Shenker, Scott and Stoica, Ion},
+	booktitle={Proceedings of the twenty-fourth ACM symposium on operating systems principles},
+	pages={423--438},
+	year={2013},
+	doi = {10.1145/2517349.2522737},
+	url = {https://doi.org/10.1145/2517349.2522737}
+}
+
+% Apache Flink
+@article{carbone2015flink,
+  title={Apache flink: Stream and batch processing in a single engine},
+  author={Carbone, Paris and Katsifodimos, Asterios and Ewen, Stephan and Markl, Volker and Haridi, Seif and Tzoumas, Kostas},
+  journal={The Bulletin of the Technical Committee on Data Engineering},
+  volume={38},
+  number={4},
+  year={2015},
+  publisher={Institute of Electrical and Electronics Engineers (IEEE)}
+}
+
+% Apache Storm
+@inproceedings{toshniwal2014storm,
+  title={Storm @twitter},
+  author={Toshniwal, Ankit and Taneja, Siddarth and Shukla, Amit and Ramasamy, Karthik and Patel, Jignesh M and Kulkarni, Sanjeev and Jackson, Jason and Gade, Krishna and Fu, Maosong and Donham, Jake and others},
+  booktitle={Proceedings of the 2014 ACM SIGMOD international conference on Management of data},
+  pages={147--156},
+  year={2014},
+  doi = {10.1145/2588555.2595641},
+  url = {https://doi.org/10.1145/2588555.2595641},
+}
+
+% Google - The dataflow model
+@article{akidau2015dataflow,
+  title={The dataflow model: a practical approach to balancing correctness, latency, and cost in massive-scale, unbounded, out-of-order data processing},
+  author={Akidau, Tyler and Bradshaw, Robert and Chambers, Craig and Chernyak, Slava and Fern{\'a}ndez-Moctezuma, Rafael J and Lax, Reuven and McVeety, Sam and Mills, Daniel and Perry, Frances and Schmidt, Eric and others},
+  year={2015},
+  url = {https://storage.googleapis.com/pub-tools-public-publication-data/pdf/43864.pdf}
+}
+
+@online{googleio2014,
+	title = {Google I/O Keynote},
+	year = {2014},
+	url = {https://youtu.be/biSpvXBGpE0?t=7668},
+	urldate = {09/02/23}
+}
+
+% Benchmarking Apache Storm, Flink and Spark
+@inproceedings{karimov2018benchmarking,
+	title={Benchmarking distributed stream data processing systems},
+	author={Karimov, Jeyhun and Rabl, Tilmann and Katsifodimos, Asterios and Samarev, Roman and Heiskanen, Henri and Markl, Volker},
+	booktitle={2018 IEEE 34th International Conference on Data Engineering (ICDE)},
+	pages={1507--1518},
+	year={2018},
+	organization={IEEE},
+	doi = {10.1109/icde.2018.00169},
+	url = {https://doi.org/10.1109/icde.2018.00169}
+}
+
+% State of the industry review for stream processing
+@article{de2018distributed,
+	title={Distributed data stream processing and edge computing: A survey on resource elasticity and future directions},
+	author={de Assuncao, Marcos Dias and da Silva Veith, Alexandre and Buyya, Rajkumar},
+	journal={Journal of Network and Computer Applications},
+	volume={103},
+	pages={1--17},
+	year={2018},
+	publisher={Elsevier},
+	doi = {10.1016/j.jnca.2017.12.001},
+	url = {https://doi.org/10.1016/j.jnca.2017.12.001}
+}
+
+% Other frameworks
+
+% Delay scheduling - adjusting scheduling in shared computing by adding delays to improve data locality
+@inproceedings{zaharia2010delay,
+	title={Delay scheduling: a simple technique for achieving locality and fairness in cluster scheduling},
+	author={Zaharia, Matei and Borthakur, Dhruba and Sen Sarma, Joydeep and Elmeleegy, Khaled and Shenker, Scott and Stoica, Ion},
+	booktitle={Proceedings of the 5th European conference on Computer systems},
+	pages={265--278},
+	year={2010},
+	doi = {10.1145/1755913.1755940},
+	url = {https://doi.org/10.1145/1755913.1755940}
+}
+
+% Tachyon - distributed file system designed for data sharing at memory speed - uses lineage for fault tolerance rather than checkpointing
+@inproceedings{li2014tachyon,
+	title={Tachyon: Reliable, memory speed storage for cluster computing frameworks},
+	author={Li, Haoyuan and Ghodsi, Ali and Zaharia, Matei and Shenker, Scott and Stoica, Ion},
+	booktitle={Proceedings of the ACM Symposium on Cloud Computing},
+	pages={1--15},
+	year={2014},
+	doi = {10.1145/2670979.2670985},
+	url = {https://doi.org/10.1145/2670979.2670985}
+}
+
+% Crail - reducing software overhead for I/O by leveraging DMA, among other improvements. Integrates with Spark and Flink
+@article{stuedi2017crail,
+	title={Crail: A High-Performance I/O Architecture for Distributed Data Processing.},
+	author={Stuedi, Patrick and Trivedi, Animesh and Pfefferle, Jonas and Stoica, Radu and Metzler, Bernard and Ioannou, Nikolas and Koltsidas, Ioannis},
+	journal={IEEE Data Eng. Bull.},
+	volume={40},
+	number={1},
+	pages={38--49},
+	year={2017},
+	publisher={Citeseer}
+}
+
+% Thrill - batch distributed data processing framework in C++
+@inproceedings{bingmann2016thrill,
+	title={Thrill: High-performance algorithmic distributed batch data processing with C++},
+	author={Bingmann, Timo and Axtmann, Michael and J{\"o}bstl, Emanuel and Lamm, Sebastian and Nguyen, Huyen Chau and Noe, Alexander and Schlag, Sebastian and Stumpp, Matthias and Sturm, Tobias and Sanders, Peter},
+	booktitle={2016 IEEE International Conference on Big Data (Big Data)},
+	pages={172--183},
+	year={2016},
+	organization={IEEE},
+	doi = {10.1109/bigdata.2016.7840603},
+	url = {https://doi.org/10.1109/bigdata.2016.7840603}
+}
+
+% Iridium - system to reduce query response times by using heuristics to preemptively move data around and place tasks locally
+@article{pu2015low,
+	title={Low latency geo-distributed data analytics},
+	author={Pu, Qifan and Ananthanarayanan, Ganesh and Bodik, Peter and Kandula, Srikanth and Akella, Aditya and Bahl, Paramvir and Stoica, Ion},
+	journal={ACM SIGCOMM Computer Communication Review},
+	volume={45},
+	number={4},
+	pages={421--434},
+	year={2015},
+	publisher={ACM New York, NY, USA},
+	doi = {10.1145/2829988.2787505},
+	url = {https://doi.org/10.1145/2829988.2787505}
+}
+
+% Cloud Computing references
+% Definition of cloud computing, difference between options, economics, benefits and potential issues
+@article{armbrust2010view,
+	title={A view of cloud computing},
+	author={Armbrust, Michael and Fox, Armando and Griffith, Rean and Joseph, Anthony D and Katz, Randy and Konwinski, Andy and Lee, Gunho and Patterson, David and Rabkin, Ariel and Stoica, Ion and others},
+	journal={Communications of the ACM},
+	volume={53},
+	number={4},
+	pages={50--58},
+	year={2010},
+	publisher={ACM New York, NY, USA},
+	doi = {10.1145/1721654.1721672},
+	url = {https://doi.org/10.1145/1721654.1721672}
+}
+
+% Definition of distributed computing from 1978, specifically one graph which shows requirements for decentralisation: hardware, control place, databases
+@article{enslow1978distributed,
+	title={What is a" distributed" data processing system?},
+	author={Enslow, Philip Harrison},
+	journal={Computer},
+	volume={11},
+	number={1},
+	pages={13--21},
+	year={1978},
+	publisher={IEEE},
+	doi = {10.1109/c-m.1978.217901},
+	url = {https://doi.org/10.1109/c-m.1978.217901}
+}
+
+% Big Data related references
+
+% Phases of the big data lifecycle - challenges presented by big data
+@article{jagadish2014big,
+	title={Big data and its technical challenges},
+	author={Jagadish, Hosagrahar V and Gehrke, Johannes and Labrinidis, Alexandros and Papakonstantinou, Yannis and Patel, Jignesh M and Ramakrishnan, Raghu and Shahabi, Cyrus},
+	journal={Communications of the ACM},
+	volume={57},
+	number={7},
+	pages={86--94},
+	year={2014},
+	publisher={ACM New York, NY, USA},
+	doi = {10.1145/2611567},
+	url = {https://doi.org/10.1145/2611567}
+}
+
+% State of the industry for Big Data and Big Data Mining - problems Big Data causes, current solutions, potential future issues
+@article{fan2013mining,
+	title={Mining big data: current status, and forecast to the future},
+	author={Fan, Wei and Bifet, Albert},
+	journal={ACM SIGKDD explorations newsletter},
+	volume={14},
+	number={2},
+	pages={1--5},
+	year={2013},
+	publisher={ACM New York, NY, USA},
+	doi = {10.1145/2481244.2481246},
+	url = {https://doi.org/10.1145/2481244.2481246}
+}
+
+% Review of the big data industry - trends of big data and origins, growth of data volumes, sources of data generation, batch and stream solutions
+@article{yaqoob2016big,
+	title={Big data: From beginning to future},
+	author={Yaqoob, Ibrar and Hashem, Ibrahim Abaker Targio and Gani, Abdullah and Mokhtar, Salimah and Ahmed, Ejaz and Anuar, Nor Badrul and Vasilakos, Athanasios V},
+	journal={International Journal of Information Management},
+	volume={36},
+	number={6},
+	pages={1231--1247},
+	year={2016},
+	publisher={Elsevier},
+	doi = {10.1016/j.ijinfomgt.2016.07.009},
+	url = {https://doi.org/10.1016/j.ijinfomgt.2016.07.009}
+}
+
+% Etymological analysis of the word big data and its characteristics, as well as analysis of many datasets to determine which datasets actually share which characteristics, in particular the 3Vs.
+@article{kitchin2016makes,
+	title={What makes Big Data, Big Data? Exploring the ontological characteristics of 26 datasets},
+	author={Kitchin, Rob and McArdle, Gavin},
+	journal={Big Data \& Society},
+	volume={3},
+	number={1},
+	pages={2053951716631130},
+	year={2016},
+	publisher={SAGE Publications Sage UK: London, England},
+	doi = {10.1177/2053951716631130},
+	url = {https://doi.org/10.1177/2053951716631130}
+}
+
+% Argued to be the first usage of the 3Vs by the above paper
+@article{laney20013d,
+	title={3D data management: Controlling data volume, velocity and variety},
+	author={Laney, Doug and others},
+	journal={META group research note},
+	volume={6},
+	number={70},
+	pages={1},
+	year={2001},
+	publisher={Stanford}
 }
