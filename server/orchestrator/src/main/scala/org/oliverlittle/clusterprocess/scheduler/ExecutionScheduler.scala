@@ -37,8 +37,7 @@ object WorkExecutionScheduler {
         val mappedProducers = items.zipWithIndex.map((pair, index) => pair._1 -> context.spawn(WorkProducer(pair._2), "producer" + index.toString))
         val producers = mappedProducers.map(_._2)
         // For each possible stub, and it's matched producer, create a consumer and give it a list of producers to consume from
-        val consumers = mappedProducers.map((stubs, producerRef) => stubs.zipWithIndex.map((stub, index) => context.spawn(WorkConsumer(stub, producerRef +: producers.filter(_ == producerRef), context.self), "consumer" + index.toString))).flatten
-        
+        val consumers = mappedProducers.zipWithIndex.map((pair, mainIndex) => pair._1.zipWithIndex.map((stub, index) => context.spawn(WorkConsumer(stub, pair._2 +: producers.filter(_ == pair._2), context.self), "consumer" + mainIndex.toString + index.toString))).flatten
         new WorkExecutionScheduler(items.map(_._2.size).sum, resultCallback, assembler, context).getFirstData()
     }
 }
