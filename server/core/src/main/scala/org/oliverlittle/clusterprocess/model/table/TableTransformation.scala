@@ -60,16 +60,6 @@ sealed trait TableTransformation:
 
 	def protobuf : table_model.Table.TableTransformation
 
-	/**
-	 * Function to combine partial results
-	 * Default function simply compares headers to ensure they are the same, then appends rows
-	 * 
-	 * @param left The first partial result
-	 * @param right The second partial result
-	 * @return A TableResult of the combined partial results
-	 */
-	def partialResultAssembler(left : TableResult, right : TableResult) : TableResult = left ++ right
-
 object SelectTransformation:
 	def fromProtobuf(select : table_model.Select) : SelectTransformation = SelectTransformation(select.fields.map(NamedFieldExpression.fromProtobuf(_))*)
 
@@ -123,7 +113,7 @@ final case class AggregateTransformation(aggregateColumns : AggregateExpression*
 		// Sense check: do the headers of all partial results match.
 		if !data.forall(_.header == data.head.header) then throw new IllegalArgumentException("Headers of all results do not match.")
 		return LazyTableResult(
-			outputPartialHeaders(data.head.header),
+			outputHeaders(data.head.header),
 			// Lots of data pivoting going on here:
 			// Assemble takes a header (we pick the first as we know they're all the same now)
 			// We also have to give it a list of rows, but we already have a list of tables, so we append all the tables together.

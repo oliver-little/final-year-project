@@ -228,9 +228,9 @@ case class Avg(namedExpression : NamedFieldExpression) extends AggregateExpressi
       */
     override def outputTableFields(header : TableResultHeader) : Seq[TableField] = 
         if header.headerIndex.contains(outputCountName) && header.headerMap.contains(outputSumName) then header.headerMap(outputSumName) match {
-            case _ : IntField => Seq(BaseIntField(name))
+            case _ : IntField => Seq(BaseDoubleField(name))
             case _ : DoubleField => Seq(BaseDoubleField(name))
-            case _ : DateTimeField => Seq(BaseDateTimeField(name))
+            case _ : StringField => Seq(BaseDateTimeField(name))
             case x => throw new IllegalArgumentException("Cannot average given type " + x.toString)
         }
         else throw new IllegalArgumentException("Missing required  column information to calculate average.")
@@ -243,7 +243,7 @@ case class Avg(namedExpression : NamedFieldExpression) extends AggregateExpressi
       */
     def outputPartialTableFields(header : TableResultHeader) : Seq[TableField] = if namedExpression.expr.doesReturnType[Long](header) then Seq(BaseIntField(outputSumName), BaseIntField(outputCountName))
         else if namedExpression.expr.doesReturnType[Double](header) then Seq(BaseDoubleField(outputSumName), BaseIntField(outputCountName))
-        else if namedExpression.expr.doesReturnType[Instant](header) then Seq(BaseDateTimeField(outputSumName), BaseIntField(outputCountName))
+        else if namedExpression.expr.doesReturnType[Instant](header) then Seq(BaseStringField(outputSumName), BaseIntField(outputCountName))
         else throw new IllegalArgumentException("FieldExpression returns invalid type: " + namedExpression.expr.toString)
 
     def resolve(header : TableResultHeader)(items : Iterable[Seq[Option[TableValue]]]) : Seq[Option[TableValue]] = {

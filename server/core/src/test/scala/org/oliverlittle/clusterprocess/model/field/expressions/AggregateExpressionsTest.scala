@@ -285,7 +285,7 @@ class AvgTest extends UnitSpec {
         val inputResults = Map(
             Seq(BaseIntField("name")) -> Seq(BaseIntField("AvgSum_name"), BaseIntField("AvgCount_name")),
             Seq(BaseDoubleField("name")) -> Seq(BaseDoubleField("AvgSum_name"), BaseIntField("AvgCount_name")),
-            Seq(BaseDateTimeField("name")) -> Seq(BaseDateTimeField("AvgSum_name"), BaseIntField("AvgCount_name")),
+            Seq(BaseDateTimeField("name")) -> Seq(BaseStringField("AvgSum_name"), BaseIntField("AvgCount_name")),
         )
 
         inputResults.foreach((i, o) => Avg(F("name")).outputPartialTableFields(TableResultHeader(i)) should be (o))
@@ -293,9 +293,9 @@ class AvgTest extends UnitSpec {
 
     it should "output a correct final table field based on the input type" in {
         val inputResults = Map(
-            Seq(BaseIntField("AvgSum_name"), BaseIntField("AvgCount_name")) -> Seq(BaseIntField("Avg_name")),
+            Seq(BaseIntField("AvgSum_name"), BaseIntField("AvgCount_name")) -> Seq(BaseDoubleField("Avg_name")),
             Seq(BaseDoubleField("AvgSum_name"), BaseDoubleField("AvgCount_name")) -> Seq(BaseDoubleField("Avg_name")),
-            Seq(BaseDateTimeField("AvgSum_name"), BaseIntField("AvgCount_name")) -> Seq(BaseDateTimeField("Avg_name")),
+            Seq(BaseStringField("AvgSum_name"), BaseIntField("AvgCount_name")) -> Seq(BaseDateTimeField("Avg_name")),
         )
 
         inputResults.foreach((i, o) => Avg(F("name")).outputTableFields(TableResultHeader(i)) should be (o))
