@@ -11,6 +11,12 @@ import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
 
 import collection.mutable.{Buffer, ArrayBuffer}
 
+trait WorkProducerFactory:
+    def createProducer(items : Seq[worker_query.ComputePartialResultCassandraRequest]) : Behavior[WorkProducer.ProducerEvent] 
+        
+class BaseWorkProducerFactory extends WorkProducerFactory:
+    def createProducer(items : Seq[worker_query.ComputePartialResultCassandraRequest]) : Behavior[WorkProducer.ProducerEvent] = WorkProducer(items)
+
 object WorkProducer {
     sealed trait ProducerEvent
     final case class RequestWork(replyTo : ActorRef[WorkConsumer.ConsumerEvent]) extends ProducerEvent
@@ -29,6 +35,13 @@ object WorkProducer {
             }
     }
 }
+
+trait WorkConsumerFactory:
+    def createConsumer(stub : worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub, producers : Seq[ActorRef[WorkProducer.ProducerEvent]], assembler : ActorRef[WorkExecutionScheduler.AssemblerEvent]) : Behavior[WorkConsumer.ConsumerEvent]
+
+class BaseWorkConsumerFactory extends WorkConsumerFactory:
+    def createConsumer(stub: worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub, producers: Seq[ActorRef[WorkProducer.ProducerEvent]], assembler: ActorRef[WorkExecutionScheduler.AssemblerEvent]) : Behavior[WorkConsumer.ConsumerEvent] = WorkConsumer(stub, producers, assembler)
+
 
 object WorkConsumer {
     sealed trait ConsumerEvent
