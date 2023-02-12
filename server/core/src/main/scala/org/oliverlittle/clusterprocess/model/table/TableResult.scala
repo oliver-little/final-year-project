@@ -67,6 +67,8 @@ object TableResultHeader:
     def fromProtobuf(header : table_model.TableResultHeader) = TableResultHeader(header.fields map {TableField.fromProtobuf(_)})
 
 case class TableResultHeader(fields : Seq[TableField]) {
+    def ++(that : TableResultHeader) : TableResultHeader = copy(fields = fields ++ that.fields)
+
     val headerIndex : Map[String, Int] = fields.zipWithIndex.map((header, index) => header.name -> index).toMap
     val headerMap : Map[String, TableField] = fields.map(header => header.name -> header).toMap
     

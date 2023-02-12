@@ -36,6 +36,7 @@ object TableField:
 
 trait TableField extends ValueType:
     val name : String
+    def rename(newName : String) : TableField
     val protobufDataType : table_model.DataType
     lazy val protobuf : table_model.TableResultHeader.Header = table_model.TableResultHeader.Header(fieldName = name, dataType = protobufDataType)
 
@@ -96,7 +97,8 @@ final case class IntTypeInstance() extends IntType
 trait IntField extends TableField with IntType:
     val protobufDataType: table_model.DataType = table_model.DataType.INT
 
-case class BaseIntField(name : String) extends IntField
+case class BaseIntField(name : String) extends IntField:
+    def rename(newName: String): TableField = copy(name = newName)
     
 case class IntValue(value : Long) extends TableValue with IntType with Ordered[IntValue]:
     lazy val innerValueProtobuf : table_model.Value.Value = table_model.Value.Value.Int(value)
@@ -113,7 +115,8 @@ final case class DoubleTypeInstance() extends DoubleType
 trait DoubleField extends TableField with DoubleType:
     val protobufDataType: table_model.DataType = table_model.DataType.DOUBLE
 
-case class BaseDoubleField(name : String) extends DoubleField
+case class BaseDoubleField(name : String) extends DoubleField:
+    def rename(newName: String): TableField = copy(name = newName)
     
 case class DoubleValue(value : Double) extends TableValue with DoubleType with Ordered[DoubleValue]:
     lazy val innerValueProtobuf : table_model.Value.Value = table_model.Value.Value.Double(value)
@@ -129,7 +132,8 @@ final case class StringTypeInstance() extends StringType
 trait StringField extends TableField with StringType:
     val protobufDataType: table_model.DataType = table_model.DataType.STRING
 
-case class BaseStringField(name : String) extends StringField
+case class BaseStringField(name : String) extends StringField:
+    def rename(newName: String): TableField = copy(name = newName)
 
 case class StringValue(value : String) extends TableValue with StringType with Ordered[StringValue]:
     lazy val innerValueProtobuf : table_model.Value.Value = table_model.Value.Value.String(value)
@@ -146,7 +150,8 @@ final case class BoolTypeInstance() extends BoolType
 trait BoolField extends TableField with BoolType:
     val protobufDataType: table_model.DataType = table_model.DataType.BOOL
 
-case class BaseBoolField(name : String) extends BoolField
+case class BaseBoolField(name : String) extends BoolField:
+    def rename(newName: String): TableField = copy(name = newName)
 
 case class BoolValue(value : Boolean) extends TableValue with BoolType:
     lazy val innerValueProtobuf : table_model.Value.Value = table_model.Value.Value.Bool(value)
@@ -161,7 +166,8 @@ final case class DateTimeTypeInstance() extends DateTimeType
 trait DateTimeField extends TableField with DateTimeType:
     val protobufDataType: table_model.DataType = table_model.DataType.DATETIME
 
-final case class BaseDateTimeField(name : String) extends DateTimeField
+final case class BaseDateTimeField(name : String) extends DateTimeField:
+    def rename(newName: String): TableField = copy(name = newName)
 
 final case class DateTimeValue(value : Instant) extends TableValue with DateTimeType with Ordered[DateTimeValue]:
     lazy val innerValueProtobuf : table_model.Value.Value = table_model.Value.Value.Datetime(value.toString())
