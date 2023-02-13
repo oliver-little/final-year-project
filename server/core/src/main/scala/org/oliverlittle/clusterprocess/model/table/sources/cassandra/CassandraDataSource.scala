@@ -43,7 +43,7 @@ object CassandraDataSource:
   * @param partitionKey A list of strings representing the partition keys for this table
   * @param primaryKey A list of strings representing the primary keys for this table
   */
-abstract class BaseCassandraDataSource(connector : CassandraConnector, keyspace : String, name : String, fields: Seq[CassandraField], partitionKey : Seq[String], primaryKey : Seq[String] = Seq()):
+case class CassandraDataSource(connector : CassandraConnector, keyspace : String, name : String, fields: Seq[CassandraField], partitionKey : Seq[String], primaryKey : Seq[String] = Seq()) extends DataSource:
     private val logger = Logger.getLogger(classOf[CassandraDataSource].getName)    
     logger.info(name)
     // Validity Checks
@@ -66,15 +66,6 @@ abstract class BaseCassandraDataSource(connector : CassandraConnector, keyspace 
     override val isCassandra : Boolean = true
     override val getCassandraProtobuf : Option[data_source.CassandraDataSource] = Some(data_source.CassandraDataSource(keyspace=keyspace, table=name))
 
-    val getDataQuery : String
-
-    /**
-      * Cassandra Implementation of getData - for now this does not restrict the data received, it simply gets an entire table
-      *
-      * @return An iterator of rows, each row being a map from field name to a table value
-      */
-    def getData : TableResult = LazyTableResult(getHeaders, connector.getSession.execute(getDataQuery).asScala.map(row => fields.map(_.getTableValue(row))))
-
     def toCql(ifNotExists : Boolean = true) : String = {
         val ifNotExistsString = if ifNotExists then "IF NOT EXISTS " else "";
         // Need to convert to a prepared statement
@@ -91,13 +82,19 @@ abstract class BaseCassandraDataSource(connector : CassandraConnector, keyspace 
       */
     def create : Unit = connector.getSession.execute(toCql(false))
 
-case class CassandraDataSource(connector : CassandraConnector, keyspace : String, name : String, fields: Seq[CassandraField], partitionKey : Seq[String], primaryKey : Seq[String] = Seq()) extends BaseCassandraDataSource(connector, keyspace, name, fields, primaryKey) with DataSource:
-    def getPartitions : Seq[CassandraDataSource]
-
-case class PartialCassandraDataSource(connector : CassandraConnector, keyspace : String, name : String, fields: Seq[CassandraField], tokenRange : CassandraTokenRange, partitionKey : Seq[String], primaryKey : Seq[String] = Seq()) extends BaseCassandraDataSource(connector, keyspace, name, fields, primaryKey) with PartialDataSource:
-    lazy val getHeaders : TableResultHeader = TableResultHeader(fields)
+case class PartialCassandraDataSource(parent : CassandraDataSource, tokenRange : CassandraTokenRange) extends PartialDataSource:
+    lazy val getHeaders : TableResultHeader = TableResultHeader(parent.fields)
     
-    lazy val getDataQuery = "SELECT * FROM " + keyspace + "." + name + " WHERE " + tokenRange.toQueryString(partitionKey.reduce((l, r) => l + "," + r)) + ";"
+    lazy val getDataQuery = "SELECT * FROM " + parent.keyspace + "." + parent.name + " WHERE " + tokenRange.toQueryString(parent.partitionKey.reduce((l, r) => l + "," + r)) + ";"
+
+    /**
+      * Cassandra Implementation of getData - for now this does not restrict the data received, it simply gets an entire table
+      *
+      * @return An iterator of rows, each row being a map from field name to a table value
+      */
+    def getData : TableResult = LazyTableResult(getHeaders, parent.connector.getSession.execute(getDataQuery).asScala.map(row => parent.fields.map(_.getTableValue(row))))
+
+
 
 // Fields
 trait CassandraField extends TableField:

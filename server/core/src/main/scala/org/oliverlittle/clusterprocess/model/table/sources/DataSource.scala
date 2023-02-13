@@ -25,6 +25,8 @@ trait DataSource:
 	def protobuf : data_source.DataSource
 
 trait PartialDataSource:
+	val parent : DataSource
+
 	/**
 	 * Abstract implementation to get the headers of a data source
 	 *
@@ -37,4 +39,4 @@ trait PartialDataSource:
 	 *
 	 * @return An iterator of rows, each row being a map from field name to a table value
 	 */
-	def getData : TableResult
+	def getPartialData : TableResult
