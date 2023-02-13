@@ -2,10 +2,11 @@ package org.oliverlittle.clusterprocess.model.table
 
 import org.oliverlittle.clusterprocess.model.field.expressions.{NamedFieldExpression, FieldExpression, AggregateExpression}
 import org.oliverlittle.clusterprocess.model.field.comparisons.FieldComparison
-import org.oliverlittle.clusterprocess.model.table.field.{TableField, TableValue}
+import org.oliverlittle.clusterprocess.model.table.field._
 import org.oliverlittle.clusterprocess.table_model
 
 import scala.util.Try
+import scala.util.hashing.MurmurHash3
 
 object TableTransformation:
 	def fromProtobuf(table: table_model.Table) : Seq[TableTransformation] = table.transformations.map(_.instruction match {
@@ -127,6 +128,31 @@ final case class AggregateTransformation(aggregateColumns : AggregateExpression*
 	def outputPartialHeaders(inputHeaders: TableResultHeader): TableResultHeader = TableResultHeader(aggregateColumns.flatMap(_.outputPartialTableFields(inputHeaders)))
 
 	lazy val protobuf = table_model.Table.TableTransformation().withAggregate(table_model.Aggregate(aggregateColumns.map(_.protobuf)))
+
+// Calculates a Murmur3Hash on the previous result
+final case class HashTransformation(uniqueColumns : FieldExpression*):
+	def isValid(header : TableResultHeader) : Boolean = Try{uniqueColumns.map(_.resolve(header))}.isSuccess
+
+	def evaluate(data : TableResult) : TableResult = {
+		val resolved = uniqueColumns.map(_.resolve(data.header))
+
+		return LazyTableResult(
+			outputPartialHeaders(data.header),
+			data.rows.map(row => 
+				row :+ 
+				Some(IntValue(MurmurHash3.unorderedHash(
+					// Evaluate each column
+					resolved.map(_.evaluate(row))
+				)))
+			)
+		)
+	}
+
+	def assemblePartial(data: Iterable[TableResult]): TableResult = data.reduce(_ ++ _)
+
+	def outputHeaders(inputHeaders : TableResultHeader) : TableResultHeader = TableResultHeader(inputHeaders.fields :+ BaseIntField("UniqueHash"))
+
+	def outputPartialHeaders(inputHeaders: TableResultHeader): TableResultHeader = outputHeaders(inputHeaders)
 
 abstract final case class OrderByTransformation(orderByColumns : (FieldExpression, table_model.OrderBy.OrderByType)) extends TableTransformation
 

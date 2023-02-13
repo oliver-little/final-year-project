@@ -40,3 +40,6 @@ case class Table(dataSource : DataSource, transformations : Seq[TableTransformat
     def computeFull : TableResult = assemble(Seq(computePartial))
 
     def assemble(partialResults : Iterable[TableResult]) : TableResult = transformations.last.assemblePartial(partialResults)
+
+case class PartialTable(dataSource : PartialDataSource, transformations : Seq[TableTransformation] = Seq()):
+

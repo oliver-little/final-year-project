@@ -5,7 +5,7 @@ import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
 import org.oliverlittle.clusterprocess.connector.cassandra.token._
 import org.oliverlittle.clusterprocess.model.field.expressions.F
 import org.oliverlittle.clusterprocess.model.table._
-import org.oliverlittle.clusterprocess.model.table.sources.DataSource
+import org.oliverlittle.clusterprocess.model.table.sources.{DataSource, PartialDataSource}
 import org.oliverlittle.clusterprocess.model.table.field._
 import org.oliverlittle.clusterprocess.data_source
 
@@ -17,7 +17,7 @@ import java.time.Instant
 import java.util.logging.Logger
 
 object CassandraDataSource:
-    def inferDataSourceFromCassandra(connector : CassandraConnector, keyspace : String, table : String, tokenRange : Option[CassandraTokenRange] = None) : CassandraDataSource  = {
+    def inferDataSourceFromCassandra(connector : CassandraConnector, keyspace : String, table : String) : CassandraDataSource  = {
         val tableMetadata : TableMetadata = connector.getTableMetadata(keyspace, table)
         
         // Map column definitions to (name, data type pairs)
@@ -31,7 +31,7 @@ object CassandraDataSource:
         }).toSeq
         val partitions = tableMetadata.getPartitionKey.asScala.map(_.getName.asInternal).toSeq
         val primaries = tableMetadata.getPrimaryKey.asScala.map(_.getName.asInternal).toSeq
-        return CassandraDataSource(connector, keyspace, table, fields, partitions.toSeq, primaries.toSeq, tokenRange)
+        return CassandraDataSource(connector, keyspace, table, fields, partitions.toSeq, primaries.toSeq)
     }
 
 /**
@@ -43,7 +43,7 @@ object CassandraDataSource:
   * @param partitionKey A list of strings representing the partition keys for this table
   * @param primaryKey A list of strings representing the primary keys for this table
   */
-case class CassandraDataSource(connector : CassandraConnector, keyspace : String, name : String, fields: Seq[CassandraField], partitionKey : Seq[String], primaryKey : Seq[String] = Seq(), tokenRange : Option[CassandraTokenRange] = None) extends DataSource:
+abstract class BaseCassandraDataSource(connector : CassandraConnector, keyspace : String, name : String, fields: Seq[CassandraField], partitionKey : Seq[String], primaryKey : Seq[String] = Seq()):
     private val logger = Logger.getLogger(classOf[CassandraDataSource].getName)    
     logger.info(name)
     // Validity Checks
@@ -66,8 +66,7 @@ case class CassandraDataSource(connector : CassandraConnector, keyspace : String
     override val isCassandra : Boolean = true
     override val getCassandraProtobuf : Option[data_source.CassandraDataSource] = Some(data_source.CassandraDataSource(keyspace=keyspace, table=name))
 
-    lazy val getDataQuery = if tokenRange.isDefined then "SELECT * FROM " + keyspace + "." + name + " WHERE " + tokenRange.get.toQueryString(partitionKey.reduce((l, r) => l + "," + r)) + ";"
-        else "SELECT * FROM " + keyspace + "." + name + ";"
+    val getDataQuery : String
 
     /**
       * Cassandra Implementation of getData - for now this does not restrict the data received, it simply gets an entire table
@@ -91,7 +90,15 @@ case class CassandraDataSource(connector : CassandraConnector, keyspace : String
       * Creates this table in the current Cassandra database
       */
     def create : Unit = connector.getSession.execute(toCql(false))
+
+case class CassandraDataSource(connector : CassandraConnector, keyspace : String, name : String, fields: Seq[CassandraField], partitionKey : Seq[String], primaryKey : Seq[String] = Seq()) extends BaseCassandraDataSource(connector, keyspace, name, fields, primaryKey) with DataSource:
+    def getPartitions : Seq[CassandraDataSource]
+
+case class PartialCassandraDataSource(connector : CassandraConnector, keyspace : String, name : String, fields: Seq[CassandraField], tokenRange : CassandraTokenRange, partitionKey : Seq[String], primaryKey : Seq[String] = Seq()) extends BaseCassandraDataSource(connector, keyspace, name, fields, primaryKey) with PartialDataSource:
+    lazy val getHeaders : TableResultHeader = TableResultHeader(fields)
     
+    lazy val getDataQuery = "SELECT * FROM " + keyspace + "." + name + " WHERE " + tokenRange.toQueryString(partitionKey.reduce((l, r) => l + "," + r)) + ";"
+
 // Fields
 trait CassandraField extends TableField:
     val fieldType : String

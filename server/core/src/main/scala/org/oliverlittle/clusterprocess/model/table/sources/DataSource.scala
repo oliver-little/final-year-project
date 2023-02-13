@@ -14,13 +14,27 @@ trait DataSource:
 	 * @return
 	 */
 	def getHeaders : TableResultHeader
+
 	/**
-	 * Abstract implementation to get data from a data source
+	  * Given a list of worker channels, calculates optimal partitions for each worker
+	  *
+	  * @return
+	  */
+	def getPartitions : Seq[PartialDataSource]
+
+	def protobuf : data_source.DataSource
+
+trait PartialDataSource:
+	/**
+	 * Abstract implementation to get the headers of a data source
+	 *
+	 * @return
+	 */
+	def getHeaders : TableResultHeader
+
+	/**
+	 * Abstract implementation to get partial data from a data source
 	 *
 	 * @return An iterator of rows, each row being a map from field name to a table value
 	 */
 	def getData : TableResult
-
-	def protobuf : data_source.DataSource
-	def isCassandra : Boolean = false
-	def getCassandraProtobuf : Option[data_source.CassandraDataSource] = None
