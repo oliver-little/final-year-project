@@ -1,8 +1,9 @@
 package org.oliverlittle.clusterprocess.model.table
 
+import org.oliverlittle.clusterprocess.table_model
 import org.oliverlittle.clusterprocess.model.table.field._
 import org.oliverlittle.clusterprocess.model.table.sources.{DataSource, PartialDataSource}
-import org.oliverlittle.clusterprocess.table_model
+import org.oliverlittle.clusterprocess.connector.grpc.ChannelManager
 
 case class Table(dataSource : DataSource, transformations : Seq[TableTransformation] = Seq()):
 
@@ -25,11 +26,14 @@ case class Table(dataSource : DataSource, transformations : Seq[TableTransformat
 
     def assemble(partialResults : Iterable[TableResult]) : TableResult = transformations.last.assemblePartial(partialResults)
 
-case class PartialTable(dataSource : PartialDataSource, transformations : Seq[TableTransformation] = Seq())
-    /*def computePartial : TableResult = {
-        var data = dataSource.getData
+case class PartialTable(dataSource : PartialDataSource, transformations : Seq[TableTransformation] = Seq()):
+    def compute(input : TableResult) : TableResult = {
+        if input.header != dataSource.getHeaders then throw new IllegalArgumentException("Input data headers do not match dataSource headers")
+
+        var data = input
+
         for (transformation <- transformations) {
             data = transformation.evaluate(data)
         }
         return data
-    }*/
+    }

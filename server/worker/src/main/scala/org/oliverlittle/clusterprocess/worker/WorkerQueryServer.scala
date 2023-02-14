@@ -80,7 +80,30 @@ class WorkerQueryServer(executionContext: ExecutionContext, connector : Cassandr
 
 
         override def processQueryPlanItem(item : QueryPlanItem) : Future[String] = {
-            // Deserialise
+            // Deserialise queryplanitem from protobuf
+
+            // Create queryhandler actor in actorsystem, with reference to tablestore, ask it to handle query, return success/failure case
+
+            /**
+             * QueryHandler actor works in the following way
+             * Prepare result 
+             *  - requires partialtable
+             *  - gets preprepared result from cache, passes to partial table compute, stores result in cache
+             *  Delete result
+             *  - requires partialtable
+             *  - passes partialtable to cache to remove
+             *  Prepare partition
+             *  - requires datasource and number of partitions
+             *  - implementation is specific to each data source, but we apply the hashing function (for group bys, hash on unique columns)
+             *  - group the row data by the hash function % number of partitions
+             *      - tablestore will need a separate partial partition store to check against
+             * Get partition
+             * - requires partialdatasource
+             * - worker sends partialdatasource to all other workers, and gets one or more table results back
+             * - Combines all to create the full partition (in group bys, we can do an optimisation here by partially aggregating before we send any data)
+             *         - In joins, just send the full unjoined data
+             * 
+             */
         }
     }
 }

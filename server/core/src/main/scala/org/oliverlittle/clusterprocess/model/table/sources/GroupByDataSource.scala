@@ -25,10 +25,7 @@ case class GroupByDataSource(source : Table, uniqueColumns : Seq[NamedFieldExpre
 case class PartialGroupByDataSource(parent : GroupByDataSource, partitionNum : Int, totalPartitions : Int) extends PartialDataSource:
     def getPartialData(workerChannels : Seq[ChannelManager]) : TableResult = {
         // Check for cache hit - something like
-        //val future = cache.ask(ref => TableStore.GetPartition(this, ref))
-        //val cachedResult = Await.result(future, timeout.duration).asInstanceOf[Option[TableResult]]
-        
-        //return if cachedResult.isDefined then cachedResult.get
+        // Once we've got the data from the workers, we need to actually run the group by       
         return getDataFromWorkers(workerChannels)
     }
 
