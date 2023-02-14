@@ -1,4 +1,4 @@
-package org.oliverlittle.clusterprocess.server
+package org.oliverlittle.clusterprocess.connector.grpc
 
 import org.oliverlittle.clusterprocess.worker_query
 import org.oliverlittle.clusterprocess.data_source
@@ -38,7 +38,16 @@ class WorkerHandler(workerAddresses : Seq[(String, Int)]) {
         return new InetSocketAddress(result.get.host, result.get.port)
     }
 
-    def distributeWorkToNodes(connector : CassandraConnector, keyspace : String, table : String) : Seq[(Seq[ChannelManager], Seq[CassandraTokenRange])] = {
+    /**
+      * Provides a mappign from ChannelManager to CassandraPartition
+      * Essentially this represents the ideal partition allocation based on data locality
+      *
+      * @param connector A CassandraConnector instance
+      * @param keyspace The keyspace of the table to use
+      * @param table The table name to use
+      * @return A Sequence of (Sequence[ChannelManager], Sequence[CassandraPartition]) pairs, representing ideal allocations
+      */
+    def distributeWorkToNodes(connector : CassandraConnector, keyspace : String, table : String) : Seq[(Seq[ChannelManager], Seq[CassandraPartition])] = {
         val session = connector.getSession
         val metadata = session.getMetadata
         val tokenMap = metadata.getTokenMap.get
@@ -48,17 +57,20 @@ class WorkerHandler(workerAddresses : Seq[(String, Int)]) {
         val chunkSize : Int = ConfigFactory.load.getString("clusterprocess.chunk.chunk_size_mb").toInt
 
         // For each node, split the token range to be small enough to fit the chunk size (or if the table is really small, just output the full tokenRange)
-        val channelAssignment = if sizeEstimator.estimatedTableSizeMB < chunkSize then channelMap.map((node, matchedChannels) => (matchedChannels, Seq(CassandraTokenRange.FullRing)))
-            else channelMap.map((node, matchedChannels) => 
+        val channelAssignment = channelMap.map((node, matchedChannels) => 
                 (matchedChannels, 
                 // Split the node's tokenRange as required
                 node.joinAndSplitForFullSize(sizeEstimator.estimatedTableSizeMB, chunkSize, tokenMap)
-                    // Unwrap the range if it crosses the ring boundary
-                    .flatMap(_.unwrap(tokenMap))
                 )
             )
         // Sense check
-        val fullRing = Try{channelAssignment.map(_._2).flatten.sorted.map(_.toTokenRange(tokenMap)).reduce(_ mergeWith _).isFullRing}.getOrElse(false)
+        val fullRing = Try{
+            channelAssignment.map(_._2) // Get partitions
+            .flatMap(_.flatMap(_.ranges)) // Get list of token ranges
+            .sorted // Sort in order
+            .map(_.toTokenRange(tokenMap)) // Convert to DataStax instances
+            .reduce(_ mergeWith _).isFullRing // Repeatedly reduce to one range
+        }.getOrElse(false) // Try to get the result out, or false if an error occurred
         logger.info("Ring is " + (if !fullRing then "not " else "") + "fully covered.")
 
         return channelAssignment

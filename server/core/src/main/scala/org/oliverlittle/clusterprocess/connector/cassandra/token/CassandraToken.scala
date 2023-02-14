@@ -1,9 +1,11 @@
 package org.oliverlittle.clusterprocess.connector.cassandra.token
 
 import org.oliverlittle.clusterprocess.data_source
+import org.oliverlittle.clusterprocess.util.PartialFold
 
 import com.datastax.oss.driver.api.core.metadata._
 import com.datastax.oss.driver.api.core.metadata.token._
+import scala.util.Try
 import scala.jdk.CollectionConverters._
 
 object CassandraToken {
@@ -39,7 +41,7 @@ case class CassandraTokenRange(start : CassandraToken, end : CassandraToken) ext
     def toTokenRange(tokenMap : TokenMap) : TokenRange = tokenMap.newTokenRange(start.toToken(tokenMap), end.toToken(tokenMap))
     lazy val protobuf : data_source.CassandraTokenRange = data_source.CassandraTokenRange(start=start.toLong, end=end.toLong)
 
-    def toQueryString(partitionKeyString : String) = "token(" + partitionKeyString + ") > " + start.toTokenString + " AND token(" + partitionKeyString + ") <= " + end.toTokenString
+    def toQueryString(partitionKeyString : String) = "(token(" + partitionKeyString + ") > " + start.toTokenString + " AND token(" + partitionKeyString + ") <= " + end.toTokenString + ")"
 
     def mergeWith(tokenMap : TokenMap, that : CassandraTokenRange) = CassandraTokenRange.fromTokenRange(tokenMap, toTokenRange(tokenMap).mergeWith(that.toTokenRange(tokenMap)))
     def intersects(tokenMap : TokenMap, that : CassandraTokenRange) : Boolean = toTokenRange(tokenMap).intersects(that.toTokenRange(tokenMap))
@@ -65,3 +67,34 @@ case class CassandraTokenRange(start : CassandraToken, end : CassandraToken) ext
     }
 }
 
+object CassandraPartition {
+    /**
+		*  Joins contiguous token ranges if they are smaller than the chunk size
+		*
+		* @param fullSizeMB The full size of the ring
+		* @param chunkSizeMB The chunk size to ensure each token range is around as large as
+		* @param tokenMap A TokenMap instance
+		* @return A seq of token ranges, joined if they were smaller than the chunk size and they intersected
+		*/
+	def joinForFullSize(tokenRange : Seq[CassandraTokenRange], fullSizeMB : Double, chunkSizeMB : Double, tokenMap : TokenMap) : Seq[CassandraPartition] = PartialFold.partialFold(
+		// Firstly, try to join any contiguous ranges, then convert to partitions and sort
+		PartialFold.partialFold(
+			tokenRange.toSeq.sorted,
+			l => l.nonEmpty && l.head.percentageOfFullRing * fullSizeMB < chunkSizeMB,
+			(list, item) => Try{list.head.mergeWith(tokenMap, item) :: list.tail}.getOrElse(item :: list)
+		).map(t => CassandraPartition(Seq(t))).sortBy(_.percentageOfFullRing),
+		// Join any partitions which are smaller than the chunk size into a larger partition
+		l => l.nonEmpty && l.head.percentageOfFullRing * fullSizeMB < chunkSizeMB,
+		(list, item) => (list.head ++ item) :: list.tail
+	)
+}
+
+case class CassandraPartition(ranges : Seq[CassandraTokenRange]) {
+    lazy val percentageOfFullRing : Double = ranges.map(_.percentageOfFullRing).sum
+
+    def toQueryString(partitionKeyString : String) : String = ranges.map(_.toQueryString(partitionKeyString)).reduce((l, r) => l + " OR " + r)
+
+    def sizeInMB(fullSizeMB : Double) = fullSizeMB * percentageOfFullRing
+
+    def ++(that : CassandraPartition) : CassandraPartition = copy(ranges=ranges ++ that.ranges)
+}

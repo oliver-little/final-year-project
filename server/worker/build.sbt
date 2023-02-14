@@ -1,4 +1,5 @@
 val scala3Version = "3.2.1"
+val AkkaVersion = "2.7.0"
 
 lazy val root = project
   .in(file("."))
@@ -15,7 +16,10 @@ lazy val root = project
       // gRPC
       "io.grpc" % "grpc-netty" % scalapb.compiler.Version.grpcJavaVersion,
       // Cassandra Driver - could also use Phantom or Quill
-      "com.datastax.oss" % "java-driver-core" % "4.14.0"
+      "com.datastax.oss" % "java-driver-core" % "4.14.0",
+      // Akka actors + test dependencies
+      "com.typesafe.akka" %% "akka-actor-typed" % AkkaVersion,
+      "com.typesafe.akka" %% "akka-actor-testkit-typed" % AkkaVersion % Test
     ),
 
     dockerExposedPorts := Seq(50051)

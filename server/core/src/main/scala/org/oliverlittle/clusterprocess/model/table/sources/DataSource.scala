@@ -6,6 +6,7 @@ import org.oliverlittle.clusterprocess.model.table.field.{TableField, TableValue
 import org.oliverlittle.clusterprocess.model.table.sources.cassandra.CassandraDataSource
 import org.oliverlittle.clusterprocess.model.table.sources.cassandra.CassandraField
 import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
+import org.oliverlittle.clusterprocess.connector.grpc.{WorkerHandler, ChannelManager}
 
 trait DataSource:
 	/**
@@ -20,7 +21,14 @@ trait DataSource:
 	  *
 	  * @return
 	  */
-	def getPartitions : Seq[PartialDataSource]
+	def getPartitions(workerHandler : WorkerHandler) : Seq[(Seq[ChannelManager], Seq[PartialDataSource])]
+
+	/**
+	  * Gets the dependencies that must be calculated before this data source can be calculated
+	  *
+	  * @return
+	  */
+	def getDependencies : Seq[Table] = Seq()
 
 	def protobuf : data_source.DataSource
 
@@ -32,11 +40,11 @@ trait PartialDataSource:
 	 *
 	 * @return
 	 */
-	def getHeaders : TableResultHeader
+	def getHeaders : TableResultHeader = parent.getHeaders
 
 	/**
 	 * Abstract implementation to get partial data from a data source
 	 *
 	 * @return An iterator of rows, each row being a map from field name to a table value
 	 */
-	def getPartialData : TableResult
+	def getPartialData(workerChannels : Seq[ChannelManager]) : TableResult

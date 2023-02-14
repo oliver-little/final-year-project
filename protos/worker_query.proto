@@ -9,6 +9,8 @@ service WorkerComputeService {
     // Computes a partial result
     rpc ComputePartialResultCassandra(ComputePartialResultCassandraRequest) returns (stream StreamedTableResult);
     rpc GetLocalCassandraNode(GetLocalCassandraNodeRequest) returns (GetLocalCassandraNodeResult);
+    rpc ProcessQueryPlanItem(ProcessQueryPlanItemRequest) returns (ProcessQueryPlanItemResult);
+    rpc GetCachedResult(GetCachedResultRequest) returns (stream StreamedTableResult);
 }
 
 message GetLocalCassandraNodeRequest {
@@ -23,4 +25,16 @@ message ComputePartialResultCassandraRequest {
     Table table = 1;
     CassandraDataSource dataSource = 2;
     CassandraTokenRange tokenRange = 3;
+}
+
+message ProcessQueryPlanItemRequest {
+
+}
+
+message ProcessQueryPlanItemResult {
+
+}
+
+message GetCachedResultRequest {
+    Table table = 1;
 }

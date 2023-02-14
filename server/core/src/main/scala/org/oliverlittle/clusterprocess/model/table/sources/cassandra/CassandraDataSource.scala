@@ -1,13 +1,13 @@
 package org.oliverlittle.clusterprocess.model.table.sources.cassandra
 
-
+import org.oliverlittle.clusterprocess.data_source
+import org.oliverlittle.clusterprocess.connector.grpc.{WorkerHandler, ChannelManager}
 import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
 import org.oliverlittle.clusterprocess.connector.cassandra.token._
 import org.oliverlittle.clusterprocess.model.field.expressions.F
 import org.oliverlittle.clusterprocess.model.table._
 import org.oliverlittle.clusterprocess.model.table.sources.{DataSource, PartialDataSource}
 import org.oliverlittle.clusterprocess.model.table.field._
-import org.oliverlittle.clusterprocess.data_source
 
 import com.datastax.oss.driver.api.core.metadata.schema.TableMetadata
 import com.datastax.oss.driver.api.core.`type`.{DataTypes, DataType}
@@ -55,21 +55,28 @@ case class CassandraDataSource(connector : CassandraConnector, keyspace : String
 
     val clusterKeys = primaryKey.diff(partitionKey)
 
-    lazy val primaryKeyBuilder : String = {
-        val partition = if partitionKey.length > 1 then "(" + partitionKey.reduce((l, r) => l + "," + r) + ")" else partitionKey(0)
-        val primary = if clusterKeys.length > 0 then "," + clusterKeys.reduce((l, r) => l + "," + r) else ""
-        "(" + partition + primary + ")"
-    }
-
     lazy val getHeaders : TableResultHeader = TableResultHeader(fields)
-    lazy val protobuf : data_source.DataSource = data_source.DataSource().withCassandra(getCassandraProtobuf.get)
-    override val isCassandra : Boolean = true
-    override val getCassandraProtobuf : Option[data_source.CassandraDataSource] = Some(data_source.CassandraDataSource(keyspace=keyspace, table=name))
+    lazy val protobuf : data_source.DataSource = data_source.DataSource().withCassandra(data_source.CassandraDataSource(keyspace=keyspace, table=name))
+
+    def getPartitions(workerHandler : WorkerHandler) : Seq[(Seq[ChannelManager], Seq[PartialDataSource])] = 
+        // Calculate the optimal allocations based on the workerHandler information
+        workerHandler.distributeWorkToNodes(connector, keyspace, name)
+        .map((channels, partitions) => 
+            (channels, 
+            // Convert the partitions into partial data sources
+            partitions.map(PartialCassandraDataSource(this, _)))
+        )
 
     def toCql(ifNotExists : Boolean = true) : String = {
         val ifNotExistsString = if ifNotExists then "IF NOT EXISTS " else "";
         // Need to convert to a prepared statement
         return "CREATE TABLE " + ifNotExistsString + keyspace + "." + name + " (" + fields.map(_.toCql).reduce((l, r) => l + "," + r) + ", PRIMARY KEY " + primaryKeyBuilder + ");"
+    }
+
+    lazy val primaryKeyBuilder : String = {
+        val partition = if partitionKey.length > 1 then "(" + partitionKey.reduce((l, r) => l + "," + r) + ")" else partitionKey(0)
+        val primary = if clusterKeys.length > 0 then "," + clusterKeys.reduce((l, r) => l + "," + r) else ""
+        "(" + partition + primary + ")"
     }
 
     /**
@@ -82,17 +89,15 @@ case class CassandraDataSource(connector : CassandraConnector, keyspace : String
       */
     def create : Unit = connector.getSession.execute(toCql(false))
 
-case class PartialCassandraDataSource(parent : CassandraDataSource, tokenRange : CassandraTokenRange) extends PartialDataSource:
-    lazy val getHeaders : TableResultHeader = TableResultHeader(parent.fields)
-    
-    lazy val getDataQuery = "SELECT * FROM " + parent.keyspace + "." + parent.name + " WHERE " + tokenRange.toQueryString(parent.partitionKey.reduce((l, r) => l + "," + r)) + ";"
+case class PartialCassandraDataSource(parent : CassandraDataSource, tokenRanges : CassandraPartition) extends PartialDataSource:
+    lazy val getDataQuery = "SELECT * FROM " + parent.keyspace + "." + parent.name + " WHERE " + tokenRanges.toQueryString(parent.partitionKey.reduce((l, r) => l + "," + r)) + ";"
 
     /**
       * Cassandra Implementation of getData - for now this does not restrict the data received, it simply gets an entire table
       *
       * @return An iterator of rows, each row being a map from field name to a table value
       */
-    def getData : TableResult = LazyTableResult(getHeaders, parent.connector.getSession.execute(getDataQuery).asScala.map(row => parent.fields.map(_.getTableValue(row))))
+    def getPartialData(workerChannels : Seq[ChannelManager]) : TableResult = LazyTableResult(getHeaders, parent.connector.getSession.execute(getDataQuery).asScala.map(row => parent.fields.map(_.getTableValue(row))))
 
 
 

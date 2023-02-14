@@ -7,7 +7,7 @@ import org.oliverlittle.clusterprocess.model.table.sources.DataSource
 import org.oliverlittle.clusterprocess.model.table.sources.cassandra.CassandraDataSource
 import org.oliverlittle.clusterprocess.model.table.{Table, TableTransformation, TableResult}
 import org.oliverlittle.clusterprocess.scheduler.WorkExecutionScheduler
-import org.oliverlittle.clusterprocess.connector.grpc.{StreamedTableResult, DelayedTableResultRunnable}
+import org.oliverlittle.clusterprocess.connector.grpc.{StreamedTableResult, DelayedTableResultRunnable, WorkerHandler}
 import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
 
 import io.grpc.{ServerBuilder, ManagedChannelBuilder}
@@ -87,8 +87,6 @@ class ClientQueryServer(executionContext: ExecutionContext, connector : Cassandr
                     ClientQueryServer.logger.info("Result ready from workers.")
                     runnable.setData(result)
                 })
-            else
-                responseObserver.onError(new IllegalArgumentException("Data source is not supported."))
         } 
     }
 }

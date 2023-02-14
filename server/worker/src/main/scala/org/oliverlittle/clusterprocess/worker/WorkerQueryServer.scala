@@ -8,6 +8,7 @@ import java.util.logging.Logger
 import org.oliverlittle.clusterprocess.worker_query
 import org.oliverlittle.clusterprocess.data_source
 import org.oliverlittle.clusterprocess.table_model
+import org.oliverlittle.clusterprocess.query.QueryPlan
 import org.oliverlittle.clusterprocess.model.table.{Table, TableTransformation}
 import org.oliverlittle.clusterprocess.model.table.sources.cassandra.CassandraDataSource
 import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
@@ -75,6 +76,11 @@ class WorkerQueryServer(executionContext: ExecutionContext, connector : Cassandr
             WorkerQueryServer.logger.info("Host: " + connector.socket.getHostName + ", port: " + connector.socket.getPort.toString)
             val response = worker_query.GetLocalCassandraNodeResult(address=Some(data_source.InetSocketAddress(host=connector.socket.getHostName, port=connector.socket.getPort)))
             Future.successful(response)
+        }
+
+
+        override def processQueryPlanItem(item : QueryPlanItem) : Future[String] = {
+            // Deserialise
         }
     }
 }
