@@ -12,21 +12,21 @@
 % Literature review
 % General topics within distributed data processing
 
-Distributed Data Processing has existed conceptually since as early as the 1970s. An paper by Philip Enslow Jr. from this period \cite{enslow1978distributed} sets out characteristics across three 'dimensions' of decentralisation - hardware, control and database. Enslow argued that these dimensions defined a distributed system, while also acknowledging that the technology of the period was not equipped to fulfil the goals he laid out.
+Distributed Data Processing has existed conceptually since as early as the 1970s. A key paper by Philip Enslow Jr. from this period \cite{enslow1978distributed} sets out characteristics across three 'dimensions' of decentralisation - hardware, control and database. Enslow argued that these dimensions defined a distributed system, while also acknowledging that the technology of the period was not equipped to fulfil the goals he laid out.
 
 Research into solutions for distributed data processing has generally resulted in two kinds of solutions \cite{yaqoob2016big}:
 \begin{itemize}
-	\item \textbf{Batch processing:} where data is gathered, processed and output all at the same time. This includes solutions like MapReduce \cite{dean2008mapreduce} and Spark \cite{zaharia2016spark}, and works best for data that can be considered 'complete' at some stage.
-	\item \textbf{Stream processing:} data is processed and output as it arrives. This includes solutions like Apache Flink \cite{carbone2015flink}, Storm \cite{toshniwal2014storm}, and Spark Streaming \cite{armbrust2018sparkstreaming}, and works best for data that is being constantly generated, and needs to be analysed as it arrives.
+	\item \textbf{Batch processing:} where data is gathered, processed and output all at the same time. This includes solutions like MapReduce \cite{dean2008mapreduce} and Spark \cite{zaharia2016spark}. Batch processing works best for data that can be considered 'complete' at some stage.
+	\item \textbf{Stream processing:} where data is processed and output as it arrives. This includes solutions like Apache Flink \cite{carbone2015flink}, Storm \cite{toshniwal2014storm}, and Spark Streaming \cite{armbrust2018sparkstreaming}. Stream processing works best for data that is being constantly generated, and needs to be analysed as it arrives.
 \end{itemize}
 
-MapReduce, a framework introduced by Google \cite{dean2008mapreduce} in the mid 2000s could be considered the breakthrough framework for performing massively scalable, parallelised data processing. This framework later became one of the core modules for the Apache Hadoop suite of tools. It provided a simple API, where developers could describe a job as a \textit{map} and a \textit{reduce} step, and the framework would handle the specifics of the distributed system. 
+MapReduce \cite{dean2008mapreduce}, a framework introduced by Google  in the mid 2000s, could be considered the breakthrough framework for performing massively scalable, parallelised data processing. This framework later became one of the core modules for the Apache Hadoop suite of tools. It provided a simple API, where developers could describe a job as a \textit{map} and a \textit{reduce} step, and the framework would handle the specifics of managing the distributed system. 
 
 While MapReduce was Google's offering, other large technology companies had similar solutions, including Microsoft, who created DryadLINQ in 2009 \cite{fetterly2009dryadlinq}. However, due to the massive success of MapReduce, Microsoft discontinued DryadLINQ in 2011.
 
 MapReduce was not without flaws, and many papers were published in the years following its initial release which performed performance benchmarks, and analysed its strengths and weaknesses \cite{lee2012parallel}. Crucially, MapReduce appears to particularly struggle with iterative algorithms, like the PageRank algorithm used by Google's own search engine. A number of popular extensions to MapReduce were introduced to improve the performance on iterative algorithms, like Twister \cite{ekanayake2010twister} and HaLoop \cite{bu2010haloop} both in 2010. 
 
-MapReduce's popularity also resulted in a number of tools being created to improve its usability and accessibility. Hive \cite{thusoo2010hive} is one such tool, which features SQL-like language called HiveQL to allow users to write declarative programs that compiled into MapReduce jobs. Pig Latin \cite{olston2008pig} is similar, and features a mixed declarative and imperative language style that again compiles down into MapReduce jobs. 
+MapReduce's popularity also resulted in a number of tools being created to improve its usability and accessibility. Hive \cite{thusoo2010hive} is one such tool, which features a SQL-like language called HiveQL to allow users to write declarative programs that compiled into MapReduce jobs. Pig Latin \cite{olston2008pig} is similar, and features a mixed declarative and imperative language style that again compiles down into MapReduce jobs. 
 
 Further tools in the wider areas of the field were introduced around 2010, including another project by Google named Pregel \cite{malewicz2010pregel}, specialised for performing distributed data processing on large-scale graphs.
 
