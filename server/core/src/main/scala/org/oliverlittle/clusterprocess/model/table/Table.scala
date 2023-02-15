@@ -31,7 +31,7 @@ case class Table(dataSource : DataSource, transformations : Seq[TableTransformat
 
 case class PartialTable(dataSource : PartialDataSource, transformations : Seq[TableTransformation] = Seq()):
     lazy val protobuf : table_model.Table = table_model.Table(transformations=transformations.map(_.protobuf))
-    
+
     def compute(input : TableResult) : TableResult = {
         if input.header != dataSource.getHeaders then throw new IllegalArgumentException("Input data headers do not match dataSource headers")
 

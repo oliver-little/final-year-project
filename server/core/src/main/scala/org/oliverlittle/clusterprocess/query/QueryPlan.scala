@@ -89,36 +89,17 @@ case class QueryableDataSource(d : DataSource) extends QueryableObject:
 
 sealed trait QueryPlanItem
 
-sealed trait PartialQueryPlanItem:
-    val innerProtobuf : worker_query.QueryPlanItem.Item
-    def protobuf : worker_query.QueryPlanItem = worker_query.QueryPlanItem(innerProtobuf)
-
 // Execute will be calculating the table from data source and storing it back in the tablestore
 case class PrepareResult(table : Table) extends QueryPlanItem
-
-case class PartialPrepareResult(table : PartialTable) extends PartialQueryPlanItem:
-    val innerProtobuf : worker_query.QueryPlanItem.Item = worker_query.QueryPlanItem.Item.PrepareResult(worker_query.PrepareResult(Some(table.dataSource.protobuf), Some(table.protobuf)))
 
 // Execute will be removing the item from the tablestore
 case class DeleteResult(table : Table) extends QueryPlanItem
 
-case class PartialDeleteResult(table : PartialTable) extends PartialQueryPlanItem:
-    val innerProtobuf : worker_query.QueryPlanItem.Item = worker_query.QueryPlanItem.Item.DeleteResult(worker_query.DeleteResult(Some(table.dataSource.protobuf), Some(table.protobuf)))
-
 // Execute will be negotiating with all other workers to get their partition data (for this partition), then combining them and storing in the tablestore
 case class PreparePartition(dataSource : DataSource) extends QueryPlanItem
-
-case class PartialPreparePartition(dataSource : PartialDataSource, numPartitions : Int) extends PartialQueryPlanItem:
-    val innerProtobuf : worker_query.QueryPlanItem.Item = worker_query.QueryPlanItem.Item.PreparePartition(worker_query.PreparePartition(Some(dataSource.protobuf), numPartitions))
 
 // Get partition data from other workers
 case class GetPartition(dataSource : DataSource) extends QueryPlanItem
 
-case class PartialGetPartition(dataSource : PartialDataSource, workerURLs : Seq[String]) extends PartialQueryPlanItem:
-    val innerProtobuf : worker_query.QueryPlanItem.Item = worker_query.QueryPlanItem.Item.GetPartition(worker_query.GetPartition(Some(dataSource.protobuf), workerURLs))
-
 // Clear prepared parition data from each worker
 case class DeletePartition(dataSource : DataSource) extends QueryPlanItem
-
-case class PartialDeletePartition(dataSource : PartialDataSource) extends PartialQueryPlanItem:
-    val innerProtobuf : worker_query.QueryPlanItem.Item = worker_query.QueryPlanItem.Item.DeletePartition(worker_query.DeletePartition(Some(dataSource.protobuf)))

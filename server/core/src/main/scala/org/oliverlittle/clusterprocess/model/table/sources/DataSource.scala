@@ -40,6 +40,9 @@ trait DataSource:
 
 	def protobuf : data_source.DataSource
 
+object PartialDataSource:
+	def fromProtobuf(connector : CassandraConnector, dataSource : data_source.PartialDataSource) : Unit = {}
+
 trait PartialDataSource:
 	val parent : DataSource
 
