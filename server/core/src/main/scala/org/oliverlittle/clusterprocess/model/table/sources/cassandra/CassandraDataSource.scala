@@ -57,6 +57,7 @@ case class CassandraDataSource(connector : CassandraConnector, keyspace : String
 
     lazy val getHeaders : TableResultHeader = TableResultHeader(fields)
     lazy val protobuf : data_source.DataSource = data_source.DataSource().withCassandra(data_source.CassandraDataSource(keyspace=keyspace, table=name))
+    lazy val isValid = true
 
     def getPartitions(workerHandler : WorkerHandler) : Seq[(Seq[ChannelManager], Seq[PartialDataSource])] = 
         // Calculate the optimal allocations based on the workerHandler information
@@ -90,6 +91,7 @@ case class CassandraDataSource(connector : CassandraConnector, keyspace : String
     def create : Unit = connector.getSession.execute(toCql(false))
 
 case class PartialCassandraDataSource(parent : CassandraDataSource, tokenRanges : CassandraPartition) extends PartialDataSource:
+    lazy val protobuf : data_source.PartialDataSource = data_source.PartialDataSource().withCassandra(data_source.PartialCassandraDataSource(keyspace=parent.keyspace, table=parent.name, tokenRanges=tokenRanges.protobuf))
     lazy val getDataQuery = "SELECT * FROM " + parent.keyspace + "." + parent.name + " WHERE " + tokenRanges.toQueryString(parent.partitionKey.reduce((l, r) => l + "," + r)) + ";"
 
     /**

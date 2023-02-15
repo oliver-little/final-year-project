@@ -43,6 +43,7 @@ message QueryPlanItem {
         DeleteResult delete_result = 2;
         PreparePartition prepare_partition = 3;
         GetPartition get_partition = 4;
+        DeletePartition delete_partition = 5;
     }
 }
 
@@ -64,4 +65,8 @@ message PreparePartition {
 message GetPartition {
     PartialDataSource data_source = 1;
     repeated string other_worker_urls = 2;
+}
+
+message DeletePartition {
+    PartialDataSource data_source = 1;
 }

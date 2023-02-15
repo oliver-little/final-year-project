@@ -59,7 +59,7 @@ class ClientQueryServer(executionContext: ExecutionContext, connector : Cassandr
             ClientQueryServer.logger.info("Compute table request received")
 
             // Parse table
-            val dataSource = DataSource.fromProtobuf(request.dataSource.get.source)
+            val dataSource = DataSource.fromProtobuf(connector, request.dataSource.get)
 
             val tableTransformations = TableTransformation.fromProtobuf(request.table.get)
             val table = Table(dataSource, tableTransformations)

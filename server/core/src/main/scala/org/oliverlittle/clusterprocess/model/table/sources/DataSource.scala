@@ -9,7 +9,7 @@ import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
 import org.oliverlittle.clusterprocess.connector.grpc.{WorkerHandler, ChannelManager}
 
 object DataSource:
-	def fromProtobuf(dataSource : data_source.DataSource) = dataSource match {
+	def fromProtobuf(connector : CassandraConnector, dataSource : data_source.DataSource) = dataSource.source match {
 		case x if x.isCassandra => CassandraDataSource.inferDataSourceFromCassandra(connector, x.cassandra.get.keyspace, x.cassandra.get.table)
 		case _ => throw new IllegalArgumentException("Unknown data source")
 	} 
@@ -36,6 +36,8 @@ trait DataSource:
 	  */
 	def getDependencies : Seq[Table] = Seq()
 
+	def isValid : Boolean
+
 	def protobuf : data_source.DataSource
 
 trait PartialDataSource:
@@ -54,3 +56,5 @@ trait PartialDataSource:
 	 * @return An iterator of rows, each row being a map from field name to a table value
 	 */
 	def getPartialData(workerChannels : Seq[ChannelManager]) : TableResult
+
+	def protobuf : data_source.PartialDataSource

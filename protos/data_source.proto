@@ -40,13 +40,13 @@ message InetSocketAddress {
 }
 
 message GroupByDataSource {
-    repeated Expression unique_fields = 1;
+    repeated NamedExpression unique_fields = 1;
     repeated AggregateExpression aggregate_fields = 2;
 }
 
 message PartialGroupByDataSource {
     GroupByDataSource parent = 1;
-    PartitionInformation partitions = 2;
+    PartitionInformation partition = 2;
 }
 
 message PartitionInformation {

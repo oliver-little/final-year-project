@@ -20,6 +20,7 @@ case class Table(dataSource : DataSource, transformations : Seq[TableTransformat
       * Returns whether this table can be evaluated with the provided data source and transformations
       */
     def isValid : Boolean = {
+        if !dataSource.isValid then return false
         // This could possibly be simplified to just a forall check?
         val itemHeaderPairs = transformations.iterator.zip(headerList)
         val validStages = itemHeaderPairs.takeWhile((item, header) => item.isValid(header))
@@ -29,6 +30,8 @@ case class Table(dataSource : DataSource, transformations : Seq[TableTransformat
     def assemble(partialResults : Iterable[TableResult]) : TableResult = transformations.last.assemblePartial(partialResults)
 
 case class PartialTable(dataSource : PartialDataSource, transformations : Seq[TableTransformation] = Seq()):
+    lazy val protobuf : table_model.Table = table_model.Table(transformations=transformations.map(_.protobuf))
+    
     def compute(input : TableResult) : TableResult = {
         if input.header != dataSource.getHeaders then throw new IllegalArgumentException("Input data headers do not match dataSource headers")
 

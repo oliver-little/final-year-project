@@ -38,8 +38,8 @@ object CassandraTokenRange {
 
 case class CassandraTokenRange(start : CassandraToken, end : CassandraToken) extends Ordered[CassandraTokenRange] {
     lazy val percentageOfFullRing : Double = (((BigDecimal(end.toLong) - BigDecimal(start.toLong)) % BigDecimal(CassandraToken.MAX_TOKEN)) / BigDecimal(CassandraToken.NUM_TOKENS)).toDouble
-    def toTokenRange(tokenMap : TokenMap) : TokenRange = tokenMap.newTokenRange(start.toToken(tokenMap), end.toToken(tokenMap))
     lazy val protobuf : data_source.CassandraTokenRange = data_source.CassandraTokenRange(start=start.toLong, end=end.toLong)
+    def toTokenRange(tokenMap : TokenMap) : TokenRange = tokenMap.newTokenRange(start.toToken(tokenMap), end.toToken(tokenMap))
 
     def toQueryString(partitionKeyString : String) = "(token(" + partitionKeyString + ") > " + start.toTokenString + " AND token(" + partitionKeyString + ") <= " + end.toTokenString + ")"
 
@@ -90,6 +90,7 @@ object CassandraPartition {
 }
 
 case class CassandraPartition(ranges : Seq[CassandraTokenRange]) {
+    lazy val protobuf : Seq[data_source.CassandraTokenRange] = ranges.map(_.protobuf)
     lazy val percentageOfFullRing : Double = ranges.map(_.percentageOfFullRing).sum
 
     def toQueryString(partitionKeyString : String) : String = ranges.map(_.toQueryString(partitionKeyString)).reduce((l, r) => l + " OR " + r)
