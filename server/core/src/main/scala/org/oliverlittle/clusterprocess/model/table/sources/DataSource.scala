@@ -8,6 +8,12 @@ import org.oliverlittle.clusterprocess.model.table.sources.cassandra.CassandraFi
 import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
 import org.oliverlittle.clusterprocess.connector.grpc.{WorkerHandler, ChannelManager}
 
+object DataSource:
+	def fromProtobuf(dataSource : data_source.DataSource) = dataSource match {
+		case x if x.isCassandra => CassandraDataSource.inferDataSourceFromCassandra(connector, x.cassandra.get.keyspace, x.cassandra.get.table)
+		case _ => throw new IllegalArgumentException("Unknown data source")
+	} 
+
 trait DataSource:
 	/**
 	 * Abstract implementation to get the headers of a data source

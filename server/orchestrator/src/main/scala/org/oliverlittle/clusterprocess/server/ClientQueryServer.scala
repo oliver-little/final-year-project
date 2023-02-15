@@ -3,8 +3,8 @@ package org.oliverlittle.clusterprocess.server
 import org.oliverlittle.clusterprocess.worker_query
 import org.oliverlittle.clusterprocess.table_model
 import org.oliverlittle.clusterprocess.client_query
+import org.oliverlittle.clusterprocess.query.QueryPlan
 import org.oliverlittle.clusterprocess.model.table.sources.DataSource
-import org.oliverlittle.clusterprocess.model.table.sources.cassandra.CassandraDataSource
 import org.oliverlittle.clusterprocess.model.table.{Table, TableTransformation, TableResult}
 import org.oliverlittle.clusterprocess.scheduler.WorkExecutionScheduler
 import org.oliverlittle.clusterprocess.connector.grpc.{StreamedTableResult, DelayedTableResultRunnable, WorkerHandler}
@@ -59,34 +59,29 @@ class ClientQueryServer(executionContext: ExecutionContext, connector : Cassandr
             ClientQueryServer.logger.info("Compute table request received")
 
             // Parse table
-            val dataSource = request.dataSource.get.source match {
-                case x if x.isCassandra => CassandraDataSource.inferDataSourceFromCassandra(connector, x.cassandra.get.keyspace, x.cassandra.get.table)
-                case _ => throw new IllegalArgumentException("Unknown data source")
-            }   
+            val dataSource = DataSource.fromProtobuf(request.dataSource.get.source)
 
             val tableTransformations = TableTransformation.fromProtobuf(request.table.get)
             val table = Table(dataSource, tableTransformations)
             ClientQueryServer.logger.info("Created table instance.")
             
             if !table.isValid then responseObserver.onError(new IllegalArgumentException("Table cannot be computed"))
+
+            // Generate a query plan
+            val queryPlan = QueryPlan(table)
+
+            // Able to make this unchecked cast because this is a response from a server
+            val serverCallStreamObserver = responseObserver.asInstanceOf[ServerCallStreamObserver[table_model.StreamedTableResult]]
             
-            // Refactor into a subclassed server that specifically handles Cassandra (workerHandler should not be an argument)
-            if dataSource.isCassandra then 
-                val cassandraDataSource = dataSource.asInstanceOf[CassandraDataSource]
-                val channelTokenRangeMap = workerHandler.distributeWorkToNodes(connector, cassandraDataSource.keyspace, cassandraDataSource.name)
+            // Prepare onReady hook 
+            val runnable = DelayedTableResultRunnable(serverCallStreamObserver)
+            serverCallStreamObserver.setOnReadyHandler(runnable)
 
-                // Able to make this unchecked cast because this is a response from a server
-                val serverCallStreamObserver = responseObserver.asInstanceOf[ServerCallStreamObserver[table_model.StreamedTableResult]]
-                
-                // Prepare onReady hook 
-                val runnable = DelayedTableResultRunnable(serverCallStreamObserver)
-                serverCallStreamObserver.setOnReadyHandler(runnable)
-
-                // Start execution, and add hook to send the data when finished
-                WorkExecutionScheduler.startFromData(channelTokenRangeMap, table, {result =>
-                    ClientQueryServer.logger.info("Result ready from workers.")
-                    runnable.setData(result)
-                })
+            // Start execution, and add hook to send the data when finished
+            WorkExecutionScheduler.startFromData(queryPlan, workerHandler, table, {result =>
+                ClientQueryServer.logger.info("Result ready from workers.")
+                runnable.setData(result)
+            })
         } 
     }
 }

@@ -9,7 +9,7 @@ service WorkerComputeService {
     // Computes a partial result
     rpc ComputePartialResultCassandra(ComputePartialResultCassandraRequest) returns (stream StreamedTableResult);
     rpc GetLocalCassandraNode(GetLocalCassandraNodeRequest) returns (GetLocalCassandraNodeResult);
-    rpc ProcessQueryPlanItem(ProcessQueryPlanItemRequest) returns (ProcessQueryPlanItemResult);
+    rpc ProcessQueryPlanItem(QueryPlanItem) returns (ProcessQueryPlanItemResult);
     rpc GetCachedResult(GetCachedResultRequest) returns (stream StreamedTableResult);
 }
 
@@ -23,18 +23,45 @@ message GetLocalCassandraNodeResult {
 
 message ComputePartialResultCassandraRequest {
     Table table = 1;
-    CassandraDataSource dataSource = 2;
-    CassandraTokenRange tokenRange = 3;
-}
-
-message ProcessQueryPlanItemRequest {
-
+    CassandraDataSource data_source = 2;
+    CassandraTokenRange token_range = 3;
 }
 
 message ProcessQueryPlanItemResult {
-
+    bool success = 1;
 }
 
 message GetCachedResultRequest {
     Table table = 1;
+}
+
+
+// Query Plan Items
+message QueryPlanItem {
+    oneof item {
+        PrepareResult prepare_result = 1;
+        DeleteResult delete_result = 2;
+        PreparePartition prepare_partition = 3;
+        GetPartition get_partition = 4;
+    }
+}
+
+message PrepareResult {
+    PartialDataSource data_source = 1;
+    Table table = 2;
+}
+
+message DeleteResult {
+    PartialDataSource data_source = 1;
+    Table table = 2;
+}
+
+message PreparePartition {
+    PartialDataSource data_source = 1;
+    uint32 total_partitions = 2;
+}
+
+message GetPartition {
+    PartialDataSource data_source = 1;
+    repeated string other_worker_urls = 2;
 }

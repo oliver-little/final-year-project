@@ -79,7 +79,7 @@ class WorkerQueryServer(executionContext: ExecutionContext, connector : Cassandr
         }
 
 
-        override def processQueryPlanItem(item : QueryPlanItem) : Future[String] = {
+        override def processQueryPlanItem(item : worker_query.QueryPlanItem) : Future[String] = {
             // Deserialise queryplanitem from protobuf
 
             // Create queryhandler actor in actorsystem, with reference to tablestore, ask it to handle query, return success/failure case

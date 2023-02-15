@@ -2,15 +2,31 @@ syntax = "proto3";
 
 option java_package = "org.oliverlittle.clusterprocess";
 
+import "table_model.proto";
+
 message DataSource {
     oneof source {
         CassandraDataSource cassandra = 1;
+        GroupByDataSource group_by = 2;
+    }
+}
+
+message PartialDataSource {
+    oneof source {
+        PartialCassandraDataSource cassandra = 1;
+        PartialGroupByDataSource group_by = 2;
     }
 }
 
 message CassandraDataSource {
-    string keyspace = 2;
-    string table = 3;
+    string keyspace = 1;
+    string table = 2;
+}
+
+message PartialCassandraDataSource {
+    string keyspace = 1;
+    string table = 2;
+    repeated CassandraTokenRange token_ranges = 3;
 }
 
 message CassandraTokenRange {
@@ -21,4 +37,19 @@ message CassandraTokenRange {
 message InetSocketAddress {
     string host = 1;
     int32 port = 2;
+}
+
+message GroupByDataSource {
+    repeated Expression unique_fields = 1;
+    repeated AggregateExpression aggregate_fields = 2;
+}
+
+message PartialGroupByDataSource {
+    GroupByDataSource parent = 1;
+    PartitionInformation partitions = 2;
+}
+
+message PartitionInformation {
+    uint32 partition_number = 1;
+    uint32 total_partitions = 2;
 }

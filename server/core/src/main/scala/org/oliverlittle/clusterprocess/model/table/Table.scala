@@ -3,7 +3,7 @@ package org.oliverlittle.clusterprocess.model.table
 import org.oliverlittle.clusterprocess.table_model
 import org.oliverlittle.clusterprocess.model.table.field._
 import org.oliverlittle.clusterprocess.model.table.sources.{DataSource, PartialDataSource}
-import org.oliverlittle.clusterprocess.connector.grpc.ChannelManager
+import org.oliverlittle.clusterprocess.connector.grpc.{ChannelManager, WorkerHandler}
 
 case class Table(dataSource : DataSource, transformations : Seq[TableTransformation] = Seq()):
 
@@ -13,6 +13,8 @@ case class Table(dataSource : DataSource, transformations : Seq[TableTransformat
     lazy val outputHeaders : TableResultHeader = headerList.toSeq.last
 
     def addTransformation(transformation : TableTransformation) : Table = Table(dataSource, transformations :+ transformation)
+
+    def getPartialTables(workerHandler : WorkerHandler) : Seq[(Seq[ChannelManager], Seq[PartialTable])] = dataSource.getPartitions(workerHandler).map((channels, partialSources) => (channels, partialSources.map(PartialTable(_, transformations))))
 
     /**
       * Returns whether this table can be evaluated with the provided data source and transformations

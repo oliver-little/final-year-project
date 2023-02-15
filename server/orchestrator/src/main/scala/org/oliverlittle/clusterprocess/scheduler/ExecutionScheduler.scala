@@ -14,7 +14,8 @@ object WorkExecutionScheduler {
 
     final case class ResultData(result : Option[TableResult])
 
-    def startFromData(channelTokenRangeMap : Seq[(Seq[ChannelManager], Seq[CassandraTokenRange])], table : Table, resultCallback : TableResult => Unit) : Unit = {
+    def startFromData(queryPlan : Seq[QueryPlanItem], table : Table, resultCallback : TableResult => Unit) : Unit = {
+        /*
         val dataSourceProtobuf = table.dataSource.getCassandraProtobuf.get
         val tableProtobuf = table.protobuf
 
@@ -23,7 +24,7 @@ object WorkExecutionScheduler {
                 channels.map(manager => worker_query.WorkerComputeServiceGrpc.blockingStub(manager.channel)), 
                 tokenRanges.map(tokenRange => worker_query.ComputePartialResultCassandraRequest(table=Some(tableProtobuf), dataSource=Some(dataSourceProtobuf), tokenRange=Some(tokenRange.protobuf)))
             )
-        )
+        )*/
 
         startExecution(parsedItems, table.transformations.last.assemblePartial, resultCallback : TableResult => Unit)
     }
