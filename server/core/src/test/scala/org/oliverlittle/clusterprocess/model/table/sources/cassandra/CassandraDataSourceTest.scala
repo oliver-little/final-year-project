@@ -5,7 +5,7 @@ import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
 import org.oliverlittle.clusterprocess.model.table.TableResultHeader
 import org.oliverlittle.clusterprocess.model.table.field._
 import org.oliverlittle.clusterprocess.connector.cassandra.token._
-import org.oliverlittle.clusterprocess.data_source
+import org.oliverlittle.clusterprocess.table_model
 
 import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.any
@@ -93,12 +93,12 @@ class CassandraDataSourceTest extends UnitSpec with MockitoSugar {
 
     it should "convert to a DataSource protobuf correctly" in {
         val mockConnector = mock[CassandraConnector]
-        CassandraDataSource(mockConnector, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1"), None).protobuf should be (data_source.DataSource().withCassandra(data_source.CassandraDataSource("test", "test_table")))
+        CassandraDataSource(mockConnector, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1"), None).protobuf should be (table_model.DataSource().withCassandra(table_model.CassandraDataSource("test", "test_table")))
     }
 
     it should "convert to a protobuf correctly" in {
         val mockConnector = mock[CassandraConnector]
-        CassandraDataSource(mockConnector, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1"), None).getCassandraProtobuf should be (Some(data_source.CassandraDataSource("test", "test_table")))
+        CassandraDataSource(mockConnector, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1"), None).getCassandraProtobuf should be (Some(table_model.CassandraDataSource("test", "test_table")))
     }
 
     it should "convert to a CQL query" in {

@@ -4,7 +4,6 @@ import org.oliverlittle.clusterprocess.UnitSpec
 import org.oliverlittle.clusterprocess.model.table._
 import org.oliverlittle.clusterprocess.model.table.field._
 import org.oliverlittle.clusterprocess.worker_query
-import org.oliverlittle.clusterprocess.data_source
 import org.oliverlittle.clusterprocess.table_model
 
 import org.mockito.ArgumentCaptor
@@ -19,8 +18,8 @@ import akka.actor.typed.scaladsl._
 
 class WorkProducerTest extends UnitSpec {
     "A WorkProducer" should "provide results while it has data" in {
-        val one = worker_query.ComputePartialResultCassandraRequest(dataSource=Some(data_source.CassandraDataSource("test", "one")))
-        val two = worker_query.ComputePartialResultCassandraRequest(dataSource=Some(data_source.CassandraDataSource("test", "two")))
+        val one = worker_query.ComputePartialResultCassandraRequest(dataSource=Some(table_model.CassandraDataSource("test", "one")))
+        val two = worker_query.ComputePartialResultCassandraRequest(dataSource=Some(table_model.CassandraDataSource("test", "two")))
         val data = Seq(one, two)
         val testKit = BehaviorTestKit(WorkProducer(data))
         val inbox = TestInbox[WorkConsumer.ConsumerEvent]()
@@ -38,7 +37,7 @@ class WorkProducerTest extends UnitSpec {
     }
 
     it should "stop providing results when it runs out" in {
-        val one = worker_query.ComputePartialResultCassandraRequest(dataSource=Some(data_source.CassandraDataSource("test", "one")))
+        val one = worker_query.ComputePartialResultCassandraRequest(dataSource=Some(table_model.CassandraDataSource("test", "one")))
         val data = Seq(one)
         val testKit = BehaviorTestKit(WorkProducer(data))
         val inbox = TestInbox[WorkConsumer.ConsumerEvent]()
@@ -51,7 +50,7 @@ class WorkProducerTest extends UnitSpec {
 
 class WorkConsumerTest extends UnitSpec with MockitoSugar {
     "A WorkConsumer" should "compute work when it receives it" in {
-        val one = worker_query.ComputePartialResultCassandraRequest(dataSource=Some(data_source.CassandraDataSource("test", "one")))
+        val one = worker_query.ComputePartialResultCassandraRequest(dataSource=Some(table_model.CassandraDataSource("test", "one")))
         val mockStub = mock[worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub]
         val header = TableResultHeader(Seq(BaseStringField("a")))
         when(mockStub.computePartialResultCassandra(one)).thenReturn(Seq(table_model.StreamedTableResult().withHeader(header.protobuf)).iterator)
@@ -67,7 +66,7 @@ class WorkConsumerTest extends UnitSpec with MockitoSugar {
     }
 
     it should "move to the next producer when the current one is empty" in {
-        val one = worker_query.ComputePartialResultCassandraRequest(dataSource=Some(data_source.CassandraDataSource("test", "one")))
+        val one = worker_query.ComputePartialResultCassandraRequest(dataSource=Some(table_model.CassandraDataSource("test", "one")))
         val mockStub = mock[worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub]
         val header = TableResultHeader(Seq(BaseStringField("a")))
         when(mockStub.computePartialResultCassandra(one)).thenReturn(Seq(table_model.StreamedTableResult().withHeader(header.protobuf)).iterator)
@@ -86,7 +85,7 @@ class WorkConsumerTest extends UnitSpec with MockitoSugar {
     }
 
     it should "stop when all producers are empty" in {
-        val one = worker_query.ComputePartialResultCassandraRequest(dataSource=Some(data_source.CassandraDataSource("test", "one")))
+        val one = worker_query.ComputePartialResultCassandraRequest(dataSource=Some(table_model.CassandraDataSource("test", "one")))
         val mockStub = mock[worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub]
         val header = TableResultHeader(Seq(BaseStringField("a")))
         when(mockStub.computePartialResultCassandra(one)).thenReturn(Seq(table_model.StreamedTableResult().withHeader(header.protobuf)).iterator)

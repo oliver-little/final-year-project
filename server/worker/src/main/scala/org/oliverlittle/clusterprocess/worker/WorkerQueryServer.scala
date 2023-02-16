@@ -6,7 +6,6 @@ import scala.concurrent.{ExecutionContext, Future}
 import java.util.logging.Logger
 
 import org.oliverlittle.clusterprocess.worker_query
-import org.oliverlittle.clusterprocess.data_source
 import org.oliverlittle.clusterprocess.table_model
 import org.oliverlittle.clusterprocess.query.QueryPlan
 import org.oliverlittle.clusterprocess.model.table.{Table, TableTransformation}
@@ -74,7 +73,7 @@ class WorkerQueryServer(executionContext: ExecutionContext, connector : Cassandr
         override def getLocalCassandraNode(request : worker_query.GetLocalCassandraNodeRequest) : Future[worker_query.GetLocalCassandraNodeResult] = {
             WorkerQueryServer.logger.info("getLocalCassandraNode")
             WorkerQueryServer.logger.info("Host: " + connector.socket.getHostName + ", port: " + connector.socket.getPort.toString)
-            val response = worker_query.GetLocalCassandraNodeResult(address=Some(data_source.InetSocketAddress(host=connector.socket.getHostName, port=connector.socket.getPort)))
+            val response = worker_query.GetLocalCassandraNodeResult(address=Some(table_model.InetSocketAddress(host=connector.socket.getHostName, port=connector.socket.getPort)))
             Future.successful(response)
         }
 

@@ -51,6 +51,6 @@ object PingLatency {
             case e : IOException => println(e)
         }
 
-        return Some(stop - start)
+        return Some(stop.toDouble - start.toDouble)
     }
 }

@@ -1,7 +1,6 @@
 package org.oliverlittle.clusterprocess.connector.grpc
 
 import org.oliverlittle.clusterprocess.worker_query
-import org.oliverlittle.clusterprocess.data_source
 import org.oliverlittle.clusterprocess.connector.grpc.ChannelManager
 import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
 import org.oliverlittle.clusterprocess.connector.cassandra.node.CassandraNode

@@ -4,7 +4,6 @@ import org.oliverlittle.clusterprocess.UnitSpec
 import org.oliverlittle.clusterprocess.model.table._
 import org.oliverlittle.clusterprocess.model.table.field._
 import org.oliverlittle.clusterprocess.worker_query
-import org.oliverlittle.clusterprocess.data_source
 import org.oliverlittle.clusterprocess.table_model
 
 import org.mockito.ArgumentCaptor
@@ -24,9 +23,9 @@ import scala.concurrent.duration.Duration
 */
 class WorkSystemTest extends UnitSpec with MockitoSugar {
     "The WorkSystem" should "collect responses when the expected number of responses is reached" in {
-        val one = worker_query.ComputePartialResultCassandraRequest(dataSource=Some(data_source.CassandraDataSource("test", "one")))
-        val three = worker_query.ComputePartialResultCassandraRequest(dataSource=Some(data_source.CassandraDataSource("test", "three")))
-        val two = worker_query.ComputePartialResultCassandraRequest(dataSource=Some(data_source.CassandraDataSource("test", "two")))
+        val one = worker_query.ComputePartialResultCassandraRequest(dataSource=Some(table_model.CassandraDataSource("test", "one")))
+        val three = worker_query.ComputePartialResultCassandraRequest(dataSource=Some(table_model.CassandraDataSource("test", "three")))
+        val two = worker_query.ComputePartialResultCassandraRequest(dataSource=Some(table_model.CassandraDataSource("test", "two")))
 
         val response : Seq[table_model.StreamedTableResult] = Seq(
             table_model.StreamedTableResult().withHeader(TableResultHeader(Seq()).protobuf),

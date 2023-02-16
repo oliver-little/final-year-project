@@ -9,9 +9,9 @@ import scala.util.Try
 import scala.util.hashing.MurmurHash3
 
 object TableTransformation:
-	def fromProtobuf(table: table_model.Table) : Seq[TableTransformation] = table.transformations.map(_.instruction match {
-		case table_model.Table.TableTransformation.Instruction.Select(expr) => SelectTransformation.fromProtobuf(expr)
-		case table_model.Table.TableTransformation.Instruction.Filter(expr) => FilterTransformation.fromProtobuf(expr)
+	def fromProtobuf(transformations: Seq[table_model.TableTransformation]) : Seq[TableTransformation] = transformations.map(_.instruction match {
+		case table_model.TableTransformation.Instruction.Select(expr) => SelectTransformation.fromProtobuf(expr)
+		case table_model.TableTransformation.Instruction.Filter(expr) => FilterTransformation.fromProtobuf(expr)
 		case _ => throw new IllegalArgumentException("Not implemented yet")
 	})
 
@@ -59,7 +59,7 @@ sealed trait TableTransformation:
 	  */
 	def outputPartialHeaders(inputHeaders : TableResultHeader) : TableResultHeader
 
-	def protobuf : table_model.Table.TableTransformation
+	def protobuf : table_model.TableTransformation
 
 object SelectTransformation:
 	def fromProtobuf(select : table_model.Select) : SelectTransformation = SelectTransformation(select.fields.map(NamedFieldExpression.fromProtobuf(_))*)
@@ -78,7 +78,7 @@ final case class SelectTransformation(selectColumns : NamedFieldExpression*) ext
 
 	def outputPartialHeaders(inputHeaders: TableResultHeader): TableResultHeader = outputHeaders(inputHeaders)
 
-	lazy val protobuf = table_model.Table.TableTransformation().withSelect(table_model.Select(selectColumns.map(_.protobuf)))
+	lazy val protobuf = table_model.TableTransformation().withSelect(table_model.Select(selectColumns.map(_.protobuf)))
 
 object FilterTransformation:
 	def fromProtobuf(filter : table_model.Filter) : FilterTransformation = FilterTransformation(FieldComparison.fromProtobuf(filter))
@@ -97,7 +97,7 @@ final case class FilterTransformation(filter : FieldComparison) extends TableTra
 
 	def outputPartialHeaders(inputHeaders: TableResultHeader): TableResultHeader = outputHeaders(inputHeaders)
 
-	lazy val protobuf = table_model.Table.TableTransformation().withFilter(filter.protobuf)
+	lazy val protobuf = table_model.TableTransformation().withFilter(filter.protobuf)
 
 final case class AggregateTransformation(aggregateColumns : AggregateExpression*) extends TableTransformation:
 	def isValid(header : TableResultHeader) : Boolean = Try{aggregateColumns.map(_.resolve(header))}.isSuccess
@@ -127,7 +127,7 @@ final case class AggregateTransformation(aggregateColumns : AggregateExpression*
 
 	def outputPartialHeaders(inputHeaders: TableResultHeader): TableResultHeader = TableResultHeader(aggregateColumns.flatMap(_.outputPartialTableFields(inputHeaders)))
 
-	lazy val protobuf = table_model.Table.TableTransformation().withAggregate(table_model.Aggregate(aggregateColumns.map(_.protobuf)))
+	lazy val protobuf = table_model.TableTransformation().withAggregate(table_model.Aggregate(aggregateColumns.map(_.protobuf)))
 
 // Calculates a Murmur3Hash on the previous result
 final case class HashTransformation(uniqueColumns : FieldExpression*):

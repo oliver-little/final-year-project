@@ -1,13 +1,15 @@
 package org.oliverlittle.clusterprocess.model.table.sources
 
 import org.oliverlittle.clusterprocess.table_model
-import org.oliverlittle.clusterprocess.data_source
 import org.oliverlittle.clusterprocess.model.table._
 import org.oliverlittle.clusterprocess.model.field.expressions._
 import org.oliverlittle.clusterprocess.connector.grpc.{WorkerHandler, ChannelManager}
 
 import akka.actor.typed.ActorRef
 import scala.util.Try
+
+object GroupByDataSource:
+    def fromProtobuf(dataSource : table_model.GroupByDataSource) = GroupByDataSource(Table.fromProtobuf(dataSource.table.get), dataSource.uniqueFields.map(NamedFieldExpression.fromProtobuf(_)), dataSource.aggregateFields.map(AggregateExpression.fromProtobuf(_)))
 
 case class GroupByDataSource(source : Table, uniqueFields : Seq[NamedFieldExpression], aggregates : Seq[AggregateExpression]) extends DataSource:
     // Same as in DataSource definition
@@ -21,14 +23,16 @@ case class GroupByDataSource(source : Table, uniqueFields : Seq[NamedFieldExpres
     // -- Partitions able to calculate themselves? (given the correct dependencies)
     def getPartitions(workerHandler : WorkerHandler) : Seq[(Seq[ChannelManager], Seq[PartialDataSource])]  = Seq((Seq(), Seq(PartialGroupByDataSource(this, 1, 1))))
 
-    lazy val groupByProtobuf : data_source.GroupByDataSource = data_source.GroupByDataSource(uniqueFields.map(_.protobuf), aggregates.map(_.protobuf))
+    lazy val groupByProtobuf : table_model.GroupByDataSource = table_model.GroupByDataSource(Some(source.protobuf), uniqueFields.map(_.protobuf), aggregates.map(_.protobuf))
     // Same as in DataSource definition, this will just become a new kind of data source
-    lazy val protobuf : data_source.DataSource = data_source.DataSource().withGroupBy(groupByProtobuf)
+    lazy val protobuf : table_model.DataSource = table_model.DataSource().withGroupBy(groupByProtobuf)
+
+
 
 case class PartialGroupByDataSource(parent : GroupByDataSource, partitionNum : Int, totalPartitions : Int) extends PartialDataSource:
-    lazy val protobuf : data_source.PartialDataSource = data_source.PartialDataSource().withGroupBy(data_source.PartialGroupByDataSource(
+    lazy val protobuf : table_model.PartialDataSource = table_model.PartialDataSource().withGroupBy(table_model.PartialGroupByDataSource(
         Some(parent.groupByProtobuf), 
-        Some(data_source.PartitionInformation(partitionNum, totalPartitions))
+        Some(table_model.PartitionInformation(partitionNum, totalPartitions))
     ))
 
     def getPartialData(workerChannels : Seq[ChannelManager]) : TableResult = {

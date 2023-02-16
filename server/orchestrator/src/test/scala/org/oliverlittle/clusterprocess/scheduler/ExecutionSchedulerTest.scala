@@ -4,7 +4,6 @@ import org.oliverlittle.clusterprocess.UnitSpec
 import org.oliverlittle.clusterprocess.model.table._
 import org.oliverlittle.clusterprocess.model.table.field._
 import org.oliverlittle.clusterprocess.worker_query
-import org.oliverlittle.clusterprocess.data_source
 import org.oliverlittle.clusterprocess.table_model
 
 import org.mockito.ArgumentCaptor

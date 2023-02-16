@@ -4,10 +4,14 @@ import org.oliverlittle.clusterprocess.table_model
 import org.oliverlittle.clusterprocess.model.table.field._
 import org.oliverlittle.clusterprocess.model.table.sources.{DataSource, PartialDataSource}
 import org.oliverlittle.clusterprocess.connector.grpc.{ChannelManager, WorkerHandler}
+import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
+
+object Table:
+    def fromProtobuf(table : table_model.Table) : Table = Table(DataSource.fromProtobuf(table.dataSource.get), TableTransformation.fromProtobuf(table.transformations))
 
 case class Table(dataSource : DataSource, transformations : Seq[TableTransformation] = Seq()):
 
-    lazy val protobuf : table_model.Table = table_model.Table(transformations=transformations.map(_.protobuf))
+    lazy val protobuf : table_model.Table = table_model.Table(Some(dataSource.protobuf), transformations.map(_.protobuf))
 
     lazy val headerList = transformations.iterator.scanLeft(dataSource.getHeaders)((inputContext, item) => item.outputHeaders(inputContext))
     lazy val outputHeaders : TableResultHeader = headerList.toSeq.last
@@ -29,8 +33,11 @@ case class Table(dataSource : DataSource, transformations : Seq[TableTransformat
 
     def assemble(partialResults : Iterable[TableResult]) : TableResult = transformations.last.assemblePartial(partialResults)
 
+object PartialTable:
+    def fromProtobuf(table : table_model.PartialTable) : PartialTable = PartialTable(PartialDataSource.fromProtobuf(table.dataSource.get), TableTransformation.fromProtobuf(table.transformations))
+
 case class PartialTable(dataSource : PartialDataSource, transformations : Seq[TableTransformation] = Seq()):
-    lazy val protobuf : table_model.Table = table_model.Table(transformations=transformations.map(_.protobuf))
+    lazy val protobuf : table_model.PartialTable = table_model.PartialTable(Some(dataSource.protobuf), transformations.map(_.protobuf))
 
     def compute(input : TableResult) : TableResult = {
         if input.header != dataSource.getHeaders then throw new IllegalArgumentException("Input data headers do not match dataSource headers")

@@ -1,16 +1,17 @@
 package org.oliverlittle.clusterprocess.model.table.sources
 
-import org.oliverlittle.clusterprocess.data_source
+import org.oliverlittle.clusterprocess.table_model
 import org.oliverlittle.clusterprocess.model.table._
 import org.oliverlittle.clusterprocess.model.table.field.{TableField, TableValue}
-import org.oliverlittle.clusterprocess.model.table.sources.cassandra.CassandraDataSource
-import org.oliverlittle.clusterprocess.model.table.sources.cassandra.CassandraField
+import org.oliverlittle.clusterprocess.model.table.sources.cassandra._
 import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
+import org.oliverlittle.clusterprocess.connector.cassandra.token.CassandraPartition
 import org.oliverlittle.clusterprocess.connector.grpc.{WorkerHandler, ChannelManager}
 
 object DataSource:
-	def fromProtobuf(connector : CassandraConnector, dataSource : data_source.DataSource) = dataSource.source match {
-		case x if x.isCassandra => CassandraDataSource.inferDataSourceFromCassandra(connector, x.cassandra.get.keyspace, x.cassandra.get.table)
+	def fromProtobuf(dataSource : table_model.DataSource) = dataSource.source match {
+		case table_model.DataSource.Source.Cassandra(source) => CassandraDataSource.inferDataSourceFromCassandra(source.keyspace, source.table)
+		case table_model.DataSource.Source.GroupBy(source) => GroupByDataSource.fromProtobuf(source)
 		case _ => throw new IllegalArgumentException("Unknown data source")
 	} 
 
@@ -38,10 +39,14 @@ trait DataSource:
 
 	def isValid : Boolean
 
-	def protobuf : data_source.DataSource
+	def protobuf : table_model.DataSource
 
 object PartialDataSource:
-	def fromProtobuf(connector : CassandraConnector, dataSource : data_source.PartialDataSource) : Unit = {}
+	def fromProtobuf(dataSource : table_model.PartialDataSource) : PartialDataSource = dataSource.source match {
+		case table_model.PartialDataSource.Source.Cassandra(partial) => PartialCassandraDataSource(CassandraDataSource.inferDataSourceFromCassandra(partial.keyspace, partial.table), CassandraPartition.fromProtobuf(partial.tokenRanges))
+		case table_model.PartialDataSource.Source.GroupBy(partial) => PartialGroupByDataSource(GroupByDataSource.fromProtobuf(partial.parent.get), partial.partition.get.partitionNumber, partial.partition.get.totalPartitions)
+		case x => throw new IllegalArgumentException("Unsupported PartialDataSource: " + x.toString)
+	}
 
 trait PartialDataSource:
 	val parent : DataSource
@@ -60,4 +65,4 @@ trait PartialDataSource:
 	 */
 	def getPartialData(workerChannels : Seq[ChannelManager]) : TableResult
 
-	def protobuf : data_source.PartialDataSource
+	def protobuf : table_model.PartialDataSource

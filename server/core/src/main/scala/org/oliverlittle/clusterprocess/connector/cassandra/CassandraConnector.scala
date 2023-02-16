@@ -10,6 +10,16 @@ import java.net.InetSocketAddress
 import scala.io.Source.fromFile
 import scala.util.Properties.{envOrElse, envOrNone}
 
+object CassandraConfig:
+    lazy val connector = CassandraConnector()
+
+    def apply() : CassandraConfig = ConfigHolder(connector)
+
+    case class ConfigHolder(connector : CassandraConnector) extends CassandraConfig
+
+trait CassandraConfig extends Selectable:
+    def connector : CassandraConnector
+
 object CassandraConnector:
     def getHost(port : Int) : String = {
         val url = envOrNone("CASSANDRA_URL")

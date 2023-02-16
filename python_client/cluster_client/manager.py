@@ -8,7 +8,6 @@ from cluster_client.model.data_source import DataSource, CassandraDataSource
 from cluster_client.model.table_transformation import *
 from cluster_client.model.result_builder import StreamedTableResultBuilder
 import cluster_client.protobuf.client_query_pb2 as client_query_pb2
-import cluster_client.protobuf.data_source_pb2 as data_source_pb2
 
 # ClusterManager("address").cassandraTable().
 

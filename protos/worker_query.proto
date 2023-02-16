@@ -3,11 +3,8 @@ syntax = "proto3";
 option java_package = "org.oliverlittle.clusterprocess";
 
 import "table_model.proto";
-import "data_source.proto";
 
 service WorkerComputeService {
-    // Computes a partial result
-    rpc ComputePartialResultCassandra(ComputePartialResultCassandraRequest) returns (stream StreamedTableResult);
     rpc GetLocalCassandraNode(GetLocalCassandraNodeRequest) returns (GetLocalCassandraNodeResult);
     rpc ProcessQueryPlanItem(QueryPlanItem) returns (ProcessQueryPlanItemResult);
     rpc GetCachedResult(GetCachedResultRequest) returns (stream StreamedTableResult);
@@ -19,12 +16,6 @@ message GetLocalCassandraNodeRequest {
 
 message GetLocalCassandraNodeResult {
     InetSocketAddress address = 1;
-}
-
-message ComputePartialResultCassandraRequest {
-    Table table = 1;
-    CassandraDataSource data_source = 2;
-    CassandraTokenRange token_range = 3;
 }
 
 message ProcessQueryPlanItemResult {
@@ -48,13 +39,11 @@ message QueryPlanItem {
 }
 
 message PrepareResult {
-    PartialDataSource data_source = 1;
-    Table table = 2;
+    PartialTable table = 1;
 }
 
 message DeleteResult {
-    PartialDataSource data_source = 1;
-    Table table = 2;
+    PartialTable table = 1;
 }
 
 message PreparePartition {
