@@ -5,25 +5,24 @@ import org.oliverlittle.clusterprocess.table_model
 import org.oliverlittle.clusterprocess.model.table._
 import org.oliverlittle.clusterprocess.model.table.field._
 
-import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.scaladsl.LoggerOps
+import akka.actor.typed.scaladsl.{Behaviors, LoggerOps, ActorContext}
 import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
 
 import collection.mutable.{Buffer, ArrayBuffer}
 
 trait WorkProducerFactory:
-    def createProducer(items : Seq[worker_query.ComputePartialResultCassandraRequest]) : Behavior[WorkProducer.ProducerEvent] 
+    def createProducer(items : Seq[worker_query.QueryPlanItem]) : Behavior[WorkProducer.ProducerEvent] 
         
 class BaseWorkProducerFactory extends WorkProducerFactory:
-    def createProducer(items : Seq[worker_query.ComputePartialResultCassandraRequest]) : Behavior[WorkProducer.ProducerEvent] = WorkProducer(items)
+    def createProducer(items : Seq[worker_query.QueryPlanItem]) : Behavior[WorkProducer.ProducerEvent] = WorkProducer(items)
 
 object WorkProducer {
     sealed trait ProducerEvent
     final case class RequestWork(replyTo : ActorRef[WorkConsumer.ConsumerEvent]) extends ProducerEvent
     
-    def apply(items : Seq[worker_query.ComputePartialResultCassandraRequest]) : Behavior[ProducerEvent] = list(items)
+    def apply(items : Seq[worker_query.QueryPlanItem]) : Behavior[ProducerEvent] = list(items)
 
-    private def list(items : Seq[worker_query.ComputePartialResultCassandraRequest]) : Behavior[ProducerEvent] = Behaviors.receiveMessage {
+    private def list(items : Seq[worker_query.QueryPlanItem]) : Behavior[ProducerEvent] = Behaviors.receiveMessage {
         case RequestWork(replyTo) =>
             items.isEmpty match {
                 case true => 
@@ -37,35 +36,34 @@ object WorkProducer {
 }
 
 trait WorkConsumerFactory:
-    def createConsumer(stub : worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub, producers : Seq[ActorRef[WorkProducer.ProducerEvent]], assembler : ActorRef[WorkExecutionScheduler.AssemblerEvent]) : Behavior[WorkConsumer.ConsumerEvent]
+    def createConsumer(stub : worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub, producers : Seq[ActorRef[WorkProducer.ProducerEvent]], counter : ActorRef[Counter.CounterEvent]) : Behavior[WorkConsumer.ConsumerEvent]
 
 class BaseWorkConsumerFactory extends WorkConsumerFactory:
-    def createConsumer(stub: worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub, producers: Seq[ActorRef[WorkProducer.ProducerEvent]], assembler: ActorRef[WorkExecutionScheduler.AssemblerEvent]) : Behavior[WorkConsumer.ConsumerEvent] = WorkConsumer(stub, producers, assembler)
+    def createConsumer(stub: worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub, producers: Seq[ActorRef[WorkProducer.ProducerEvent]], counter: ActorRef[Counter.CounterEvent]) : Behavior[WorkConsumer.ConsumerEvent] = WorkConsumer(stub, producers, counter)
 
 
 object WorkConsumer {
     sealed trait ConsumerEvent
-    final case class HasWork(request : worker_query.ComputePartialResultCassandraRequest) extends ConsumerEvent
+    final case class HasWork(request : worker_query.QueryPlanItem) extends ConsumerEvent
     final case class NoWork() extends ConsumerEvent
 
-    def apply(stub : worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub, producers : Seq[ActorRef[WorkProducer.ProducerEvent]], assembler : ActorRef[WorkExecutionScheduler.AssemblerEvent]) : Behavior[ConsumerEvent] = Behaviors.setup{context => 
+    def apply(stub : worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub, producers : Seq[ActorRef[WorkProducer.ProducerEvent]], counter : ActorRef[Counter.CounterEvent]) : Behavior[ConsumerEvent] = Behaviors.setup{context => 
         producers.head ! WorkProducer.RequestWork(context.self)
-        computeWork(stub, producers, assembler)
+        computeWork(stub, producers, counter)
     }
 
-    private def computeWork(stub : worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub, producers : Seq[ActorRef[WorkProducer.ProducerEvent]], assembler : ActorRef[WorkExecutionScheduler.AssemblerEvent]) : Behavior[ConsumerEvent] = Behaviors.receive{(context, message) => 
+    private def computeWork(stub : worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub, producers : Seq[ActorRef[WorkProducer.ProducerEvent]], counter : ActorRef[Counter.CounterEvent]) : Behavior[ConsumerEvent] = Behaviors.receive{(context, message) => 
         message match {
             case NoWork() if producers.length == 1 => 
                 Behaviors.stopped
             case NoWork() => 
                 producers.tail.head ! WorkProducer.RequestWork(context.self)
-                computeWork(stub, producers.tail, assembler)
+                computeWork(stub, producers.tail, counter)
             case HasWork(request) => 
                 // Make the request to the worker node
-                val results : Iterator[table_model.StreamedTableResult] = stub.computePartialResultCassandra(request)
-                val processedResult = processStreamedResults(results)
-                // Process the results and send to the assembler
-                assembler ! WorkExecutionScheduler.SendResult(processedResult)
+                val result = stub.processQueryPlanItem(request)
+                // Process the results and send to the counter
+                counter ! Counter.Increment()
                 // Request more work from the producer
                 producers.head ! WorkProducer.RequestWork(context.self)
                 Behaviors.same
@@ -91,5 +89,50 @@ object WorkConsumer {
         if header.isEmpty then throw new IllegalArgumentException("Header not defined in response")
 
         return EvaluatedTableResult(header.get, rows.toSeq)        
+    }
+}
+
+trait CounterFactory:
+    def createCounter(expectedResponses : Int, onComplete : () => Unit, onError : Throwable => Unit) : Behavior[Counter.CounterEvent]
+
+class BaseCounterFactory extends CounterFactory:
+    def createCounter(expectedResponses : Int, onComplete : () => Unit, onError : Throwable => Unit) : Behavior[Counter.CounterEvent] = Counter(expectedResponses, onComplete, onError)
+
+object Counter:
+    sealed trait CounterEvent
+    case class Increment() extends CounterEvent
+
+
+    def apply(expectedResponses : Int, onComplete : () => Unit, onError : Throwable => Unit) : Behavior[CounterEvent] = Behaviors.setup{context => 
+        new Counter(expectedResponses, onComplete, onError, context).start()
+    }
+
+class Counter private (expectedResponses : Int, onComplete : () => Unit, onError : Throwable => Unit, context : ActorContext[Counter.CounterEvent]) {
+    import Counter._
+
+    /**
+     * Handles receiving the first response from any consumer
+     */
+    private def start() : Behavior[Counter.CounterEvent] = Behaviors.receiveMessage {
+        case Increment() => 
+            if expectedResponses == 1 then 
+                onComplete()
+                Behaviors.stopped
+            else getResponses(1)
+    }
+
+    /**
+     *  Handles receiving all subsequent responses from consumers until expectedResponses is reached
+     */
+    private def getResponses(numResponses : Int) : Behavior[Counter.CounterEvent] = Behaviors.receive { (context, message) =>
+        message match {
+            case Increment() => 
+                if numResponses + 1 == expectedResponses then
+                    onComplete()
+                    Behaviors.stopped
+                else
+                    context.log.info("Got " + (numResponses + 1).toString + " responses, need " + expectedResponses.toString + " responses")
+                    getResponses(numResponses + 1)
+        }
     }
 }

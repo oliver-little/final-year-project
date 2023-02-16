@@ -20,6 +20,9 @@ case class Table(dataSource : DataSource, transformations : Seq[TableTransformat
 
     def getPartialTables(workerHandler : WorkerHandler) : Seq[(Seq[ChannelManager], Seq[PartialTable])] = dataSource.getPartitions(workerHandler).map((channels, partialSources) => (channels, partialSources.map(PartialTable(_, transformations))))
 
+    def withPartialDataSource(partialDataSource : PartialDataSource) : PartialTable = if partialDataSource.parent != dataSource then throw new IllegalArgumentException("PartialDataSource parent DataSource does not match this table's DataSource")
+        else PartialTable(partialDataSource, transformations)
+
     /**
       * Returns whether this table can be evaluated with the provided data source and transformations
       */

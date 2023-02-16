@@ -38,7 +38,7 @@ class WorkerHandler(workerAddresses : Seq[(String, Int)]) {
     }
 
     /**
-      * Provides a mappign from ChannelManager to CassandraPartition
+      * Provides a mapping from ChannelManager to CassandraPartition
       * Essentially this represents the ideal partition allocation based on data locality
       *
       * @param connector A CassandraConnector instance

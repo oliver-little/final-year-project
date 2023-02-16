@@ -17,7 +17,6 @@ case class GroupByDataSource(source : Table, uniqueFields : Seq[NamedFieldExpres
     override val getDependencies: Seq[Table] = Seq(source)
     lazy val isValid = source.isValid && Try{uniqueFields.map(_.resolve(source.outputHeaders))}.isSuccess
 
-
     // New function, gives it a list of workers and their channels and requests some partitions/partition data back
     // Partitions will need to be an interface of some kind to handle both Cassandra and internal representations
     // -- Partitions able to calculate themselves? (given the correct dependencies)

@@ -43,11 +43,11 @@ message PrepareResult {
 }
 
 message DeleteResult {
-    PartialTable table = 1;
+    Table table = 1;
 }
 
 message PreparePartition {
-    PartialDataSource data_source = 1;
+    DataSource data_source = 1;
     uint32 total_partitions = 2;
 }
 
@@ -57,5 +57,5 @@ message GetPartition {
 }
 
 message DeletePartition {
-    PartialDataSource data_source = 1;
+    DataSource data_source = 1;
 }

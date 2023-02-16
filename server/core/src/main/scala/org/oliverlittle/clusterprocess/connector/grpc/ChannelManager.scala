@@ -1,5 +1,7 @@
 package org.oliverlittle.clusterprocess.connector.grpc
 
+import org.oliverlittle.clusterprocess.worker_query
+
 import io.grpc.{ManagedChannelBuilder, ManagedChannel}
 
 /**
@@ -9,6 +11,7 @@ import io.grpc.{ManagedChannelBuilder, ManagedChannel}
   * @param port
   */
 case class ChannelManager(host : String, port : Int) {
+    val url : String = host + ":" + port.toString
     val channel : ManagedChannel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().build
 
     /**
@@ -20,6 +23,9 @@ case class ChannelManager(host : String, port : Int) {
         if !channel.isShutdown then channel.shutdown
         return new ChannelManager(host, port)
     }
+
+    def workerComputeServiceBlockingStub() : worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub = worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub(channel)
+    def workerComputeServiceStub() : worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceStub = worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceStub(channel)
 
     override def toString = "ChannelManager: " + host + ":" + port.toString
 }
