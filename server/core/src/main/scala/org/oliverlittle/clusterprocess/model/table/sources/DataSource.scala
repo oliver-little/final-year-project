@@ -8,6 +8,9 @@ import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
 import org.oliverlittle.clusterprocess.connector.cassandra.token.CassandraPartition
 import org.oliverlittle.clusterprocess.connector.grpc.{WorkerHandler, ChannelManager}
 
+import scala.collection.MapView
+import scala.concurrent.{Future, ExecutionContext}
+
 object DataSource:
 	def fromProtobuf(dataSource : table_model.DataSource) = dataSource.source match {
 		case table_model.DataSource.Source.Cassandra(source) => CassandraDataSource.inferDataSourceFromCassandra(source.keyspace, source.table)
@@ -41,6 +44,15 @@ trait DataSource:
 
 	def protobuf : table_model.DataSource
 
+object DependentDataSource:
+	def fromProtobuf(dataSource : table_model.DataSource) : DependentDataSource = dataSource.source match {
+		case table_model.DataSource.Source.GroupBy(source) => GroupByDataSource.fromProtobuf(source)
+		case _ => throw new IllegalArgumentException("Unknown data source")
+	} 
+
+trait DependentDataSource extends DataSource:
+	def hashPartitionedData(result : Seq[TableResult], numPartitions : Int) : MapView[Int, TableResult]
+
 object PartialDataSource:
 	def fromProtobuf(dataSource : table_model.PartialDataSource) : PartialDataSource = dataSource.source match {
 		case table_model.PartialDataSource.Source.Cassandra(partial) => PartialCassandraDataSource(CassandraDataSource.inferDataSourceFromCassandra(partial.keyspace, partial.table), CassandraPartition.fromProtobuf(partial.tokenRanges))
@@ -63,6 +75,6 @@ trait PartialDataSource:
 	 *
 	 * @return An iterator of rows, each row being a map from field name to a table value
 	 */
-	def getPartialData(workerChannels : Seq[ChannelManager]) : TableResult
+	def getPartialData(workerChannels : Seq[ChannelManager])(using ec : ExecutionContext) : Future[TableResult]
 
 	def protobuf : table_model.PartialDataSource

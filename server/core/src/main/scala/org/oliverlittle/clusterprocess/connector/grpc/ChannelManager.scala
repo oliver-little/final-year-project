@@ -24,8 +24,8 @@ case class ChannelManager(host : String, port : Int) {
         return new ChannelManager(host, port)
     }
 
-    def workerComputeServiceBlockingStub() : worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub = worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub(channel)
-    def workerComputeServiceStub() : worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceStub = worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceStub(channel)
+    lazy val workerComputeServiceBlockingStub : worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub = worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub(channel)
+    lazy val workerComputeServiceStub : worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceStub = worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceStub(channel)
 
     override def toString = "ChannelManager: " + host + ":" + port.toString
 }

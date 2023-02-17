@@ -1,11 +1,14 @@
 package org.oliverlittle.clusterprocess.connector.grpc
 
 import org.oliverlittle.clusterprocess.table_model
-import org.oliverlittle.clusterprocess.model.table.TableResult
+import org.oliverlittle.clusterprocess.model.table._
+import org.oliverlittle.clusterprocess.model.table.field.TableValue
 
-import io.grpc.stub.ServerCallStreamObserver
+import io.grpc.stub.{StreamObserver, ServerCallStreamObserver}
 
 import java.util.logging.Logger
+import collection.mutable.{Buffer, ArrayBuffer}
+import scala.concurrent.Promise
 
 object StreamedTableResult:
     def tableResultToIterator(tableResult : TableResult) : Iterator[table_model.StreamedTableResult] = {
@@ -65,3 +68,24 @@ class DelayedTableResultRunnable(responseObserver : ServerCallStreamObserver[tab
             closed = true;
     }
 }
+
+class StreamedTableResultCompiler(onComplete : Promise[TableResult]) extends StreamObserver[table_model.StreamedTableResult]:
+
+    var header : Option[TableResultHeader] = None
+    var rows : Buffer[Seq[Option[TableValue]]] = ArrayBuffer()
+
+    override def onNext(value: table_model.StreamedTableResult) : Unit = {
+        value.data.number match {
+            case 1 if header.isEmpty => header = Some(TableResultHeader.fromProtobuf(value.data.header.get))
+            case 2 => rows += value.data.row.get.values.map(TableValue.fromProtobuf(_))
+            case _ => throw new IllegalArgumentException("Unknown result value found, or header was defined twice.")
+        }
+    }
+
+    override def onError(t: Throwable) : Unit = onComplete.failure(t)
+
+    override def onCompleted(): Unit = {
+        if header.isEmpty then throw new IllegalStateException("Header is not defined in response.")
+
+        onComplete.success(EvaluatedTableResult(header.get, rows.toSeq))
+    }

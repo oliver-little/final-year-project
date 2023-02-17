@@ -8,6 +8,7 @@ service WorkerComputeService {
     rpc GetLocalCassandraNode(GetLocalCassandraNodeRequest) returns (GetLocalCassandraNodeResult);
     rpc ProcessQueryPlanItem(QueryPlanItem) returns (ProcessQueryPlanItemResult);
     rpc GetCachedResult(GetCachedResultRequest) returns (stream StreamedTableResult);
+    rpc GetHashedPartitionData(GetHashedPartitionDataRequest) returns (stream StreamedTableResult);
 }
 
 message GetLocalCassandraNodeRequest {
@@ -24,6 +25,12 @@ message ProcessQueryPlanItemResult {
 
 message GetCachedResultRequest {
     Table table = 1;
+    uint32 totalPartitions = 2;
+    uint32 partitionNum = 3;
+}
+
+message GetHashedPartitionDataRequest {
+    PartialDataSource data_source = 1;
 }
 
 
@@ -33,8 +40,9 @@ message QueryPlanItem {
         PrepareResult prepare_result = 1;
         DeleteResult delete_result = 2;
         PreparePartition prepare_partition = 3;
-        GetPartition get_partition = 4;
-        DeletePartition delete_partition = 5;
+        DeletePreparedPartition delete_prepared_partition = 4;
+        GetPartition get_partition = 5;
+        DeletePartition delete_partition = 6;
     }
 }
 
@@ -51,9 +59,14 @@ message PreparePartition {
     uint32 total_partitions = 2;
 }
 
+message DeletePreparedPartition {
+    DataSource data_source = 1;
+    uint32 total_partitions = 2;
+}
+
 message GetPartition {
     PartialDataSource data_source = 1;
-    repeated string other_worker_urls = 2;
+    repeated InetSocketAddress other_worker_urls = 2;
 }
 
 message DeletePartition {

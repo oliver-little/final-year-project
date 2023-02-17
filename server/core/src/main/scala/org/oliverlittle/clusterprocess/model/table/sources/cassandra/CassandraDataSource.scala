@@ -15,6 +15,7 @@ import com.datastax.oss.driver.api.core.cql.Row
 import scala.jdk.CollectionConverters._
 import java.time.Instant
 import java.util.logging.Logger
+import scala.concurrent.{Future, ExecutionContext}
 
 object CassandraDataSource:
     def inferDataSourceFromCassandra(keyspace : String, table : String)(using env : CassandraConfig {val connector : CassandraConnector} = CassandraConfig()) : CassandraDataSource  = {
@@ -99,7 +100,7 @@ case class PartialCassandraDataSource(parent : CassandraDataSource, tokenRanges 
       *
       * @return An iterator of rows, each row being a map from field name to a table value
       */
-    def getPartialData(workerChannels : Seq[ChannelManager]) : TableResult = LazyTableResult(getHeaders, parent.env.connector.getSession.execute(getDataQuery).asScala.map(row => parent.fields.map(_.getTableValue(row))))
+    def getPartialData(workerChannels : Seq[ChannelManager])(using ec : ExecutionContext) : Future[TableResult] = Future.successful(LazyTableResult(getHeaders, parent.env.connector.getSession.execute(getDataQuery).asScala.map(row => parent.fields.map(_.getTableValue(row)))))
 
 
 

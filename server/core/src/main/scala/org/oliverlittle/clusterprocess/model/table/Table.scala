@@ -40,6 +40,7 @@ object PartialTable:
     def fromProtobuf(table : table_model.PartialTable) : PartialTable = PartialTable(PartialDataSource.fromProtobuf(table.dataSource.get), TableTransformation.fromProtobuf(table.transformations))
 
 case class PartialTable(dataSource : PartialDataSource, transformations : Seq[TableTransformation] = Seq()):
+    lazy val parent = Table(dataSource.parent, transformations)
     lazy val protobuf : table_model.PartialTable = table_model.PartialTable(Some(dataSource.protobuf), transformations.map(_.protobuf))
 
     def compute(input : TableResult) : TableResult = {
