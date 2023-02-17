@@ -6,13 +6,14 @@ import org.oliverlittle.clusterprocess.model.table._
 import org.oliverlittle.clusterprocess.model.field.expressions._
 import org.oliverlittle.clusterprocess.connector.grpc.{WorkerHandler, ChannelManager, StreamedTableResultCompiler}
 
-import akka.actor.typed.ActorRef
+import akka.actor.typed.{ActorRef, ActorSystem}
+import akka.actor.typed.scaladsl.AskPattern._
+import akka.util.Timeout
 
 import scala.util.Try
 import scala.util.hashing.MurmurHash3
 import scala.collection.MapView
 import scala.concurrent.{Future, Promise, ExecutionContext}
-
 
 object GroupByDataSource:
     def fromProtobuf(dataSource : table_model.GroupByDataSource) = GroupByDataSource(Table.fromProtobuf(dataSource.table.get), dataSource.uniqueFields.map(NamedFieldExpression.fromProtobuf(_)), dataSource.aggregateFields.map(AggregateExpression.fromProtobuf(_)))
@@ -47,20 +48,20 @@ case class PartialGroupByDataSource(parent : GroupByDataSource, partitionNum : I
         Some(table_model.PartitionInformation(partitionNum, totalPartitions))
     ))
 
-    def getPartialData(store : ActorRef[TableStore.TableStoreEvent], workerChannels : Seq[ChannelManager])(using ec : ExecutionContext) : Future[TableResult] = {
+    def getPartialData(store : ActorRef[TableStore.TableStoreEvent], workerChannels : Seq[ChannelManager])(using t : Timeout)(using system : ActorSystem[_])(using ec : ExecutionContext = system.executionContext) : Future[TableResult] = {
         // This version of this script only works for one dependent table, but should be relatively straightforward to loop over
         // all dependencies to get multiple out
-        val promises = workerChannels.map(getHashedPartitionData(parent.source, _)) // Get data from other workers
-        val storeFuture = store.ask(ref => TableStore.GetHash(parent.source, totalPartitions, partitionNum)) // Get data from our
+        val promises : Seq[Future[Option[TableResult]]]= workerChannels.map(getHashedPartitionData(parent.source, _).future) // Get data from other workers
+        val localData : Future[Option[TableResult]] = store.ask(ref => TableStore.GetHash(parent.source, totalPartitions, partitionNum, ref)) // Get data from our
 
         // Once we've got the data from the workers, we need to actually run the group by       
-        return Future.sequence(promises.map(_.future) :+ storeFuture) // Concatenate all the data we are waiting on into one future
-            .map(results => performGroupBy(results.reduce(_ ++ _))) // Reduce the smaller results into one large table, and perform the group by
+        return Future.sequence(promises :+ localData) // Concatenate all the data we are waiting on into one future
+            .map(results => performGroupBy(results.flatten.reduce(_ ++ _))) // Reduce the smaller results into one large table, and perform the group by
     }
 
-    def getHashedPartitionData(dependency : Table, channel : ChannelManager)(using ec : ExecutionContext) : Promise[TableResult] = {
-        val promise = Promise[TableResult]()
-        channel.workerComputeServiceStub.getHashedPartitionData(worker_query.GetHashedPartitionDataRequest(Some(dependency.protobuf), totalPartitions, partitionNum, StreamedTableResultCompiler(promise, (t) => println(t))))
+    def getHashedPartitionData(dependency : Table, channel : ChannelManager)(using ec : ExecutionContext) : Promise[Option[TableResult]] = {
+        val promise = Promise[Option[TableResult]]()
+        channel.workerComputeServiceStub.getHashedPartitionData(worker_query.GetHashedPartitionDataRequest(Some(dependency.protobuf), totalPartitions, partitionNum), StreamedTableResultCompiler(promise))
         return promise
     }
 

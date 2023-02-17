@@ -8,6 +8,9 @@ import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
 import org.oliverlittle.clusterprocess.connector.cassandra.token.CassandraPartition
 import org.oliverlittle.clusterprocess.connector.grpc.{WorkerHandler, ChannelManager}
 
+import akka.actor.typed.{ActorRef, ActorSystem}
+import akka.util.Timeout
+
 import scala.collection.MapView
 import scala.concurrent.{Future, ExecutionContext}
 
@@ -51,7 +54,7 @@ object DependentDataSource:
 	} 
 
 trait DependentDataSource extends DataSource:
-	def hashPartitionedData(result : Seq[TableResult], numPartitions : Int) : MapView[Int, TableResult]
+	def hashPartitionedData(result : TableResult, numPartitions : Int) : MapView[Int, TableResult]
 
 object PartialDataSource:
 	def fromProtobuf(dataSource : table_model.PartialDataSource) : PartialDataSource = dataSource.source match {
@@ -71,10 +74,12 @@ trait PartialDataSource:
 	def getHeaders : TableResultHeader = parent.getHeaders
 
 	/**
-	 * Abstract implementation to get partial data from a data source
-	 *
+	 * Generates the partial dataset for this PartialDataSource
+	 * 
+	 * @param store A TableStore instance
+	 * @param workerChannels A list of other workers in the system
 	 * @return An iterator of rows, each row being a map from field name to a table value
 	 */
-	def getPartialData(workerChannels : Seq[ChannelManager])(using ec : ExecutionContext) : Future[TableResult]
+	def getPartialData(store : ActorRef[TableStore.TableStoreEvent], workerChannels : Seq[ChannelManager])(using t : Timeout)(using system : ActorSystem[_])(using ec : ExecutionContext = system.executionContext) : Future[TableResult]
 
 	def protobuf : table_model.PartialDataSource

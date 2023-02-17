@@ -69,7 +69,7 @@ class DelayedTableResultRunnable(responseObserver : ServerCallStreamObserver[tab
     }
 }
 
-class StreamedTableResultCompiler(onComplete : Promise[TableResult]) extends StreamObserver[table_model.StreamedTableResult]:
+class StreamedTableResultCompiler(onComplete : Promise[Option[TableResult]]) extends StreamObserver[table_model.StreamedTableResult]:
 
     var header : Option[TableResultHeader] = None
     var rows : Buffer[Seq[Option[TableValue]]] = ArrayBuffer()
@@ -85,7 +85,7 @@ class StreamedTableResultCompiler(onComplete : Promise[TableResult]) extends Str
     override def onError(t: Throwable) : Unit = onComplete.failure(t)
 
     override def onCompleted(): Unit = {
-        if header.isEmpty then throw new IllegalStateException("Header is not defined in response.")
+        if header.isEmpty then onComplete.success(None)
 
-        onComplete.success(EvaluatedTableResult(header.get, rows.toSeq))
+        onComplete.success(Some(EvaluatedTableResult(header.get, rows.toSeq)))
     }

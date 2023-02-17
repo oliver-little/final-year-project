@@ -12,6 +12,9 @@ import org.oliverlittle.clusterprocess.model.table.field._
 import com.datastax.oss.driver.api.core.metadata.schema.TableMetadata
 import com.datastax.oss.driver.api.core.`type`.{DataTypes, DataType}
 import com.datastax.oss.driver.api.core.cql.Row
+import akka.actor.typed.{ActorRef, ActorSystem}
+import akka.util.Timeout
+
 import scala.jdk.CollectionConverters._
 import java.time.Instant
 import java.util.logging.Logger
@@ -100,7 +103,7 @@ case class PartialCassandraDataSource(parent : CassandraDataSource, tokenRanges 
       *
       * @return An iterator of rows, each row being a map from field name to a table value
       */
-    def getPartialData(workerChannels : Seq[ChannelManager])(using ec : ExecutionContext) : Future[TableResult] = Future.successful(LazyTableResult(getHeaders, parent.env.connector.getSession.execute(getDataQuery).asScala.map(row => parent.fields.map(_.getTableValue(row)))))
+    def getPartialData(store : ActorRef[TableStore.TableStoreEvent], workerChannels : Seq[ChannelManager])(using t : Timeout)(using system : ActorSystem[_])(using ec : ExecutionContext = system.executionContext) : Future[TableResult] = Future.successful(LazyTableResult(getHeaders, parent.env.connector.getSession.execute(getDataQuery).asScala.map(row => parent.fields.map(_.getTableValue(row)))))
 
 
 

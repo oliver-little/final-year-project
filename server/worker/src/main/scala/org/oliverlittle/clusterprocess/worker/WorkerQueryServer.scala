@@ -1,31 +1,48 @@
 package org.oliverlittle.clusterprocess.worker
 
-import io.grpc.ServerBuilder
-import io.grpc.stub.{ServerCallStreamObserver, StreamObserver}
-import scala.concurrent.{ExecutionContext, Future}
-import java.util.logging.Logger
-
 import org.oliverlittle.clusterprocess.worker_query
 import org.oliverlittle.clusterprocess.table_model
-import org.oliverlittle.clusterprocess.query.QueryPlan
-import org.oliverlittle.clusterprocess.model.table.{Table, TableTransformation}
-import org.oliverlittle.clusterprocess.model.table.sources.cassandra.CassandraDataSource
-import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
-import org.oliverlittle.clusterprocess.connector.cassandra.token.CassandraTokenRange
-import org.oliverlittle.clusterprocess.connector.grpc.{StreamedTableResult, TableResultRunnable}
+import org.oliverlittle.clusterprocess.query.PartialQueryPlanItem
+import org.oliverlittle.clusterprocess.model.table.{Table, TableTransformation, TableStore, TableResult}
+import org.oliverlittle.clusterprocess.connector.grpc.{StreamedTableResult, TableResultRunnable, DelayedTableResultRunnable}
+import org.oliverlittle.clusterprocess.connector.cassandra.{CassandraConfig, CassandraConnector}
+
+import io.grpc.{ServerBuilder}
+import io.grpc.stub.{ServerCallStreamObserver, StreamObserver}
+import io.grpc.protobuf.StatusProto
+import com.google.rpc.{Status, Code}
+import akka.actor.typed.{ActorRef, ActorSystem}
+import akka.actor.typed.scaladsl.AskPattern._
+import akka.util.Timeout
+
+import scala.concurrent.{ExecutionContext, Future, Await}
+import scala.concurrent.duration._
+import scala.util.{Success, Failure}
+import java.util.logging.Logger
+
+// Globally set timeout for asks
+given timeout : Timeout = 3.seconds
 
 object WorkerQueryServer {
     private val logger = Logger.getLogger(classOf[WorkerQueryServer].getName)
     private val port = 50052
 
     def main(): Unit = {
-        val server = new WorkerQueryServer(ExecutionContext.global, CassandraConnector())
+
+        
+        val system : ActorSystem[TableStoreSystem.TableStoreSystemEvent] = TableStoreSystem.create()
+        implicit val ec: ExecutionContext = system.executionContext
+        implicit val scheduler = system.scheduler
+        val tableStoreFuture : Future[ActorRef[TableStore.TableStoreEvent]] = system.ask(ref => TableStoreSystem.GetStore(ref))
+
+        val tableStoreActor = Await.result(tableStoreFuture, 3.seconds)
+        val server = new WorkerQueryServer(ExecutionContext.global, tableStoreActor)(using system)
         server.blockUntilShutdown()
     }
 }
 
-class WorkerQueryServer(executionContext: ExecutionContext, connector : CassandraConnector) {
-    private val server =  ServerBuilder.forPort(WorkerQueryServer.port).addService(worker_query.WorkerComputeServiceGrpc.bindService(new WorkerQueryServicer(connector), executionContext)).build.start
+class WorkerQueryServer(executionContext: ExecutionContext, store : ActorRef[TableStore.TableStoreEvent])(using system : ActorSystem[_])(using ec : ExecutionContext = system.executionContext) {
+    private val server =  ServerBuilder.forPort(WorkerQueryServer.port).addService(worker_query.WorkerComputeServiceGrpc.bindService(new WorkerQueryServicer(store), executionContext)).build.start
     WorkerQueryServer.logger.info("gRPC Server started, listening on " + WorkerQueryServer.port)
     
     sys.addShutdownHook({
@@ -38,8 +55,8 @@ class WorkerQueryServer(executionContext: ExecutionContext, connector : Cassandr
 
     private def blockUntilShutdown(): Unit = this.server.awaitTermination()
 
-    private class WorkerQueryServicer(connector : CassandraConnector) extends worker_query.WorkerComputeServiceGrpc.WorkerComputeService {
-        override def computePartialResultCassandra(request : worker_query.ComputePartialResultCassandraRequest, responseObserver : StreamObserver[table_model.StreamedTableResult]) : Unit = {
+    private class WorkerQueryServicer(store : ActorRef[TableStore.TableStoreEvent]) extends worker_query.WorkerComputeServiceGrpc.WorkerComputeService {
+        /*override def computePartialResultCassandra(request : worker_query.ComputePartialResultCassandraRequest, responseObserver : StreamObserver[table_model.StreamedTableResult]) : Unit = {
             WorkerQueryServer.logger.info("computePartialResultCassandra")
 
             // Parse table
@@ -68,10 +85,11 @@ class WorkerQueryServer(executionContext: ExecutionContext, connector : Cassandr
             serverCallStreamObserver.setOnReadyHandler(runnable)
             
             runnable.run()
-        }
+        }*/
 
         override def getLocalCassandraNode(request : worker_query.GetLocalCassandraNodeRequest) : Future[worker_query.GetLocalCassandraNodeResult] = {
             WorkerQueryServer.logger.info("getLocalCassandraNode")
+            val connector = CassandraConfig().connector
             WorkerQueryServer.logger.info("Host: " + connector.socket.getHostName + ", port: " + connector.socket.getPort.toString)
             val response = worker_query.GetLocalCassandraNodeResult(address=Some(table_model.InetSocketAddress(host=connector.socket.getHostName, port=connector.socket.getPort)))
             Future.successful(response)
@@ -79,32 +97,52 @@ class WorkerQueryServer(executionContext: ExecutionContext, connector : Cassandr
 
 
         override def processQueryPlanItem(item : worker_query.QueryPlanItem) : Future[worker_query.ProcessQueryPlanItemResult] = {
+            WorkerQueryServer.logger.info("processQueryPlanItem")
             val queryPlanItem = PartialQueryPlanItem.fromProtobuf(item)
+            WorkerQueryServer.logger.info(queryPlanItem.toString)
 
-            
+            return queryPlanItem.execute(store)
+        }
 
-            // Create queryhandler actor in actorsystem, with reference to tablestore, ask it to handle query, return success/failure case
+        override def getPartitionsForTable(request : worker_query.GetPartitionsForTableRequest, responseObserver : StreamObserver[table_model.StreamedTableResult]) : Unit = {
+            val table = Table.fromProtobuf(request.table.get)
 
-            /**
-             * QueryHandler actor works in the following way
-             * Prepare result 
-             *  - requires partialtable
-             *  - gets preprepared result from cache, passes to partial table compute, stores result in cache
-             *  Delete result
-             *  - requires partialtable
-             *  - passes partialtable to cache to remove
-             *  Prepare partition
-             *  - requires datasource and number of partitions
-             *  - implementation is specific to each data source, but we apply the hashing function (for group bys, hash on unique columns)
-             *  - group the row data by the hash function % number of partitions
-             *      - tablestore will need a separate partial partition store to check against
-             * Get partition
-             * - requires partialdatasource
-             * - worker sends partialdatasource to all other workers, and gets one or more table results back
-             * - Combines all to create the full partition (in group bys, we can do an optimisation here by partially aggregating before we send any data)
-             *         - In joins, just send the full unjoined data
-             * 
-             */
+            val runnable = responseObserverToDelayedRunnable(responseObserver)
+
+            store.ask(ref => TableStore.GetAllResults(table, ref)) onComplete {
+                    case Success(Some(result : TableResult)) => runnable.setData(result)
+                    case _ => 
+                        val status = Status.newBuilder()
+                            .setCode(Code.NOT_FOUND.getNumber)
+                            .setMessage("Table not found in table store")
+                            .build()
+                        responseObserver.onError(StatusProto.toStatusRuntimeException(status))
+            }
+        }
+
+        override def getHashedPartitionData(request : worker_query.GetHashedPartitionDataRequest, responseObserver : StreamObserver[table_model.StreamedTableResult]) : Unit = {
+            val table = Table.fromProtobuf(request.table.get)
+
+            val runnable = responseObserverToDelayedRunnable(responseObserver)
+
+            store.ask(ref => TableStore.GetHash(table, request.totalPartitions, request.partitionNum, ref)) onComplete {
+                case Success(Some(result : TableResult)) => runnable.setData(result)
+                case _ => 
+                    val status = Status.newBuilder()
+                        .setCode(Code.NOT_FOUND.getNumber)
+                        .setMessage("Partition not found in table store")
+                        .build()
+                    responseObserver.onError(StatusProto.toStatusRuntimeException(status))
+            }
+        }
+
+        private def responseObserverToDelayedRunnable(responseObserver : StreamObserver[table_model.StreamedTableResult]) : DelayedTableResultRunnable = {
+            // Able to make this unchecked cast because this is a response from a server
+            val serverCallStreamObserver = responseObserver.asInstanceOf[ServerCallStreamObserver[table_model.StreamedTableResult]]
+            // Prepare onReady hook 
+            val runnable = DelayedTableResultRunnable(serverCallStreamObserver)
+            serverCallStreamObserver.setOnReadyHandler(runnable)
+            return runnable
         }
     }
 }

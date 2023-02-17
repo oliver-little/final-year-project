@@ -7,7 +7,7 @@ import "table_model.proto";
 service WorkerComputeService {
     rpc GetLocalCassandraNode(GetLocalCassandraNodeRequest) returns (GetLocalCassandraNodeResult);
     rpc ProcessQueryPlanItem(QueryPlanItem) returns (ProcessQueryPlanItemResult);
-    rpc GetCachedResult(GetCachedResultRequest) returns (stream StreamedTableResult);
+    rpc GetPartitionsForTable(GetPartitionsForTableRequest) returns (stream StreamedTableResult);
     rpc GetHashedPartitionData(GetHashedPartitionDataRequest) returns (stream StreamedTableResult);
 }
 
@@ -23,14 +23,14 @@ message ProcessQueryPlanItemResult {
     bool success = 1;
 }
 
-message GetCachedResultRequest {
+message GetPartitionsForTableRequest {
     Table table = 1;
-    uint32 totalPartitions = 2;
-    uint32 partitionNum = 3;
 }
 
 message GetHashedPartitionDataRequest {
-    PartialDataSource data_source = 1;
+    Table table = 1;
+    uint32 totalPartitions = 2;
+    uint32 partitionNum = 3;
 }
 
 

@@ -1,6 +1,7 @@
 package org.oliverlittle.clusterprocess.scheduler
 
 import org.oliverlittle.clusterprocess.worker_query
+import org.oliverlittle.clusterprocess.table_model
 import org.oliverlittle.clusterprocess.model.table._
 import org.oliverlittle.clusterprocess.model.table.sources._
 import org.oliverlittle.clusterprocess.query._
@@ -124,14 +125,14 @@ object QueryPlanItem:
 
     def getConsumersWithMixing(mappedProducers : Seq[(Seq[ChannelManager], ActorRef[WorkProducer.ProducerEvent])], counter : ActorRef[Counter.CounterEvent])(using consumerFactory : WorkConsumerFactory)(using context : ActorContext[QueryInstruction]) : Seq[ActorRef[WorkConsumer.ConsumerEvent]] = {
         val producers = mappedProducers.map(_._2)
-        val consumers = mappedProducers.zipWithIndex.map((pair, index) => pair._1.zipWithIndex.map((c, subIndex) => context.spawn(consumerFactory.createConsumer(c.workerComputeServiceBlockingStub(), Seq(pair._2) ++ producers.filter(_ == pair._2), counter), "consumer" + index.toString + subIndex.toString))).flatten
+        val consumers = mappedProducers.zipWithIndex.map((pair, index) => pair._1.zipWithIndex.map((c, subIndex) => context.spawn(consumerFactory.createConsumer(c.workerComputeServiceBlockingStub, Seq(pair._2) ++ producers.filter(_ == pair._2), counter), "consumer" + index.toString + subIndex.toString))).flatten
         return consumers
     }
 
     def getConsumersWithoutMixing(mappedProducers : Seq[(Seq[ChannelManager], ActorRef[WorkProducer.ProducerEvent])], counter : ActorRef[Counter.CounterEvent])(using consumerFactory : WorkConsumerFactory)(using context : ActorContext[QueryInstruction]) : Seq[ActorRef[WorkConsumer.ConsumerEvent]] = {
         // Get any producers that aren't directly allocated to a Channel - these will have to be mixed anyway, or the work will not get done
         val unallocatedProducers = mappedProducers.filter((channels, producer) => channels.size == 0).map(_._2)
-        val consumers = mappedProducers.zipWithIndex.map((pair, index) => pair._1.zipWithIndex.map((c, subIndex) => context.spawn(consumerFactory.createConsumer(c.workerComputeServiceBlockingStub(), Seq(pair._2) ++ unallocatedProducers, counter), "consumer" + index.toString + subIndex.toString))).flatten
+        val consumers = mappedProducers.zipWithIndex.map((pair, index) => pair._1.zipWithIndex.map((c, subIndex) => context.spawn(consumerFactory.createConsumer(c.workerComputeServiceBlockingStub, Seq(pair._2) ++ unallocatedProducers, counter), "consumer" + index.toString + subIndex.toString))).flatten
         return consumers
     }
 
@@ -224,7 +225,7 @@ case class DeleteResult(table : Table) extends QueryPlanItem:
 
     def sendDeleteResult(workerHandler : WorkerHandler)(using ec : ExecutionContext) : Future[Seq[worker_query.ProcessQueryPlanItemResult]] = {
         val query = worker_query.QueryPlanItem().withDeleteResult(worker_query.DeleteResult(Some(table.protobuf)))
-        val futures = workerHandler.channels.map(c => c.workerComputeServiceStub().processQueryPlanItem(query))
+        val futures = workerHandler.channels.map(c => c.workerComputeServiceStub.processQueryPlanItem(query))
         return Future.sequence(futures)
     }
 
@@ -250,7 +251,7 @@ case class GetPartition(dataSource : DataSource) extends QueryPlanItem:
 
     def sendPreparePartitions(workerHandler : WorkerHandler, partitionCount : Int)(using ec : ExecutionContext) : Future[Seq[worker_query.ProcessQueryPlanItemResult]] = {
         val query = worker_query.QueryPlanItem().withPreparePartition(worker_query.PreparePartition(Some(dataSource.protobuf), partitionCount))
-        val futures = workerHandler.channels.map(c => c.workerComputeServiceStub().processQueryPlanItem(query))
+        val futures = workerHandler.channels.map(c => c.workerComputeServiceStub.processQueryPlanItem(query))
         return Future.sequence(futures)
     }
 
@@ -269,7 +270,7 @@ case class GetPartition(dataSource : DataSource) extends QueryPlanItem:
             (channel, 
             dataSources.map(ds =>
                 worker_query.QueryPlanItem().withGetPartition(
-                    worker_query.GetPartition(Some(ds.protobuf), workerHandler.channels.diff(channel).map(_.url))
+                    worker_query.GetPartition(Some(ds.protobuf), workerHandler.channels.diff(channel).map(c => table_model.InetSocketAddress(c.host, c.port)))
                 )
             ))
         )
@@ -296,6 +297,6 @@ case class DeletePartition(dataSource : DataSource) extends QueryPlanItem:
 
     def sendDeletePartition(workerHandler : WorkerHandler)(using ec : ExecutionContext) : Future[Seq[worker_query.ProcessQueryPlanItemResult]] = {
         val query = worker_query.QueryPlanItem().withDeletePartition(worker_query.DeletePartition(Some(dataSource.protobuf)))
-        val futures = workerHandler.channels.map(c => c.workerComputeServiceStub().processQueryPlanItem(query))
+        val futures = workerHandler.channels.map(c => c.workerComputeServiceStub.processQueryPlanItem(query))
         return Future.sequence(futures)
     }
