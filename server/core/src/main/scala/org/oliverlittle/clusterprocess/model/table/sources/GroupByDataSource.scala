@@ -5,6 +5,7 @@ import org.oliverlittle.clusterprocess.worker_query
 import org.oliverlittle.clusterprocess.model.table._
 import org.oliverlittle.clusterprocess.model.field.expressions._
 import org.oliverlittle.clusterprocess.connector.grpc.{WorkerHandler, ChannelManager, StreamedTableResultCompiler}
+import org.oliverlittle.clusterprocess.query._
 
 import akka.actor.typed.{ActorRef, ActorSystem}
 import akka.actor.typed.scaladsl.AskPattern._
@@ -28,6 +29,9 @@ case class GroupByDataSource(source : Table, uniqueFields : Seq[NamedFieldExpres
     // Partitions will need to be an interface of some kind to handle both Cassandra and internal representations
     // -- Partitions able to calculate themselves? (given the correct dependencies)
     def getPartitions(workerHandler : WorkerHandler) : Seq[(Seq[ChannelManager], Seq[PartialDataSource])]  = Seq((Seq(), Seq(PartialGroupByDataSource(this, 1, 1))))
+
+    def getQueryPlan : Seq[QueryPlanItem] = source.getQueryPlan ++ Seq(GetPartitionWithDependencies(this)) ++ source.getCleanupQueryPlan
+    def getCleanupQueryPlan : Seq[QueryPlanItem] = Seq(DeletePartition(this))
 
     def hashPartitionedData(result : TableResult, numPartitions : Int) : MapView[Int, TableResult] = {
         val header = TableResultHeader(uniqueFields.map(_.outputTableField(result.header)))

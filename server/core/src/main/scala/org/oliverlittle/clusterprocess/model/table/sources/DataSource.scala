@@ -7,6 +7,7 @@ import org.oliverlittle.clusterprocess.model.table.sources.cassandra._
 import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
 import org.oliverlittle.clusterprocess.connector.cassandra.token.CassandraPartition
 import org.oliverlittle.clusterprocess.connector.grpc.{WorkerHandler, ChannelManager}
+import org.oliverlittle.clusterprocess.query.QueryPlanItem
 
 import akka.actor.typed.{ActorRef, ActorSystem}
 import akka.util.Timeout
@@ -38,10 +39,25 @@ trait DataSource:
 
 	/**
 	  * Gets the dependencies that must be calculated before this data source can be calculated
+	  * If this object has any dependencies, it must be an instance of DependentDataSource too
 	  *
 	  * @return
 	  */
 	def getDependencies : Seq[Table] = Seq()
+
+	/**
+	  * Generates the high level query plan to create this DataSource in the TableStore
+	  *
+	  * @return
+	  */
+	def getQueryPlan : Seq[QueryPlanItem]
+
+	/**
+	  * Generates the high level query plan to cleanup this DataSource in the TableStore
+	  *
+	  * @return
+	  */
+	def getCleanupQueryPlan : Seq[QueryPlanItem]
 
 	def isValid : Boolean
 

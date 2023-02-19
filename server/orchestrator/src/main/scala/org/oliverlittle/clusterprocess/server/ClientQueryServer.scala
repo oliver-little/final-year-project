@@ -5,7 +5,7 @@ import org.oliverlittle.clusterprocess.table_model
 import org.oliverlittle.clusterprocess.client_query
 import org.oliverlittle.clusterprocess.model.table.sources.DataSource
 import org.oliverlittle.clusterprocess.model.table.{Table, TableTransformation, TableResult}
-import org.oliverlittle.clusterprocess.scheduler.{WorkExecutionScheduler, QueryPlan}
+import org.oliverlittle.clusterprocess.scheduler.{WorkExecutionScheduler}
 import org.oliverlittle.clusterprocess.connector.grpc.{StreamedTableResult, DelayedTableResultRunnable, WorkerHandler}
 import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
 
@@ -63,8 +63,10 @@ class ClientQueryServer(executionContext: ExecutionContext, connector : Cassandr
             if !table.isValid then responseObserver.onError(new IllegalArgumentException("Table cannot be computed"))
 
             // Generate a query plan
-            val (calculateQueryPlan, cleanupQueryPlan) = QueryPlan(table)
-
+            val calculateQueryPlan = table.getQueryPlan
+            val getCleanupQueryPlan = table.getCleanupQueryPlan
+            ClientQueryServer.logger.info("Calculated query plan")
+            ClientQueryServer.logger.info(calculateQueryPlan.toString)
             // Able to make this unchecked cast because this is a response from a server
             //val serverCallStreamObserver = responseObserver.asInstanceOf[ServerCallStreamObserver[table_model.StreamedTableResult]]
             
@@ -73,8 +75,10 @@ class ClientQueryServer(executionContext: ExecutionContext, connector : Cassandr
             //serverCallStreamObserver.setOnReadyHandler(runnable)
 
             // Start execution, and add hook to send the data when finished
+            ClientQueryServer.logger.info("Starting execution")
             WorkExecutionScheduler.startExecution(calculateQueryPlan, workerHandler, {() =>
                 ClientQueryServer.logger.info("Result ready from workers.")
+                responseObserver.onCompleted()
                 //runnable.setData(result)
             })
         } 

@@ -1,4 +1,4 @@
-package org.oliverlittle.clusterprocess.scheduler
+package org.oliverlittle.clusterprocess.query
 
 import org.oliverlittle.clusterprocess.worker_query
 import org.oliverlittle.clusterprocess.table_model

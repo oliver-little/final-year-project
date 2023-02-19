@@ -8,6 +8,7 @@ import org.oliverlittle.clusterprocess.model.field.expressions.F
 import org.oliverlittle.clusterprocess.model.table._
 import org.oliverlittle.clusterprocess.model.table.sources.{DataSource, PartialDataSource}
 import org.oliverlittle.clusterprocess.model.table.field._
+import org.oliverlittle.clusterprocess.query._
 
 import com.datastax.oss.driver.api.core.metadata.schema.TableMetadata
 import com.datastax.oss.driver.api.core.`type`.{DataTypes, DataType}
@@ -71,6 +72,9 @@ case class CassandraDataSource(env: CassandraConfig {val connector : CassandraCo
             // Convert the partitions into partial data sources
             partitions.map(PartialCassandraDataSource(this, _)))
         )
+
+    def getQueryPlan : Seq[QueryPlanItem] = Seq(GetPartition(this))
+    def getCleanupQueryPlan : Seq[QueryPlanItem] = Seq(DeletePartition(this))
 
     def toCql(ifNotExists : Boolean = true) : String = {
         val ifNotExistsString = if ifNotExists then "IF NOT EXISTS " else "";

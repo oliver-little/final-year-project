@@ -1,9 +1,10 @@
 package org.oliverlittle.clusterprocess.scheduler
 
+import org.oliverlittle.clusterprocess.worker_query
 import org.oliverlittle.clusterprocess.connector.grpc.{ChannelManager, WorkerHandler}
 import org.oliverlittle.clusterprocess.connector.cassandra.token._
 import org.oliverlittle.clusterprocess.model.table.{Table, TableResult, LazyTableResult}
-import org.oliverlittle.clusterprocess.worker_query
+import org.oliverlittle.clusterprocess.query._
 
 import akka.actor.typed.scaladsl.{Behaviors, LoggerOps, ActorContext}
 import akka.actor.typed.{ActorRef, ActorSystem, Behavior, Terminated}
@@ -37,17 +38,26 @@ class WorkExecutionScheduler(producerFactory : WorkProducerFactory, consumerFact
 
     def receiveComplete(queryPlan : Seq[QueryPlanItem], instructionCounter : Int) : Behavior[QueryInstruction] = Behaviors.receive { (context, message) =>
         message match {
-            case InstructionComplete(partitions) => 
-                if partitions.isDefined then startItemScheduler(queryPlan.head.usePartitions(partitions.get), instructionCounter, workerHandler, context) else startItemScheduler(queryPlan.head, instructionCounter, workerHandler, context)
-                receiveComplete(queryPlan.tail, instructionCounter + 1)
             case InstructionError(e) => 
                 context.log.info(e.toString)
                 context.system.terminate()
                 Behaviors.stopped
+            case InstructionComplete(partitions) if queryPlan.size == 0 => 
+                resultCallback()
+                context.system.terminate()
+                Behaviors.stopped
+            case InstructionComplete(partitions) => 
+                if partitions.isDefined then startItemScheduler(queryPlan.head.usePartitions(partitions.get), instructionCounter, workerHandler, context) else startItemScheduler(queryPlan.head, instructionCounter, workerHandler, context)
+                receiveComplete(queryPlan.tail, instructionCounter + 1)
+            
         }
     }
 
-    def startItemScheduler(item : QueryPlanItem, index : Int, workerHandler : WorkerHandler, context : ActorContext[QueryInstruction]) : ActorRef[QueryInstruction] = context.spawn(
-        QueryPlanItemScheduler(item, workerHandler, context.self)(using producerFactory)(using consumerFactory)(using counterFactory), 
-        "QueryPlanItemScheduler" + index.toString)
+    def startItemScheduler(item : QueryPlanItem, index : Int, workerHandler : WorkerHandler, context : ActorContext[QueryInstruction]) : ActorRef[QueryInstruction] = {
+        context.log.info("Starting item: " + item.toString)
+        return context.spawn(
+            QueryPlanItemScheduler(item, workerHandler, context.self)(using producerFactory)(using consumerFactory)(using counterFactory), 
+            "QueryPlanItemScheduler" + index.toString
+        )
+    }
 }

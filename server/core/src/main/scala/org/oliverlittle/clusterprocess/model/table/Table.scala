@@ -5,6 +5,7 @@ import org.oliverlittle.clusterprocess.model.table.field._
 import org.oliverlittle.clusterprocess.model.table.sources.{DataSource, PartialDataSource}
 import org.oliverlittle.clusterprocess.connector.grpc.{ChannelManager, WorkerHandler}
 import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
+import org.oliverlittle.clusterprocess.query._
 
 object Table:
     def fromProtobuf(table : table_model.Table) : Table = Table(DataSource.fromProtobuf(table.dataSource.get), TableTransformation.fromProtobuf(table.transformations))
@@ -19,6 +20,20 @@ case class Table(dataSource : DataSource, transformations : Seq[TableTransformat
     def addTransformation(transformation : TableTransformation) : Table = Table(dataSource, transformations :+ transformation)
 
     def getPartialTables(workerHandler : WorkerHandler) : Seq[(Seq[ChannelManager], Seq[PartialTable])] = dataSource.getPartitions(workerHandler).map((channels, partialSources) => (channels, partialSources.map(PartialTable(_, transformations))))
+
+    /**
+	  * Generates the high level query plan to create this table in the TableStore
+	  *
+	  * @return
+	  */
+    def getQueryPlan : Seq[QueryPlanItem] = dataSource.getQueryPlan ++ Seq(PrepareResult(this)) ++ dataSource.getCleanupQueryPlan
+    
+    /**
+	  * Generates the high level query plan to create this table in the TableStore
+	  *
+	  * @return
+	  */
+    def getCleanupQueryPlan : Seq[QueryPlanItem] = Seq(DeleteResult(this))
 
     def withPartialDataSource(partialDataSource : PartialDataSource) : PartialTable = if partialDataSource.parent != dataSource then throw new IllegalArgumentException("PartialDataSource parent DataSource does not match this table's DataSource")
         else PartialTable(partialDataSource, transformations)

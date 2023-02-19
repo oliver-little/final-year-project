@@ -1,10 +1,9 @@
-package org.oliverlittle.clusterprocess.scheduler
+package org.oliverlittle.clusterprocess.query
 
 import org.oliverlittle.clusterprocess.worker_query
 import org.oliverlittle.clusterprocess.table_model
 import org.oliverlittle.clusterprocess.model.table._
 import org.oliverlittle.clusterprocess.model.table.sources._
-import org.oliverlittle.clusterprocess.query._
 import org.oliverlittle.clusterprocess.connector.grpc.{WorkerHandler, ChannelManager}
 
 import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
@@ -14,87 +13,6 @@ import scala.collection.mutable.{Queue, ArrayBuffer}
 import scala.concurrent.Future
 import scala.util.{Success, Failure}
 import scala.concurrent.ExecutionContext
-
-object QueryPlan:
-    /**
-      * Creates a query plan to construct a given table
-      *
-      * @param output The table to generate a query plan for
-      * @return A pair containing (query items to calculate the table, query items to cleanup after the table has been read)
-      */
-    def apply(output : Table) : (Seq[QueryPlanItem], Seq[QueryPlanItem]) = {
-        // Uses a mutable List and Queue
-        val queue : Queue[Seq[QueryableObject]] = Queue(getDependencyTree(output)*)
-        val list : ArrayBuffer[QueryPlanItem] = ArrayBuffer()
-
-        var nextPostItems : Seq[QueryPlanItem] = Seq()
-        while (!queue.isEmpty) {
-            // The current set of dependencies to calculate
-            val queryObjects : Seq[QueryableObject] = queue.dequeue
-            // The post clean-up items for this set of dependencies
-            var postItems : Seq[QueryPlanItem] = Seq()
-            
-            queryObjects.foreach(qo =>
-                // Add on the items for the query plan
-                list ++= qo.queryItems
-                // Add to the set of clean-up items
-                postItems ++= qo.cleanupItems
-            )
-
-            // Add the clean-up items to the query plan
-            list ++= nextPostItems
-            // Store the current clean-up items as the next ones
-            nextPostItems = postItems
-        }
-
-        // Return as immutable List
-        return (list.toList, nextPostItems)
-    }
-
-    /**
-      * Generates the dependency tree for a given table
-      * This uses a breadth-first approach, where all tables at depth n - 1 are calculated and held in memory, then depth n is calculated, then depth n - 1 is deleted from memory.
-      * A depth-first approach would likely be more efficient, but at the moment it is not possible for any data source to have more than one dependency, so there is no impact right now.
-      *
-      * @param table
-      * @return A list of list of QueryableObjects, which should be evaluated in order - items in the same sub-Seq are dependent at the same time, and cleanup should be run at the end of the next Seq
-      */
-    def getDependencyTree(table : Table) : Seq[Seq[QueryableObject]] = {
-        val executionOrder : ArrayBuffer[Seq[QueryableObject]] = ArrayBuffer()
-        var next : Option[Seq[Table]] = Some(Seq(table))
-        while (next.isDefined) {
-            val tables = next.get
-            // For each table in this set of dependencies, add the table, and its data source as dependencies
-            executionOrder += tables.flatMap(t => Seq(QueryableTable(t), QueryableDataSource(t.dataSource)))
-            
-            // Get all dependencies from all tables at this 
-            val deps = tables.flatMap(t => t.dataSource.getDependencies)
-            next = if deps.size > 0 then Some(deps) else None
-        }
-
-        // Reverse the list before returning, because we've actually found the tree from the goal back to the roots
-        return executionOrder.reverse.toList
-    }
-
-// Helper classes for generating query plans
-trait QueryableObject:
-    def queryItems : Seq[QueryPlanItem]
-    def cleanupItems : Seq[QueryPlanItem]
-
-    given Conversion[Table, QueryableTable] with
-        def apply(t : Table) : QueryableTable = QueryableTable(t)
-
-    given Conversion[DataSource, QueryableDataSource] with
-        def apply(d : DataSource) : QueryableDataSource = QueryableDataSource(d)
-        
-case class QueryableTable(t : Table) extends QueryableObject:
-    val queryItems = Seq(PrepareResult(t))
-    val cleanupItems = Seq(DeleteResult(t))
-
-case class QueryableDataSource(d : DataSource) extends QueryableObject:
-    val queryItems = Seq(GetPartition(d))
-    val cleanupItems = Seq(DeletePartition(d))
-
 
 // Messages for Query Scheduler Actor System
 sealed trait QueryInstruction
@@ -143,7 +61,6 @@ sealed trait QueryPlanItem:
       *
       * @param workerHandler The list of workers
       * @param onResult An ActorRef to send the result (success or failure) to
-      * @param producerFactory A factory object for producers
       * @param consumerFactory A factory object for consumers
       * @param counterFactory A factory object for counters
       */
@@ -231,6 +148,45 @@ case class DeleteResult(table : Table) extends QueryPlanItem:
 
 // Get partition data from other workers
 case class GetPartition(dataSource : DataSource) extends QueryPlanItem:
+    override def execute(
+        workerHandler : WorkerHandler, 
+        onResult : ActorRef[QueryInstruction])
+    (using context : ActorContext[QueryInstruction])
+    (using producerFactory : WorkProducerFactory) 
+    (using consumerFactory : WorkConsumerFactory)
+    (using counterFactory : CounterFactory)
+    (using ec : ExecutionContext): Unit = {
+        val partitions = dataSource.getPartitions(workerHandler)
+
+        startShuffleWorkers(workerHandler, onResult, partitions)
+    }
+
+    def startShuffleWorkers(
+        workerHandler : WorkerHandler, 
+        onResult : ActorRef[QueryInstruction],
+        partitions : Seq[(Seq[ChannelManager], Seq[PartialDataSource])]) 
+    (using producerFactory : WorkProducerFactory) 
+    (using consumerFactory : WorkConsumerFactory)
+    (using counterFactory : CounterFactory)
+    (using context : ActorContext[QueryInstruction]) : Unit = {
+        val partitionsCount = partitions.map(_._2.size).sum
+        val counter = context.spawn(counterFactory.createCounter(partitionsCount, () => {onResult ! InstructionComplete(Some(partitions))}, (t) => {}), "counter")
+        // Parse the partitions into queries 
+        val queries = partitions.map((channel, dataSources) => 
+            (channel, 
+            dataSources.map(ds =>
+                worker_query.QueryPlanItem().withGetPartition(
+                    worker_query.GetPartition(Some(ds.protobuf), workerHandler.channels.diff(channel).map(c => table_model.InetSocketAddress(c.host, c.port)))
+                )
+            ))
+        )
+
+        // Generate producers and consumers
+        val (producers, consumers) = QueryPlanItem.createConsumersAndProducers(queries, counter, true)
+    }
+
+// Same as GetPartition, with an extra step to calculate the dependencies for a DependentDataSource
+case class GetPartitionWithDependencies(dataSource : DependentDataSource) extends QueryPlanItem:
     override def execute(
         workerHandler : WorkerHandler, 
         onResult : ActorRef[QueryInstruction])
