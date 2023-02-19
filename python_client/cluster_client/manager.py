@@ -8,6 +8,7 @@ from cluster_client.model.data_source import DataSource, CassandraDataSource
 from cluster_client.model.table_transformation import *
 from cluster_client.model.result_builder import StreamedTableResultBuilder
 import cluster_client.protobuf.client_query_pb2 as client_query_pb2
+import cluster_client.protobuf.table_model_pb2 as table_model_pb2
 
 # ClusterManager("address").cassandraTable().
 
@@ -29,7 +30,7 @@ class TableManager():
 
     def evaluate(self) -> StreamedTableResultBuilder:
         """Evaluates this table on the cluster"""
-        iterator = self.cluster_manager.connector.table_client_service.ComputeTable(client_query_pb2.ComputeTableRequest(data_source=self.data_source.to_protobuf(), table=self.transformations_to_protobuf()))
+        iterator = self.cluster_manager.connector.table_client_service.ComputeTable(client_query_pb2.ComputeTableRequest(table=self.table_protobuf()))
         return StreamedTableResultBuilder(iterator)
 
     def select(self, *select_columns : FieldExpression) -> TableManager:
@@ -103,9 +104,9 @@ class TableManager():
 
         return TableManager(self.transformations + [WindowTransformation(window_functions, partition_fields, order_by)])
 
-    def transformations_to_protobuf(self) -> protobuf_model.Table:
+    def table_protobuf(self) -> table_model_pb2.Table:
         """Converts this table's Python representation to a Protobuf representation"""
-        return protobuf_model.Table(transformations = [transformation.to_protobuf() for transformation in self.transformations])
+        return table_model_pb2.Table(data_source = self.data_source.to_protobuf(), transformations = [transformation.to_protobuf() for transformation in self.transformations])
 
     def __str__(self):
         transformation_data = ""

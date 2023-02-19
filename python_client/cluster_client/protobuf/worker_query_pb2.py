@@ -12,10 +12,9 @@ _sym_db = _symbol_database.Default()
 
 
 from . import table_model_pb2 as table__model__pb2
-from . import data_source_pb2 as data__source__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x12worker_query.proto\x1a\x11table_model.proto\x1a\x11\x64\x61ta_source.proto\"\x1e\n\x1cGetLocalCassandraNodeRequest\"B\n\x1bGetLocalCassandraNodeResult\x12#\n\x07\x61\x64\x64ress\x18\x01 \x01(\x0b\x32\x12.InetSocketAddress\"\x91\x01\n$ComputePartialResultCassandraRequest\x12\x15\n\x05table\x18\x01 \x01(\x0b\x32\x06.Table\x12(\n\ndataSource\x18\x02 \x01(\x0b\x32\x14.CassandraDataSource\x12(\n\ntokenRange\x18\x03 \x01(\x0b\x32\x14.CassandraTokenRange2\xcc\x01\n\x14WorkerComputeService\x12^\n\x1d\x43omputePartialResultCassandra\x12%.ComputePartialResultCassandraRequest\x1a\x14.StreamedTableResult0\x01\x12T\n\x15GetLocalCassandraNode\x12\x1d.GetLocalCassandraNodeRequest\x1a\x1c.GetLocalCassandraNodeResultB!\n\x1forg.oliverlittle.clusterprocessb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x12worker_query.proto\x1a\x11table_model.proto\"\x1e\n\x1cGetLocalCassandraNodeRequest\"B\n\x1bGetLocalCassandraNodeResult\x12#\n\x07\x61\x64\x64ress\x18\x01 \x01(\x0b\x32\x12.InetSocketAddress\"-\n\x1aProcessQueryPlanItemResult\x12\x0f\n\x07success\x18\x01 \x01(\x08\"5\n\x1cGetPartitionsForTableRequest\x12\x15\n\x05table\x18\x01 \x01(\x0b\x32\x06.Table\"e\n\x1dGetHashedPartitionDataRequest\x12\x15\n\x05table\x18\x01 \x01(\x0b\x32\x06.Table\x12\x17\n\x0ftotalPartitions\x18\x02 \x01(\r\x12\x14\n\x0cpartitionNum\x18\x03 \x01(\r\"\xae\x02\n\rQueryPlanItem\x12(\n\x0eprepare_result\x18\x01 \x01(\x0b\x32\x0e.PrepareResultH\x00\x12&\n\rdelete_result\x18\x02 \x01(\x0b\x32\r.DeleteResultH\x00\x12.\n\x11prepare_partition\x18\x03 \x01(\x0b\x32\x11.PreparePartitionH\x00\x12=\n\x19\x64\x65lete_prepared_partition\x18\x04 \x01(\x0b\x32\x18.DeletePreparedPartitionH\x00\x12&\n\rget_partition\x18\x05 \x01(\x0b\x32\r.GetPartitionH\x00\x12,\n\x10\x64\x65lete_partition\x18\x06 \x01(\x0b\x32\x10.DeletePartitionH\x00\x42\x06\n\x04item\"-\n\rPrepareResult\x12\x1c\n\x05table\x18\x01 \x01(\x0b\x32\r.PartialTable\"%\n\x0c\x44\x65leteResult\x12\x15\n\x05table\x18\x01 \x01(\x0b\x32\x06.Table\"N\n\x10PreparePartition\x12 \n\x0b\x64\x61ta_source\x18\x01 \x01(\x0b\x32\x0b.DataSource\x12\x18\n\x10total_partitions\x18\x02 \x01(\r\"U\n\x17\x44\x65letePreparedPartition\x12 \n\x0b\x64\x61ta_source\x18\x01 \x01(\x0b\x32\x0b.DataSource\x12\x18\n\x10total_partitions\x18\x02 \x01(\r\"f\n\x0cGetPartition\x12\'\n\x0b\x64\x61ta_source\x18\x01 \x01(\x0b\x32\x12.PartialDataSource\x12-\n\x11other_worker_urls\x18\x02 \x03(\x0b\x32\x12.InetSocketAddress\"3\n\x0f\x44\x65letePartition\x12 \n\x0b\x64\x61ta_source\x18\x01 \x01(\x0b\x32\x0b.DataSource2\xd3\x02\n\x14WorkerComputeService\x12T\n\x15GetLocalCassandraNode\x12\x1d.GetLocalCassandraNodeRequest\x1a\x1c.GetLocalCassandraNodeResult\x12\x43\n\x14ProcessQueryPlanItem\x12\x0e.QueryPlanItem\x1a\x1b.ProcessQueryPlanItemResult\x12N\n\x15GetPartitionsForTable\x12\x1d.GetPartitionsForTableRequest\x1a\x14.StreamedTableResult0\x01\x12P\n\x16GetHashedPartitionData\x12\x1e.GetHashedPartitionDataRequest\x1a\x14.StreamedTableResult0\x01\x42!\n\x1forg.oliverlittle.clusterprocessb\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'worker_query_pb2', globals())
@@ -23,12 +22,30 @@ if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
   DESCRIPTOR._serialized_options = b'\n\037org.oliverlittle.clusterprocess'
-  _GETLOCALCASSANDRANODEREQUEST._serialized_start=60
-  _GETLOCALCASSANDRANODEREQUEST._serialized_end=90
-  _GETLOCALCASSANDRANODERESULT._serialized_start=92
-  _GETLOCALCASSANDRANODERESULT._serialized_end=158
-  _COMPUTEPARTIALRESULTCASSANDRAREQUEST._serialized_start=161
-  _COMPUTEPARTIALRESULTCASSANDRAREQUEST._serialized_end=306
-  _WORKERCOMPUTESERVICE._serialized_start=309
-  _WORKERCOMPUTESERVICE._serialized_end=513
+  _GETLOCALCASSANDRANODEREQUEST._serialized_start=41
+  _GETLOCALCASSANDRANODEREQUEST._serialized_end=71
+  _GETLOCALCASSANDRANODERESULT._serialized_start=73
+  _GETLOCALCASSANDRANODERESULT._serialized_end=139
+  _PROCESSQUERYPLANITEMRESULT._serialized_start=141
+  _PROCESSQUERYPLANITEMRESULT._serialized_end=186
+  _GETPARTITIONSFORTABLEREQUEST._serialized_start=188
+  _GETPARTITIONSFORTABLEREQUEST._serialized_end=241
+  _GETHASHEDPARTITIONDATAREQUEST._serialized_start=243
+  _GETHASHEDPARTITIONDATAREQUEST._serialized_end=344
+  _QUERYPLANITEM._serialized_start=347
+  _QUERYPLANITEM._serialized_end=649
+  _PREPARERESULT._serialized_start=651
+  _PREPARERESULT._serialized_end=696
+  _DELETERESULT._serialized_start=698
+  _DELETERESULT._serialized_end=735
+  _PREPAREPARTITION._serialized_start=737
+  _PREPAREPARTITION._serialized_end=815
+  _DELETEPREPAREDPARTITION._serialized_start=817
+  _DELETEPREPAREDPARTITION._serialized_end=902
+  _GETPARTITION._serialized_start=904
+  _GETPARTITION._serialized_end=1006
+  _DELETEPARTITION._serialized_start=1008
+  _DELETEPARTITION._serialized_end=1059
+  _WORKERCOMPUTESERVICE._serialized_start=1062
+  _WORKERCOMPUTESERVICE._serialized_end=1401
 # @@protoc_insertion_point(module_scope)

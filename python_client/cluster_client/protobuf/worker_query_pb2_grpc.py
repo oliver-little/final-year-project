@@ -15,29 +15,50 @@ class WorkerComputeServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.ComputePartialResultCassandra = channel.unary_stream(
-                '/WorkerComputeService/ComputePartialResultCassandra',
-                request_serializer=worker__query__pb2.ComputePartialResultCassandraRequest.SerializeToString,
-                response_deserializer=table__model__pb2.StreamedTableResult.FromString,
-                )
         self.GetLocalCassandraNode = channel.unary_unary(
                 '/WorkerComputeService/GetLocalCassandraNode',
                 request_serializer=worker__query__pb2.GetLocalCassandraNodeRequest.SerializeToString,
                 response_deserializer=worker__query__pb2.GetLocalCassandraNodeResult.FromString,
+                )
+        self.ProcessQueryPlanItem = channel.unary_unary(
+                '/WorkerComputeService/ProcessQueryPlanItem',
+                request_serializer=worker__query__pb2.QueryPlanItem.SerializeToString,
+                response_deserializer=worker__query__pb2.ProcessQueryPlanItemResult.FromString,
+                )
+        self.GetPartitionsForTable = channel.unary_stream(
+                '/WorkerComputeService/GetPartitionsForTable',
+                request_serializer=worker__query__pb2.GetPartitionsForTableRequest.SerializeToString,
+                response_deserializer=table__model__pb2.StreamedTableResult.FromString,
+                )
+        self.GetHashedPartitionData = channel.unary_stream(
+                '/WorkerComputeService/GetHashedPartitionData',
+                request_serializer=worker__query__pb2.GetHashedPartitionDataRequest.SerializeToString,
+                response_deserializer=table__model__pb2.StreamedTableResult.FromString,
                 )
 
 
 class WorkerComputeServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
-    def ComputePartialResultCassandra(self, request, context):
-        """Computes a partial result
-        """
+    def GetLocalCassandraNode(self, request, context):
+        """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def GetLocalCassandraNode(self, request, context):
+    def ProcessQueryPlanItem(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetPartitionsForTable(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetHashedPartitionData(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -46,15 +67,25 @@ class WorkerComputeServiceServicer(object):
 
 def add_WorkerComputeServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'ComputePartialResultCassandra': grpc.unary_stream_rpc_method_handler(
-                    servicer.ComputePartialResultCassandra,
-                    request_deserializer=worker__query__pb2.ComputePartialResultCassandraRequest.FromString,
-                    response_serializer=table__model__pb2.StreamedTableResult.SerializeToString,
-            ),
             'GetLocalCassandraNode': grpc.unary_unary_rpc_method_handler(
                     servicer.GetLocalCassandraNode,
                     request_deserializer=worker__query__pb2.GetLocalCassandraNodeRequest.FromString,
                     response_serializer=worker__query__pb2.GetLocalCassandraNodeResult.SerializeToString,
+            ),
+            'ProcessQueryPlanItem': grpc.unary_unary_rpc_method_handler(
+                    servicer.ProcessQueryPlanItem,
+                    request_deserializer=worker__query__pb2.QueryPlanItem.FromString,
+                    response_serializer=worker__query__pb2.ProcessQueryPlanItemResult.SerializeToString,
+            ),
+            'GetPartitionsForTable': grpc.unary_stream_rpc_method_handler(
+                    servicer.GetPartitionsForTable,
+                    request_deserializer=worker__query__pb2.GetPartitionsForTableRequest.FromString,
+                    response_serializer=table__model__pb2.StreamedTableResult.SerializeToString,
+            ),
+            'GetHashedPartitionData': grpc.unary_stream_rpc_method_handler(
+                    servicer.GetHashedPartitionData,
+                    request_deserializer=worker__query__pb2.GetHashedPartitionDataRequest.FromString,
+                    response_serializer=table__model__pb2.StreamedTableResult.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -65,23 +96,6 @@ def add_WorkerComputeServiceServicer_to_server(servicer, server):
  # This class is part of an EXPERIMENTAL API.
 class WorkerComputeService(object):
     """Missing associated documentation comment in .proto file."""
-
-    @staticmethod
-    def ComputePartialResultCassandra(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_stream(request, target, '/WorkerComputeService/ComputePartialResultCassandra',
-            worker__query__pb2.ComputePartialResultCassandraRequest.SerializeToString,
-            table__model__pb2.StreamedTableResult.FromString,
-            options, channel_credentials,
-            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
     def GetLocalCassandraNode(request,
@@ -97,5 +111,56 @@ class WorkerComputeService(object):
         return grpc.experimental.unary_unary(request, target, '/WorkerComputeService/GetLocalCassandraNode',
             worker__query__pb2.GetLocalCassandraNodeRequest.SerializeToString,
             worker__query__pb2.GetLocalCassandraNodeResult.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def ProcessQueryPlanItem(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/WorkerComputeService/ProcessQueryPlanItem',
+            worker__query__pb2.QueryPlanItem.SerializeToString,
+            worker__query__pb2.ProcessQueryPlanItemResult.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def GetPartitionsForTable(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(request, target, '/WorkerComputeService/GetPartitionsForTable',
+            worker__query__pb2.GetPartitionsForTableRequest.SerializeToString,
+            table__model__pb2.StreamedTableResult.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def GetHashedPartitionData(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(request, target, '/WorkerComputeService/GetHashedPartitionData',
+            worker__query__pb2.GetHashedPartitionDataRequest.SerializeToString,
+            table__model__pb2.StreamedTableResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

@@ -11,7 +11,7 @@ class TableTransformation():
         if type(self) == TableTransformation:
             raise NotImplementedError("TableTransformation is an abstract class and cannot be instantiated directly.")
     
-    def to_protobuf() -> protobuf_model.Table.TableTransformation: 
+    def to_protobuf() -> protobuf_model.TableTransformation: 
         raise NotImplementedError("TableTransformation abstract class cannot be converted to protobuf.")
 
 class SelectTransformation(TableTransformation):
@@ -19,8 +19,8 @@ class SelectTransformation(TableTransformation):
     def __init__(self, *select_columns : NamedFieldExpression):
         self.select_columns = select_columns
 
-    def to_protobuf(self) -> protobuf_model.Table.TableTransformation:
-        return protobuf_model.Table.TableTransformation(select=protobuf_model.Select(fields=[col.to_named_protobuf() for col in self.select_columns]))
+    def to_protobuf(self) -> protobuf_model.TableTransformation:
+        return protobuf_model.TableTransformation(select=protobuf_model.Select(fields=[col.to_named_protobuf() for col in self.select_columns]))
 
     def __str__(self):
         col_data = ""
@@ -34,8 +34,8 @@ class FilterTransformation(TableTransformation):
     def __init__(self, filter: FieldComparison):
         self.filter = filter
     
-    def to_protobuf(self) -> protobuf_model.Table.TableTransformation:
-        return protobuf_model.Table.TableTransformation(filter=self.filter.to_protobuf())
+    def to_protobuf(self) -> protobuf_model.TableTransformation:
+        return protobuf_model.TableTransformation(filter=self.filter.to_protobuf())
 
     def __str__(self):
         filter_data = ""
@@ -54,8 +54,8 @@ class JoinTransformation(TableTransformation):
         except ValueError:
             raise ValueError(f"Invalid join type provided {join_type}")
 
-    def to_protobuf(self) -> protobuf_model.Table.TableTransformation:
-        return protobuf_model.Table.TableTransformation(join=
+    def to_protobuf(self) -> protobuf_model.TableTransformation:
+        return protobuf_model.TableTransformation(join=
             protobuf_model.Join(join_type=self.join_type, table_name=self.join_table_name)
         )
 
@@ -67,8 +67,8 @@ class GroupByTransformation(TableTransformation):
     def __init__(self, *group_by_columns : FieldExpression):
         self.group_by_columns = group_by_columns
 
-    def to_protobuf(self) -> protobuf_model.Table.TableTransformation:
-        return protobuf_model.Table.TableTransformation(group_by=protobuf_model.GroupBy(fields=[col.to_protobuf() for col in self.group_by_columns]))
+    def to_protobuf(self) -> protobuf_model.TableTransformation:
+        return protobuf_model.TableTransformation(group_by=protobuf_model.GroupBy(fields=[col.to_protobuf() for col in self.group_by_columns]))
 
     def __str__(self):
         group_data = ""
@@ -82,8 +82,8 @@ class AggregateTransformation(TableTransformation):
     def __init__(self, *aggregate_columns : AggregateExpression):
         self.aggregate_columns = aggregate_columns
 
-    def to_protobuf(self) -> protobuf_model.Table.TableTransformation:
-        return protobuf_model.Table.TableTransformation(aggregate=protobuf_model.Aggregate(aggregate_fields=[col.to_protobuf() for col in self.aggregate_columns]))
+    def to_protobuf(self) -> protobuf_model.TableTransformation:
+        return protobuf_model.TableTransformation(aggregate=protobuf_model.Aggregate(aggregate_fields=[col.to_protobuf() for col in self.aggregate_columns]))
 
     def __str__(self):
         aggregate_data = ""
@@ -104,8 +104,8 @@ class OrderByTransformation(TableTransformation):
 
         self.order_by_columns = converted_pairs
 
-    def to_protobuf(self) -> protobuf_model.Table.TableTransformation:
-        return protobuf_model.Table.TableTransformation(order_by=protobuf_model.Order(order_by_fields=[
+    def to_protobuf(self) -> protobuf_model.TableTransformation:
+        return protobuf_model.TableTransformation(order_by=protobuf_model.Order(order_by_fields=[
             protobuf_model.Order.OrderByField(field=expression.to_protobuf(), order_by_type=order_by_type) for expression, order_by_type in self.order_by_columns
         ]))
 
@@ -124,8 +124,8 @@ class WindowTransformation(TableTransformation):
         if order_by is not None:
             self.order_by = OrderByTransformation(order_by)
 
-    def to_protobuf(self) -> protobuf_model.Table.TableTransformation:
-        return protobuf_model.Table.TableTransformation(window=
+    def to_protobuf(self) -> protobuf_model.TableTransformation:
+        return protobuf_model.TableTransformation(window=
             protobuf_model.Window(
                 window_function=[window_function.to_protobuf() for window_function in self.window_functions],
                 partition_fields=self.partition_fields,
