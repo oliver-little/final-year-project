@@ -106,7 +106,7 @@ case class PrepareResultWithPartitions(table : Table, partitions : Seq[(Seq[Chan
             dataSources.map(ds =>
                 worker_query.QueryPlanItem().withPrepareResult(
                     worker_query.PrepareResult(Some(table.withPartialDataSource(ds).protobuf))
-                )
+                ) 
             ))
         )
     lazy val partitionsCount = partitions.map(_._2.size).sum
@@ -156,9 +156,7 @@ case class GetPartition(dataSource : DataSource) extends QueryPlanItem:
     (using consumerFactory : WorkConsumerFactory)
     (using counterFactory : CounterFactory)
     (using ec : ExecutionContext): Unit = {
-        context.log.info("Starting GetPartition execution")
         val partitions = dataSource.getPartitions(workerHandler)
-        context.log.debug("Created partitions")
 
         startShuffleWorkers(workerHandler, onResult, partitions)
     }
@@ -215,16 +213,29 @@ case class GetPartitionWithDependencies(dataSource : DependentDataSource) extend
         return Future.sequence(futures)
     }
 
+    def sendDeletePreparePartitions(workerHandler : WorkerHandler, partitionCount : Int)(using ec : ExecutionContext) : Future[Seq[worker_query.ProcessQueryPlanItemResult]] = {
+        val query = worker_query.QueryPlanItem().withDeletePreparedPartition(worker_query.DeletePreparedPartition(Some(dataSource.protobuf), partitionCount))
+        val futures = workerHandler.channels.map(c => c.workerComputeServiceStub.processQueryPlanItem(query))
+        return Future.sequence(futures)
+    }
+
     def startShuffleWorkers(
         workerHandler : WorkerHandler, 
         onResult : ActorRef[QueryInstruction],
         partitions : Seq[(Seq[ChannelManager], Seq[PartialDataSource])]) 
+    (using context : ActorContext[QueryInstruction])
     (using producerFactory : WorkProducerFactory) 
     (using consumerFactory : WorkConsumerFactory)
     (using counterFactory : CounterFactory)
-    (using context : ActorContext[QueryInstruction]) : Unit = {
+    (using ec : ExecutionContext) : Unit = {
         val partitionsCount = partitions.map(_._2.size).sum
-        val counter = context.spawn(counterFactory.createCounter(partitionsCount, () => {onResult ! InstructionComplete(Some(partitions))}, (t) => {}), "counter")
+
+        val onComplete = () => {
+            sendDeletePreparePartitions(workerHandler, partitionsCount)
+            onResult ! InstructionComplete(Some(partitions))
+        }
+
+        val counter = context.spawn(counterFactory.createCounter(partitionsCount, onComplete, (t) => {}), "counter")
         // Parse the partitions into queries 
         val queries = partitions.map((channel, dataSources) => 
             (channel, 

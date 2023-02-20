@@ -17,6 +17,8 @@ case class Table(dataSource : DataSource, transformations : Seq[TableTransformat
     lazy val headerList = transformations.iterator.scanLeft(dataSource.getHeaders)((inputContext, item) => item.outputHeaders(inputContext))
     lazy val outputHeaders : TableResultHeader = headerList.toSeq.last
 
+    lazy val empty : TableResult = EvaluatedTableResult(outputHeaders, Seq())
+
     def addTransformation(transformation : TableTransformation) : Table = Table(dataSource, transformations :+ transformation)
 
     def getPartialTables(workerHandler : WorkerHandler) : Seq[(Seq[ChannelManager], Seq[PartialTable])] = dataSource.getPartitions(workerHandler).map((channels, partialSources) => (channels, partialSources.map(PartialTable(_, transformations))))

@@ -13,6 +13,7 @@ import io.grpc.protobuf.StatusProto
 import com.google.rpc.{Status, Code}
 import akka.actor.typed.{ActorRef, ActorSystem}
 import akka.actor.typed.scaladsl.AskPattern._
+import akka.pattern.StatusReply
 import akka.util.Timeout
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -106,19 +107,18 @@ class WorkerQueryServer(executionContext: ExecutionContext, store : ActorRef[Tab
             return queryPlanItem.execute(store)
         }
 
-        override def getPartitionsForTable(request : worker_query.GetPartitionsForTableRequest, responseObserver : StreamObserver[table_model.StreamedTableResult]) : Unit = {
+        override def getTableData(request : worker_query.GetTableDataRequest, responseObserver : StreamObserver[table_model.StreamedTableResult]) : Unit = {
             val table = Table.fromProtobuf(request.table.get)
 
             val runnable = responseObserverToDelayedRunnable(responseObserver)
 
-            store.ask(ref => TableStore.GetAllResults(table, ref)) onComplete {
-                    case Success(Some(result : TableResult)) => runnable.setData(result)
-                    case _ => 
-                        val status = Status.newBuilder()
-                            .setCode(Code.NOT_FOUND.getNumber)
-                            .setMessage("Table not found in table store")
-                            .build()
-                        responseObserver.onError(StatusProto.toStatusRuntimeException(status))
+            WorkerQueryServer.logger.info("processQueryPlanItem")
+            WorkerQueryServer.logger.info(table.toString)
+
+            store.ask[Seq[TableResult]](ref => TableStore.GetAllResults(table, ref)).onComplete {
+                case Success(Seq()) => runnable.setData(table.empty)
+                case Success(results) => runnable.setData(results.reduce(_ ++ _))
+                case Failure(e) => runnable.setError(e)
             }
         }
 

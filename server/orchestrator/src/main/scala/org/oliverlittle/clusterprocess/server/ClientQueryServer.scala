@@ -5,8 +5,8 @@ import org.oliverlittle.clusterprocess.table_model
 import org.oliverlittle.clusterprocess.client_query
 import org.oliverlittle.clusterprocess.model.table.sources.DataSource
 import org.oliverlittle.clusterprocess.model.table.{Table, TableTransformation, TableResult}
-import org.oliverlittle.clusterprocess.scheduler.{WorkExecutionScheduler}
-import org.oliverlittle.clusterprocess.connector.grpc.{StreamedTableResult, DelayedTableResultRunnable, WorkerHandler}
+import org.oliverlittle.clusterprocess.scheduler.{WorkExecutionScheduler, ResultAssembler}
+import org.oliverlittle.clusterprocess.connector.grpc.{WorkerHandler, StreamedTableResult, DelayedTableResultRunnable}
 import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
 
 import io.grpc.{ServerBuilder, ManagedChannelBuilder}
@@ -35,12 +35,12 @@ object ClientQueryServer {
         val workerAddresses : Seq[(String, Int)] = 
             if numWorkers.isDefined then (0 to numWorkers.get.toInt).map(num => (nodeName.get + "-" + num.toString + "." + baseURL.get, workerPort))
             else ConfigFactory.load.getStringList("clusterprocess.test.worker_urls").asScala.toSeq.map((_, workerPort))
-        val server = new ClientQueryServer(ExecutionContext.global, workerAddresses)
+        val server = new ClientQueryServer(workerAddresses)(using ExecutionContext.global)
         server.blockUntilShutdown()
     }
 }
 
-class ClientQueryServer(executionContext: ExecutionContext, workerAddresses : Seq[(String, Int)]) {
+class ClientQueryServer( workerAddresses : Seq[(String, Int)])(using executionContext : ExecutionContext) {
     private val server =  ServerBuilder.forPort(ClientQueryServer.port).addService(client_query.TableClientServiceGrpc.bindService(new ClientQueryServicer(new WorkerHandler(workerAddresses)), executionContext)).build.start
     ClientQueryServer.logger.info("gRPC Server started, listening on " + ClientQueryServer.port)
     
@@ -54,7 +54,7 @@ class ClientQueryServer(executionContext: ExecutionContext, workerAddresses : Se
 
     private def blockUntilShutdown(): Unit = server.awaitTermination()
 
-    private class ClientQueryServicer(workerHandler : WorkerHandler) extends client_query.TableClientServiceGrpc.TableClientService {
+    private class ClientQueryServicer(workerHandler : WorkerHandler)(using executionContext : ExecutionContext) extends client_query.TableClientServiceGrpc.TableClientService {
         override def computeTable(request: client_query.ComputeTableRequest, responseObserver : StreamObserver[table_model.StreamedTableResult]): Unit = {
             ClientQueryServer.logger.info("Compute table request received")
 
@@ -67,18 +67,18 @@ class ClientQueryServer(executionContext: ExecutionContext, workerAddresses : Se
             val calculateQueryPlan = table.getQueryPlan
             val getCleanupQueryPlan = table.getCleanupQueryPlan
             ClientQueryServer.logger.info("Calculated query plan")
+
             // Able to make this unchecked cast because this is a response from a server
-            //val serverCallStreamObserver = responseObserver.asInstanceOf[ServerCallStreamObserver[table_model.StreamedTableResult]]
+            val serverCallStreamObserver = responseObserver.asInstanceOf[ServerCallStreamObserver[table_model.StreamedTableResult]]
             
             // Prepare onReady hook 
-            //val runable = DelayedTableResultRunnable(serverCallStreamObserver)
-            //serverCallStreamObserver.setOnReadyHandler(runnable)
+            val runnable = DelayedTableResultRunnable(serverCallStreamObserver)
+            serverCallStreamObserver.setOnReadyHandler(runnable)
 
             // Start execution, and add hook to send the data when finished
             WorkExecutionScheduler.startExecution(calculateQueryPlan, workerHandler, {() =>
-                ClientQueryServer.logger.info("Result ready from workers.")
-                responseObserver.onCompleted()
-                //runnable.setData(result)
+                ClientQueryServer.logger.info("Result ready from workers, pulling data")
+                ResultAssembler.startExecution(table, workerHandler.channels, serverCallStreamObserver)                
             })
         } 
     }

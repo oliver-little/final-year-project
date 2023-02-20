@@ -46,13 +46,17 @@ class DelayedTableResultRunnable(responseObserver : ServerCallStreamObserver[tab
     var closed = false;
 
     private val logger = LoggerFactory.getLogger(classOf[DelayedTableResultRunnable].getName)
+
     def setData(tableResult : TableResult) : Unit = {
+        println(tableResult.rows.size.toString)
         val header = table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Header(tableResult.header.protobuf))
         val rows = tableResult.rowsProtobuf.map(row => table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Row(row)))
         val iterator = Iterator(header) ++ rows
         data = Some(iterator)
         run()
     }
+
+    def setError(e : Throwable) : Unit = responseObserver.onError(e)
 
     def run(): Unit = {
         if closed then return;

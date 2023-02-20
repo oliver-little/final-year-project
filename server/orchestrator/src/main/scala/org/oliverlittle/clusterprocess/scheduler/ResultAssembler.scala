@@ -1,87 +1,102 @@
 package org.oliverlittle.clusterprocess.scheduler
 
+import org.oliverlittle.clusterprocess.table_model
+import org.oliverlittle.clusterprocess.worker_query
 import org.oliverlittle.clusterprocess.connector.grpc.ChannelManager
 import org.oliverlittle.clusterprocess.connector.cassandra.token._
 import org.oliverlittle.clusterprocess.model.table.{Table, TableResult, LazyTableResult}
-import org.oliverlittle.clusterprocess.worker_query
 
+import io.grpc.stub.{StreamObserver, ServerCallStreamObserver}
 import akka.actor.typed.scaladsl.{Behaviors, LoggerOps, ActorContext}
 import akka.actor.typed.{ActorRef, ActorSystem, Behavior, Terminated}
-/*
+
 object ResultAssembler {
-    sealed trait AssemblerEvent
-    final case class SendResult(result : TableResult) extends AssemblerEvent
+    sealed trait ResultEvent
+    case class Data(row : table_model.StreamedTableResult) extends ResultEvent
+    case class Complete() extends ResultEvent
+    case class Error(e : Throwable) extends ResultEvent
 
-    final case class ResultData(result : Option[TableResult])
 
-    def startFromData(queryPlan : Seq[QueryPlanItem], table : Table, resultCallback : TableResult => Unit) : Unit = {
-        /*
-        val dataSourceProtobuf = table.dataSource.getCassandraProtobuf.get
-        val tableProtobuf = table.protobuf
-
-        val parsedItems = channelTokenRangeMap.map((channels : Seq[ChannelManager], tokenRanges : Seq[CassandraTokenRange]) => 
-            (
-                channels.map(manager => worker_query.WorkerComputeServiceGrpc.blockingStub(manager.channel)), 
-                tokenRanges.map(tokenRange => worker_query.ComputePartialResultCassandraRequest(table=Some(tableProtobuf), dataSource=Some(dataSourceProtobuf), tokenRange=Some(tokenRange.protobuf)))
-            )
-        )*/
-
-        startExecution(parsedItems, table.transformations.last.assemblePartial, resultCallback : TableResult => Unit)
+    def startExecution(table : Table, channels : Seq[ChannelManager], output : ServerCallStreamObserver[table_model.StreamedTableResult]) : Unit = {
+        val system = ActorSystem(ResultAssembler(table, channels, output), "ResultAssembler")
     }
 
-    def startExecution(items : Seq[(Seq[worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub], Seq[worker_query.ComputePartialResultCassandraRequest])], assembler : Iterable[TableResult] => TableResult, resultCallback : TableResult => Unit) : Unit = {
-        val system = ActorSystem(ResultAssembler(items, assembler, resultCallback), "ResultAssembler")
+    def apply(table : Table, channels : Seq[ChannelManager], output : ServerCallStreamObserver[table_model.StreamedTableResult]): Behavior[ResultEvent] = Behaviors.setup {context =>
+        val query = worker_query.GetTableDataRequest(Some(table.protobuf))
+        channels.map(_.workerComputeServiceStub.getTableData(query, MessageStreamedTableResultObserver(context.self)))
+        new ResultAssembler(channels.size, output).getFirstHeader(0, Seq())
     }
 
-    def apply(
-        items : Seq[(Seq[worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub], Seq[worker_query.ComputePartialResultCassandraRequest])], 
-        assembler : Iterable[TableResult] => TableResult, 
-        resultCallback : TableResult => Unit,
-        producerFactory : WorkProducerFactory = BaseWorkProducerFactory(), 
-        consumerFactory : WorkConsumerFactory = BaseWorkConsumerFactory()
-    ): Behavior[AssemblerEvent] = Behaviors.setup {context =>
-        // For each sequence of requests, create a producer (with a unique identifier)
-        val mappedProducers = items.zipWithIndex.map((pair, index) => pair._1 -> context.spawn(producerFactory.createProducer(pair._2), "producer" + index.toString))
-        val producers = mappedProducers.map(_._2)
-        // For each possible stub, and it's matched producer, create a consumer and give it a list of producers to consume from
-        val consumers = mappedProducers.zipWithIndex.map((pair, mainIndex) => pair._1.zipWithIndex.map((stub, index) => context.spawn(consumerFactory.createConsumer(stub, pair._2 +: producers.filter(_ == pair._2), context.self), "consumer" + mainIndex.toString + index.toString))).flatten
-        new ResultAssembler(items.map(_._2.size).sum, resultCallback, assembler, context).getFirstData()
-    }
+    
 }
 
-class ResultAssembler private (expectedResponses : Int, resultCallback : TableResult => Unit, assembler : Iterable[TableResult] => TableResult, context : ActorContext[ResultAssembler.AssemblerEvent]) {
+class ResultAssembler(expectedResponses : Int, output : ServerCallStreamObserver[table_model.StreamedTableResult]) {
     import ResultAssembler._
 
-    /**
-     * Handles receiving the first response from any consumer
-     */
-    private def getFirstData() : Behavior[ResultAssembler.AssemblerEvent] = Behaviors.receiveMessage {
-        case SendResult(newResult) => 
-            if expectedResponses == 1 then 
-                onFinished(newResult)
-            else assembleData(Seq(newResult), 1)
+    def getFirstHeader(numCompletes : Int, rows : Seq[table_model.StreamedTableResult]) : Behavior[ResultEvent] = Behaviors.receive { (context, message) =>
+        message match {
+            // Match header
+            case Data(table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Header(v), unknownFields)) if expectedResponses == 1 => receiveData(numCompletes)
+            case Data(table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Header(v), unknownFields)) => getHeaders(v, 1, numCompletes, rows)
+            // Match row
+            case Data(v) => getFirstHeader(numCompletes, rows :+ v)
+            case Complete() if expectedResponses == numCompletes + 1 => handleError(IllegalStateException("Received all complete messages before headers were received"))
+            case Complete() => getFirstHeader(numCompletes + 1, rows)
+            case Error(e) => handleError(e)
+        }
     }
 
-    /**
-     *  Handles receiving all subsequent responses from consumers until expectedResponses is reached
-     */
-    private def assembleData(currentData : Seq[TableResult], numResponses : Int) : Behavior[ResultAssembler.AssemblerEvent] = Behaviors.receiveMessage {
-        case SendResult(newResult) => 
-            if numResponses + 1 == expectedResponses then
-                onFinished(assembler(currentData :+ newResult))
-            else
-                context.log.info("Got " + (numResponses + 1).toString + " responses, need " + expectedResponses.toString + " responses")
-                assembleData(currentData :+ newResult, numResponses + 1)
+    def getHeaders(header : table_model.TableResultHeader, numHeaders : Int, numCompletes : Int, rows : Seq[table_model.StreamedTableResult]) : Behavior[ResultEvent] = Behaviors.receive { (context, message) =>
+        message match {
+            // Mismatched headers
+            case Data(table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Header(v), unknownFields)) if v != header => handleError(IllegalStateException("Headers from workers do not match."))
+            // Received all expected headers
+            case Data(table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Header(v), unknownFields)) if numHeaders + 1 == expectedResponses =>
+                // Send a header
+                output.onNext(table_model.StreamedTableResult().withHeader(header))
+                // Send all rows we already had
+                rows.foreach(row => output.onNext(row))
+                // Wait for the rest of the rows
+                receiveData(numCompletes)
+            // Received another header
+            case Data(table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Header(v), unknownFields)) => getHeaders(header, numHeaders + 1, numCompletes, rows)
+            // Received a row
+            case Data(v) => getHeaders(header, numHeaders, numCompletes, rows :+ v)
+            case Complete() if expectedResponses == numCompletes + 1 => handleError(IllegalStateException("Received all complete messages before headers were received"))
+            case Complete() => getHeaders(header, numHeaders, numCompletes + 1, rows)
+            case Error(e) => handleError(e)
+        }
     }
 
-    /**
-     * Handles system shutdown - calls the callback, terminates the system, and stops this Actor 
-     */
-    private def onFinished(result : TableResult) : Behavior[ResultAssembler.AssemblerEvent] = {
-        context.log.info("Received all responses, calling callback function.")
-        resultCallback(result)
+    def receiveData(numCompletes : Int) : Behavior[ResultEvent] = Behaviors.receive {(context, message) =>
+        message match {
+            // Match header
+            case Data(table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Header(v), unknownFields)) => handleError(IllegalStateException("Received header from worker after all expected headers received."))
+            // Match row
+            case Data(v) => 
+                output.onNext(v)
+                Behaviors.same
+            case Complete() if expectedResponses == numCompletes + 1 => 
+                output.onCompleted
+                Behaviors.stopped
+            case Complete() => receiveData(numCompletes + 1)
+            case Error(e) => handleError(e)
+        }
+    }
+
+    def handleError(e : Throwable) : Behavior[ResultEvent] = Behaviors.setup {context =>
+        output.onError(e)
         context.system.terminate()
         Behaviors.stopped
     }
 }
-*/
+
+/**
+  * Maps StreamObserver API to ResultAssembler Actor API
+  */
+class MessageStreamedTableResultObserver(replyTo : ActorRef[ResultAssembler.ResultEvent]) extends StreamObserver[table_model.StreamedTableResult]:
+    override def onNext(value: table_model.StreamedTableResult) : Unit = replyTo ! ResultAssembler.Data(value)
+
+    override def onError(e : Throwable) : Unit = replyTo ! ResultAssembler.Error(e)
+
+    override def onCompleted(): Unit = replyTo ! ResultAssembler.Complete()
