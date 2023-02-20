@@ -29,9 +29,10 @@ object WorkExecutionScheduler {
 class WorkExecutionScheduler(producerFactory : WorkProducerFactory, consumerFactory : WorkConsumerFactory, counterFactory : CounterFactory, workerHandler : WorkerHandler, resultCallback : () => Unit, context : ActorContext[QueryInstruction]) {
     import WorkExecutionScheduler._
 
-    implicit val executionContext : ExecutionContext = context.system.dispatchers.lookup(DispatcherSelector.fromConfig("cluster-process-dispatcher"))
+    implicit val executionContext : ExecutionContext = context.system.dispatchers.lookup(DispatcherSelector.sameAsParent())
 
     def start(queryPlan : Seq[QueryPlanItem]) : Behavior[QueryInstruction] = Behaviors.setup{context =>
+        context.log.info("Starting execution")
         startItemScheduler(queryPlan.head, 0, workerHandler, context)
         receiveComplete(queryPlan.tail, 1)
     }

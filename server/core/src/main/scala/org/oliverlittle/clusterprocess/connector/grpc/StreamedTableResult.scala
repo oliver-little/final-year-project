@@ -5,8 +5,9 @@ import org.oliverlittle.clusterprocess.model.table._
 import org.oliverlittle.clusterprocess.model.table.field.TableValue
 
 import io.grpc.stub.{StreamObserver, ServerCallStreamObserver}
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 
-import java.util.logging.Logger
 import collection.mutable.{Buffer, ArrayBuffer}
 import scala.concurrent.Promise
 
@@ -19,7 +20,7 @@ object StreamedTableResult:
     }
 
 class TableResultRunnable(responseObserver : ServerCallStreamObserver[table_model.StreamedTableResult], data : Iterator[table_model.StreamedTableResult]) extends Runnable {
-    private val logger = Logger.getLogger(classOf[TableResultRunnable].getName)
+    private val logger = LoggerFactory.getLogger(classOf[TableResultRunnable].getName)
 
     var closed = false;
     def run(): Unit = {
@@ -44,7 +45,7 @@ class DelayedTableResultRunnable(responseObserver : ServerCallStreamObserver[tab
     var data : Option[Iterator[table_model.StreamedTableResult]] = None
     var closed = false;
 
-    private val logger = Logger.getLogger(classOf[DelayedTableResultRunnable].getName)
+    private val logger = LoggerFactory.getLogger(classOf[DelayedTableResultRunnable].getName)
     def setData(tableResult : TableResult) : Unit = {
         val header = table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Header(tableResult.header.protobuf))
         val rows = tableResult.rowsProtobuf.map(row => table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Row(row)))

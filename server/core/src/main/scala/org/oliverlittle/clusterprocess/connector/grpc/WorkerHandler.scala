@@ -10,15 +10,16 @@ import org.oliverlittle.clusterprocess.connector.cassandra.size_estimation.Table
 import com.datastax.oss.driver.api.core.cql.ResultSet
 import com.datastax.oss.driver.api.core.metadata._
 import com.datastax.oss.driver.api.core.metadata.token._
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 
 import java.net.InetSocketAddress
-import java.util.logging.Logger
 import com.typesafe.config.ConfigFactory
 import scala.jdk.CollectionConverters._
 import scala.util.Try
 
 class WorkerHandler(workerAddresses : Seq[(String, Int)]) {
-    private val logger = Logger.getLogger(classOf[WorkerHandler].getName)
+    private val logger = LoggerFactory.getLogger(classOf[WorkerHandler].getName)
     
     // Setup channels and get nodes
     val channels : Seq[ChannelManager] = workerAddresses.map((host, port) => ChannelManager(host, port))

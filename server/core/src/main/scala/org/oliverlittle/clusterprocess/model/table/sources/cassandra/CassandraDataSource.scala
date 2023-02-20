@@ -15,10 +15,11 @@ import com.datastax.oss.driver.api.core.`type`.{DataTypes, DataType}
 import com.datastax.oss.driver.api.core.cql.Row
 import akka.actor.typed.{ActorRef, ActorSystem}
 import akka.util.Timeout
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 
 import scala.jdk.CollectionConverters._
 import java.time.Instant
-import java.util.logging.Logger
 import scala.concurrent.{Future, ExecutionContext}
 
 object CassandraDataSource:
@@ -49,7 +50,7 @@ object CassandraDataSource:
   * @param primaryKey A list of strings representing the primary keys for this table
   */
 case class CassandraDataSource(env: CassandraConfig {val connector : CassandraConnector}, keyspace : String, name : String, fields: Seq[CassandraField], partitionKey : Seq[String], primaryKey : Seq[String] = Seq()) extends DataSource:
-    private val logger = Logger.getLogger(classOf[CassandraDataSource].getName)    
+    private val logger = LoggerFactory.getLogger(classOf[CassandraDataSource].getName)    
     logger.info(name)
     // Validity Checks
     val names : Set[String] = fields.map(_.name).toSet

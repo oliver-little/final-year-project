@@ -11,15 +11,16 @@ import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
 
 import io.grpc.{ServerBuilder, ManagedChannelBuilder}
 import io.grpc.stub.{ServerCallStreamObserver, StreamObserver}
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 
-import java.util.logging.Logger
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Properties.{envOrElse, envOrNone}
 import collection.JavaConverters._
 import com.typesafe.config.ConfigFactory
 
 object ClientQueryServer {
-    private val logger = Logger.getLogger(classOf[ClientQueryServer].getName)
+    private val logger = LoggerFactory.getLogger(classOf[ClientQueryServer].getName)
     private val port = 50051
 
     def main(): Unit = {
@@ -29,7 +30,7 @@ object ClientQueryServer {
         val baseURL = envOrNone("WORKER_SERVICE_URL")
         val workerPort = envOrElse("WORKER_PORT", "50052").toInt
 
-        if !(numWorkers.isDefined && nodeName.isDefined && baseURL.isDefined) then logger.warning("Missing environment variables (NUM_WORKERS, WORKER_NODE_NAME, WORKER_SERVICE_URL) to initialise orchestrator, defaulting to localhost.")
+        if !(numWorkers.isDefined && nodeName.isDefined && baseURL.isDefined) then logger.warn("Missing environment variables (NUM_WORKERS, WORKER_NODE_NAME, WORKER_SERVICE_URL) to initialise orchestrator, defaulting to localhost.")
 
         val workerAddresses : Seq[(String, Int)] = 
             if numWorkers.isDefined then (0 to numWorkers.get.toInt).map(num => (nodeName.get + "-" + num.toString + "." + baseURL.get, workerPort))
@@ -75,7 +76,6 @@ class ClientQueryServer(executionContext: ExecutionContext, connector : Cassandr
             //serverCallStreamObserver.setOnReadyHandler(runnable)
 
             // Start execution, and add hook to send the data when finished
-            ClientQueryServer.logger.info("Starting execution")
             WorkExecutionScheduler.startExecution(calculateQueryPlan, workerHandler, {() =>
                 ClientQueryServer.logger.info("Result ready from workers.")
                 responseObserver.onCompleted()

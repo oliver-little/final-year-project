@@ -20,7 +20,10 @@ lazy val root = project
       "com.datastax.oss" % "java-driver-core" % "4.14.0",
       // Akka actors + test dependencies
       "com.typesafe.akka" %% "akka-actor-typed" % AkkaVersion,
-      "com.typesafe.akka" %% "akka-actor-testkit-typed" % AkkaVersion % Test
+      "com.typesafe.akka" %% "akka-actor-testkit-typed" % AkkaVersion % Test,
+      // SLF4J
+      "org.slf4j" % "slf4j-api" % "2.0.6",
+      "org.slf4j" % "slf4j-simple" % "2.0.6"
     ),
 
     dockerExposedPorts := Seq(50051)

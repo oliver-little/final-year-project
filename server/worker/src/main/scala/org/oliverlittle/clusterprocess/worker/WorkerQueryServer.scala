@@ -14,17 +14,19 @@ import com.google.rpc.{Status, Code}
 import akka.actor.typed.{ActorRef, ActorSystem}
 import akka.actor.typed.scaladsl.AskPattern._
 import akka.util.Timeout
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 
 import scala.concurrent.{ExecutionContext, Future, Await}
 import scala.concurrent.duration._
 import scala.util.{Success, Failure}
-import java.util.logging.Logger
+
 
 // Globally set timeout for asks
 given timeout : Timeout = 3.seconds
 
 object WorkerQueryServer {
-    private val logger = Logger.getLogger(classOf[WorkerQueryServer].getName)
+    private val logger = LoggerFactory.getLogger(classOf[WorkerQueryServer].getName)
     private val port = 50052
 
     def main(): Unit = {
