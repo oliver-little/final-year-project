@@ -54,11 +54,8 @@ class WorkExecutionScheduler(producerFactory : WorkProducerFactory, consumerFact
         }
     }
 
-    def startItemScheduler(item : QueryPlanItem, index : Int, workerHandler : WorkerHandler, context : ActorContext[QueryInstruction]) : ActorRef[QueryInstruction] = {
-        context.log.info("Starting item: " + item.toString)
-        return context.spawn(
-            QueryPlanItemScheduler(item, workerHandler, context.self)(using producerFactory)(using consumerFactory)(using counterFactory), 
-            "QueryPlanItemScheduler" + index.toString
-        )
-    }
+    def startItemScheduler(item : QueryPlanItem, index : Int, workerHandler : WorkerHandler, context : ActorContext[QueryInstruction]) : ActorRef[QueryInstruction] = context.spawn(
+        QueryPlanItemScheduler(item, workerHandler, context.self)(using producerFactory)(using consumerFactory)(using counterFactory), 
+        "QueryPlanItemScheduler" + index.toString
+    )
 }

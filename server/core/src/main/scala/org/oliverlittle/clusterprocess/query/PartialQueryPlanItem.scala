@@ -51,7 +51,7 @@ case class PartialPrepareResult(table : PartialTable) extends PartialQueryPlanIt
                 }
                 worker_query.ProcessQueryPlanItemResult(true)
             // Otherwise, throw an error
-            case _ => throw new IllegalArgumentException("Missing partial data source for table")
+            case e => throw new IllegalArgumentException("Missing partial data source for table: " + e.toString)
         }
 
 case class PartialDeleteResult(table : Table) extends PartialQueryPlanItem:

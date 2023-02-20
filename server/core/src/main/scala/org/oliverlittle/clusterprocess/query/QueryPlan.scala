@@ -64,7 +64,7 @@ sealed trait QueryPlanItem:
       * @param consumerFactory A factory object for consumers
       * @param counterFactory A factory object for counters
       */
-    def execute(workerHandler : WorkerHandler, onResult : ActorRef[QueryInstruction])(context : ActorContext[QueryInstruction])(using producerFactory : WorkProducerFactory)(using consumerFactory : WorkConsumerFactory)(using counterFactory : CounterFactory)(using ec : ExecutionContext) : Unit
+    def execute(workerHandler : WorkerHandler, onResult : ActorRef[QueryInstruction])(using context : ActorContext[QueryInstruction])(using producerFactory : WorkProducerFactory)(using consumerFactory : WorkConsumerFactory)(using counterFactory : CounterFactory)(using ec : ExecutionContext) : Unit
 
     /**
       * Allows a QueryPlanItem to adjust its functionality based on the last set of available partitions
@@ -156,7 +156,9 @@ case class GetPartition(dataSource : DataSource) extends QueryPlanItem:
     (using consumerFactory : WorkConsumerFactory)
     (using counterFactory : CounterFactory)
     (using ec : ExecutionContext): Unit = {
+        context.log.info("Starting GetPartition execution")
         val partitions = dataSource.getPartitions(workerHandler)
+        context.log.debug("Created partitions")
 
         startShuffleWorkers(workerHandler, onResult, partitions)
     }
@@ -180,9 +182,11 @@ case class GetPartition(dataSource : DataSource) extends QueryPlanItem:
                 )
             ))
         )
+        context.log.debug("Generated queries, expecting " + partitionsCount + " results.")
 
         // Generate producers and consumers
         val (producers, consumers) = QueryPlanItem.createConsumersAndProducers(queries, counter, true)
+        context.log.debug("Created actors")
     }
 
 // Same as GetPartition, with an extra step to calculate the dependencies for a DependentDataSource

@@ -101,14 +101,18 @@ case class CassandraDataSource(env: CassandraConfig {val connector : CassandraCo
 
 case class PartialCassandraDataSource(parent : CassandraDataSource, tokenRanges : CassandraPartition) extends PartialDataSource:
     lazy val protobuf : table_model.PartialDataSource = table_model.PartialDataSource().withCassandra(table_model.PartialCassandraDataSource(keyspace=parent.keyspace, table=parent.name, tokenRanges=tokenRanges.protobuf))
-    lazy val getDataQuery = "SELECT * FROM " + parent.keyspace + "." + parent.name + " WHERE " + tokenRanges.toQueryString(parent.partitionKey.reduce((l, r) => l + "," + r)) + ";"
+    lazy val getDataQueries = tokenRanges.ranges.map(_.toQueryString(parent.partitionKey.reduce((l, r) => l + "," + r))).map("SELECT * FROM " + parent.keyspace + "." + parent.name + " WHERE " + _ + ";")
 
     /**
       * Cassandra Implementation of getData - for now this does not restrict the data received, it simply gets an entire table
       *
       * @return An iterator of rows, each row being a map from field name to a table value
       */
-    def getPartialData(store : ActorRef[TableStore.TableStoreEvent], workerChannels : Seq[ChannelManager])(using t : Timeout)(using system : ActorSystem[_])(using ec : ExecutionContext = system.executionContext) : Future[TableResult] = Future.successful(LazyTableResult(getHeaders, parent.env.connector.getSession.execute(getDataQuery).asScala.map(row => parent.fields.map(_.getTableValue(row)))))
+    def getPartialData(store : ActorRef[TableStore.TableStoreEvent], workerChannels : Seq[ChannelManager])(using t : Timeout)(using system : ActorSystem[_])(using ec : ExecutionContext = system.executionContext) : Future[TableResult] = {
+        val session = parent.env.connector.getSession
+        val results = getDataQueries.map(session.execute(_).asScala.map(row => parent.fields.map(_.getTableValue(row)))).reduce(_ ++ _)
+        Future.successful(LazyTableResult(getHeaders, results))
+    }
 
 
 

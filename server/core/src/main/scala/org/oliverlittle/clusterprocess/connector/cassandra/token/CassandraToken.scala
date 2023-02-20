@@ -42,7 +42,7 @@ case class CassandraTokenRange(start : CassandraToken, end : CassandraToken) ext
 	lazy val protobuf : table_model.CassandraTokenRange = table_model.CassandraTokenRange(start=start.toLong, end=end.toLong)
 	def toTokenRange(tokenMap : TokenMap) : TokenRange = tokenMap.newTokenRange(start.toToken(tokenMap), end.toToken(tokenMap))
 	
-	def toQueryString(partitionKeyString : String) = "(token(" + partitionKeyString + ") > " + start.toTokenString + " AND token(" + partitionKeyString + ") <= " + end.toTokenString + ")"
+	def toQueryString(partitionKeyString : String) = "token(" + partitionKeyString + ") > " + start.toTokenString + " AND token(" + partitionKeyString + ") <= " + end.toTokenString
 	
 	def mergeWith(tokenMap : TokenMap, that : CassandraTokenRange) = CassandraTokenRange.fromTokenRange(tokenMap, toTokenRange(tokenMap).mergeWith(that.toTokenRange(tokenMap)))
 	def intersects(tokenMap : TokenMap, that : CassandraTokenRange) : Boolean = toTokenRange(tokenMap).intersects(that.toTokenRange(tokenMap))
@@ -95,8 +95,6 @@ object CassandraPartition {
 case class CassandraPartition(ranges : Seq[CassandraTokenRange]) {
 	lazy val protobuf : Seq[table_model.CassandraTokenRange] = ranges.map(_.protobuf)
 	lazy val percentageOfFullRing : Double = ranges.map(_.percentageOfFullRing).sum
-	
-	def toQueryString(partitionKeyString : String) : String = ranges.map(_.toQueryString(partitionKeyString)).reduce((l, r) => l + " OR " + r)
 	
 	def sizeInMB(fullSizeMB : Double) = fullSizeMB * percentageOfFullRing
 	

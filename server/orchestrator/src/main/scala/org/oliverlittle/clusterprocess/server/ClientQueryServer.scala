@@ -35,13 +35,13 @@ object ClientQueryServer {
         val workerAddresses : Seq[(String, Int)] = 
             if numWorkers.isDefined then (0 to numWorkers.get.toInt).map(num => (nodeName.get + "-" + num.toString + "." + baseURL.get, workerPort))
             else ConfigFactory.load.getStringList("clusterprocess.test.worker_urls").asScala.toSeq.map((_, workerPort))
-        val server = new ClientQueryServer(ExecutionContext.global, CassandraConnector(), workerAddresses)
+        val server = new ClientQueryServer(ExecutionContext.global, workerAddresses)
         server.blockUntilShutdown()
     }
 }
 
-class ClientQueryServer(executionContext: ExecutionContext, connector : CassandraConnector, workerAddresses : Seq[(String, Int)]) {
-    private val server =  ServerBuilder.forPort(ClientQueryServer.port).addService(client_query.TableClientServiceGrpc.bindService(new ClientQueryServicer(connector, new WorkerHandler(workerAddresses)), executionContext)).build.start
+class ClientQueryServer(executionContext: ExecutionContext, workerAddresses : Seq[(String, Int)]) {
+    private val server =  ServerBuilder.forPort(ClientQueryServer.port).addService(client_query.TableClientServiceGrpc.bindService(new ClientQueryServicer(new WorkerHandler(workerAddresses)), executionContext)).build.start
     ClientQueryServer.logger.info("gRPC Server started, listening on " + ClientQueryServer.port)
     
     sys.addShutdownHook({
@@ -54,7 +54,7 @@ class ClientQueryServer(executionContext: ExecutionContext, connector : Cassandr
 
     private def blockUntilShutdown(): Unit = server.awaitTermination()
 
-    private class ClientQueryServicer(connector : CassandraConnector, workerHandler : WorkerHandler) extends client_query.TableClientServiceGrpc.TableClientService {
+    private class ClientQueryServicer(workerHandler : WorkerHandler) extends client_query.TableClientServiceGrpc.TableClientService {
         override def computeTable(request: client_query.ComputeTableRequest, responseObserver : StreamObserver[table_model.StreamedTableResult]): Unit = {
             ClientQueryServer.logger.info("Compute table request received")
 
@@ -67,7 +67,6 @@ class ClientQueryServer(executionContext: ExecutionContext, connector : Cassandr
             val calculateQueryPlan = table.getQueryPlan
             val getCleanupQueryPlan = table.getCleanupQueryPlan
             ClientQueryServer.logger.info("Calculated query plan")
-            ClientQueryServer.logger.info(calculateQueryPlan.toString)
             // Able to make this unchecked cast because this is a response from a server
             //val serverCallStreamObserver = responseObserver.asInstanceOf[ServerCallStreamObserver[table_model.StreamedTableResult]]
             
