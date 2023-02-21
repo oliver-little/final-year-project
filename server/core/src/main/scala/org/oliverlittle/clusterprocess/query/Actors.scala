@@ -113,12 +113,14 @@ class Counter private (expectedResponses : Int, onComplete : () => Unit, onError
     /**
      * Handles receiving the first response from any consumer
      */
-    private def start() : Behavior[Counter.CounterEvent] = Behaviors.receiveMessage {
-        case Increment() => 
-            if expectedResponses == 1 then 
-                onComplete()
-                Behaviors.stopped
-            else getResponses(1)
+    private def start() : Behavior[Counter.CounterEvent] = Behaviors.receive {(context, message) =>
+        message match {
+            case Increment() => 
+                if expectedResponses == 1 then 
+                    onComplete()
+                    Behaviors.stopped
+                else getResponses(1)
+        }
     }
 
     /**

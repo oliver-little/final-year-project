@@ -39,8 +39,8 @@ message QueryPlanItem {
     oneof item {
         PrepareResult prepare_result = 1;
         DeleteResult delete_result = 2;
-        PreparePartition prepare_partition = 3;
-        DeletePreparedPartition delete_prepared_partition = 4;
+        PrepareHashes prepare_hashes = 3;
+        DeletePreparedHashes delete_prepared_hashes = 4;
         GetPartition get_partition = 5;
         DeletePartition delete_partition = 6;
     }
@@ -54,12 +54,12 @@ message DeleteResult {
     Table table = 1;
 }
 
-message PreparePartition {
+message PrepareHashes {
     DataSource data_source = 1;
     uint32 total_partitions = 2;
 }
 
-message DeletePreparedPartition {
+message DeletePreparedHashes {
     DataSource data_source = 1;
     uint32 total_partitions = 2;
 }

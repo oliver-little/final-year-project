@@ -100,11 +100,11 @@ class WorkerQueryServer(executionContext: ExecutionContext, store : ActorRef[Tab
 
 
         override def processQueryPlanItem(item : worker_query.QueryPlanItem) : Future[worker_query.ProcessQueryPlanItemResult] = {
-            WorkerQueryServer.logger.info("processQueryPlanItem")
             val queryPlanItem = PartialQueryPlanItem.fromProtobuf(item)
-            WorkerQueryServer.logger.info(queryPlanItem.toString)
-
-            return queryPlanItem.execute(store)
+            WorkerQueryServer.logger.info("processQueryPlanItem - " + queryPlanItem.getClass.getSimpleName)
+            val res = queryPlanItem.execute(store)
+            WorkerQueryServer.logger.info("processQueryPlanItem - done")
+            return res
         }
 
         override def getTableData(request : worker_query.GetTableDataRequest, responseObserver : StreamObserver[table_model.StreamedTableResult]) : Unit = {
@@ -112,7 +112,7 @@ class WorkerQueryServer(executionContext: ExecutionContext, store : ActorRef[Tab
 
             val runnable = responseObserverToDelayedRunnable(responseObserver)
 
-            WorkerQueryServer.logger.info("processQueryPlanItem")
+            WorkerQueryServer.logger.info("getTableData")
             WorkerQueryServer.logger.info(table.toString)
 
             store.ask[Seq[TableResult]](ref => TableStore.GetAllResults(table, ref)).onComplete {

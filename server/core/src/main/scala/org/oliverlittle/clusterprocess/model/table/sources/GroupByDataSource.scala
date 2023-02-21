@@ -21,23 +21,22 @@ object GroupByDataSource:
 
 case class GroupByDataSource(source : Table, uniqueFields : Seq[NamedFieldExpression], aggregates : Seq[AggregateExpression]) extends DependentDataSource:
     // Same as in DataSource definition
-    lazy val getHeaders : TableResultHeader = TableResultHeader(uniqueFields.map(_.outputTableField(source.outputHeaders)) ++ aggregates.flatMap(_.outputTableFields(source.outputHeaders)))
+    lazy val getHeaders : TableResultHeader = TableResultHeader(uniqueFields.map(_.outputTableField(source.outputHeaders)) ++ aggregates.flatMap(_.outputFinalTableFields(source.outputHeaders)))
     override val getDependencies: Seq[Table] = Seq(source)
     lazy val isValid = source.isValid && Try{uniqueFields.map(_.resolve(source.outputHeaders))}.isSuccess
 
     // New function, gives it a list of workers and their channels and requests some partitions/partition data back
     // Partitions will need to be an interface of some kind to handle both Cassandra and internal representations
     // -- Partitions able to calculate themselves? (given the correct dependencies)
-    def getPartitions(workerHandler : WorkerHandler) : Seq[(Seq[ChannelManager], Seq[PartialDataSource])]  = Seq((Seq(), Seq(PartialGroupByDataSource(this, 1, 1))))
+    def getPartitions(workerHandler : WorkerHandler) : Seq[(Seq[ChannelManager], Seq[PartialDataSource])]  = Seq((Seq(workerHandler.channels(0)), Seq(PartialGroupByDataSource(this, 0, 1))))
 
-    def getQueryPlan : Seq[QueryPlanItem] = source.getQueryPlan ++ Seq(GetPartitionWithDependencies(this)) ++ source.getCleanupQueryPlan
+    def getQueryPlan : Seq[QueryPlanItem] = source.getQueryPlan ++ Seq(PrepareHashes(this), GetPartition(this), DeletePreparedHashes(this)) ++ source.getCleanupQueryPlan
     def getCleanupQueryPlan : Seq[QueryPlanItem] = Seq(DeletePartition(this))
 
     def hashPartitionedData(result : TableResult, numPartitions : Int) : MapView[Int, TableResult] = {
-        val header = TableResultHeader(uniqueFields.map(_.outputTableField(result.header)))
         val resolved = uniqueFields.map(_.resolve(result.header))
         // Hash every row by the unique fields, then convert to a result
-        return result.rows.groupBy(row => MurmurHash3.unorderedHash(resolved.map(_.evaluate(row))) % numPartitions).mapValues(LazyTableResult(header, _))
+        return result.rows.groupBy(row => MurmurHash3.unorderedHash(resolved.map(_.evaluate(row))) % numPartitions).mapValues(LazyTableResult(result.header, _))
     }
 
     lazy val groupByProtobuf : table_model.GroupByDataSource = table_model.GroupByDataSource(Some(source.protobuf), uniqueFields.map(_.protobuf), aggregates.map(_.protobuf))
@@ -56,11 +55,11 @@ case class PartialGroupByDataSource(parent : GroupByDataSource, partitionNum : I
         // This version of this script only works for one dependent table, but should be relatively straightforward to loop over
         // all dependencies to get multiple out
         val promises : Seq[Future[Option[TableResult]]]= workerChannels.map(getHashedPartitionData(parent.source, _).future) // Get data from other workers
-        val localData : Future[Option[TableResult]] = store.ask(ref => TableStore.GetHash(parent.source, totalPartitions, partitionNum, ref)) // Get data from our
+        val localData : Future[Option[TableResult]] = store.ask[Option[TableResult]](ref => TableStore.GetHash(parent.source, totalPartitions, partitionNum, ref)) // Get data from our
 
         // Once we've got the data from the workers, we need to actually run the group by       
-        return Future.sequence(promises :+ localData) // Concatenate all the data we are waiting on into one future
-            .map(results => performGroupBy(results.flatten.reduce(_ ++ _))) // Reduce the smaller results into one large table, and perform the group by
+        return Future.sequence(promises ++ Seq(localData)) // Concatenate all the data we are waiting on into one future
+            .map(results => performGroupBy(results.flatten.reduceOption(_ ++ _).getOrElse(throw new IllegalStateException("Did not receive any data from local data store or other workers")))) // Reduce the smaller results into one large table, and perform the group by
     }
 
     def getHashedPartitionData(dependency : Table, channel : ChannelManager)(using ec : ExecutionContext) : Promise[Option[TableResult]] = {
@@ -75,6 +74,7 @@ case class PartialGroupByDataSource(parent : GroupByDataSource, partitionNum : I
         
     
     private def groupByWithAggregates(result : TableResult) : TableResult = {
+        println(result.header)
         val groupByHeaderFields = parent.uniqueFields.map(_.outputTableField(result.header))
         val resolvedUniqueFields = parent.uniqueFields.map(_.resolve(result.header))
 
