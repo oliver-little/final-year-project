@@ -30,7 +30,7 @@ case class GroupByDataSource(source : Table, uniqueFields : Seq[NamedFieldExpres
     // -- Partitions able to calculate themselves? (given the correct dependencies)
     def getPartitions(workerHandler : WorkerHandler) : Seq[(Seq[ChannelManager], Seq[PartialDataSource])]  = Seq((Seq(workerHandler.channels(0)), Seq(PartialGroupByDataSource(this, 0, 1))))
 
-    def getQueryPlan : Seq[QueryPlanItem] = source.getQueryPlan ++ Seq(PrepareHashes(this), GetPartition(this), DeletePreparedHashes(this)) ++ source.getCleanupQueryPlan
+    def getQueryPlan : Seq[QueryPlanItem] = source.getQueryPlan ++ Seq(GetPartition(this)) ++ source.getCleanupQueryPlan
     def getCleanupQueryPlan : Seq[QueryPlanItem] = Seq(DeletePartition(this))
 
     def hashPartitionedData(result : TableResult, numPartitions : Int) : MapView[Int, TableResult] = {

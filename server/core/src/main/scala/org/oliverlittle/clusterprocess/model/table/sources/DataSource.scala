@@ -79,7 +79,7 @@ object PartialDataSource:
 		case x => throw new IllegalArgumentException("Unsupported PartialDataSource: " + x.toString)
 	}
 
-trait PartialDataSource:
+trait PartialDataSource extends PartitionElement:
 	val parent : DataSource
 
 	/**

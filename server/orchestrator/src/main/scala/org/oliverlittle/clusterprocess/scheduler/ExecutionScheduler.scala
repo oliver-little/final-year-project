@@ -3,30 +3,32 @@ package org.oliverlittle.clusterprocess.scheduler
 import org.oliverlittle.clusterprocess.worker_query
 import org.oliverlittle.clusterprocess.connector.grpc.{ChannelManager, WorkerHandler}
 import org.oliverlittle.clusterprocess.connector.cassandra.token._
-import org.oliverlittle.clusterprocess.model.table.{Table, TableResult, LazyTableResult}
+import org.oliverlittle.clusterprocess.model.table.{Table, TableResult, LazyTableResult, PartialTable}
 import org.oliverlittle.clusterprocess.query._
 
 import akka.actor.typed.scaladsl.{Behaviors, LoggerOps, ActorContext}
 import akka.actor.typed.{ActorRef, ActorSystem, Behavior, Terminated}
 import akka.actor.typed.DispatcherSelector
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{Future, Promise, ExecutionContext}
 
 object WorkExecutionScheduler {
-    def startExecution(queryPlan : Seq[QueryPlanItem], workerHandler : WorkerHandler, resultCallback : () => Unit) : Unit = {
-        val system = ActorSystem(WorkExecutionScheduler(queryPlan, workerHandler, resultCallback), "WorkExecutionScheduler")
+    def startExecution(queryPlan : Seq[QueryPlanItem], workerHandler : WorkerHandler) : Future[Option[Map[ChannelManager, Seq[PartialTable]]]] = {
+        val promise = Promise[Option[Map[ChannelManager, Seq[PartialTable]]]]()
+        val system = ActorSystem(WorkExecutionScheduler(queryPlan, workerHandler, promise), "WorkExecutionScheduler")
+        return promise.future
     }
 
     def apply(
         queryPlan : Seq[QueryPlanItem], 
         workerHandler : WorkerHandler,
-        resultCallback : () => Unit,
+        promise : Promise[Option[Map[ChannelManager, Seq[PartialTable]]]],
         producerFactory : WorkProducerFactory = BaseWorkProducerFactory(), 
         consumerFactory : WorkConsumerFactory = BaseWorkConsumerFactory(),
         counterFactory : CounterFactory = BaseCounterFactory()
-    ): Behavior[QueryInstruction] = Behaviors.setup{context => new WorkExecutionScheduler(producerFactory, consumerFactory, counterFactory, workerHandler, resultCallback, context).start(queryPlan)}
+    ): Behavior[QueryInstruction] = Behaviors.setup{context => new WorkExecutionScheduler(producerFactory, consumerFactory, counterFactory, workerHandler, promise, context).start(queryPlan)}
 }
 
-class WorkExecutionScheduler(producerFactory : WorkProducerFactory, consumerFactory : WorkConsumerFactory, counterFactory : CounterFactory, workerHandler : WorkerHandler, resultCallback : () => Unit, context : ActorContext[QueryInstruction]) {
+class WorkExecutionScheduler(producerFactory : WorkProducerFactory, consumerFactory : WorkConsumerFactory, counterFactory : CounterFactory, workerHandler : WorkerHandler, promise : Promise[Option[Map[ChannelManager, Seq[PartialTable]]]], context : ActorContext[QueryInstruction]) {
     import WorkExecutionScheduler._
 
     implicit val executionContext : ExecutionContext = context.system.dispatchers.lookup(DispatcherSelector.sameAsParent())
@@ -40,17 +42,32 @@ class WorkExecutionScheduler(producerFactory : WorkProducerFactory, consumerFact
     def receiveComplete(queryPlan : Seq[QueryPlanItem], instructionCounter : Int) : Behavior[QueryInstruction] = Behaviors.receive { (context, message) =>
         message match {
             case InstructionError(e) => 
-                context.log.info(e.toString)
+                promise.failure(e)
                 context.system.terminate()
                 Behaviors.stopped
-            case InstructionComplete(partitions) if queryPlan.size == 0 => 
-                resultCallback()
+
+            case InstructionComplete() if queryPlan.size == 0 => 
+                promise.success(None)
                 context.system.terminate()
                 Behaviors.stopped
-            case InstructionComplete(partitions) => 
-                if partitions.isDefined then startItemScheduler(queryPlan.head.usePartitions(partitions.get), instructionCounter, workerHandler, context) else startItemScheduler(queryPlan.head, instructionCounter, workerHandler, context)
-                receiveComplete(queryPlan.tail, instructionCounter + 1)
+            case InstructionCompleteWithDataSourceOutput(partitions) if queryPlan.size == 0 =>
+                promise.success(None)
+                context.system.terminate()
+                Behaviors.stopped
+            case InstructionCompleteWithTableOutput(partitions) if queryPlan.size == 0 =>
+                promise.success(Some(partitions))
+                context.system.terminate()
+                Behaviors.stopped
             
+            case InstructionComplete() => 
+                startItemScheduler(queryPlan.head, instructionCounter, workerHandler, context)
+                receiveComplete(queryPlan.tail, instructionCounter + 1)
+            case InstructionCompleteWithDataSourceOutput(partitions) =>
+                startItemScheduler(queryPlan.head.usePartitions(partitions), instructionCounter, workerHandler, context)
+                receiveComplete(queryPlan.tail, instructionCounter + 1)
+            case InstructionCompleteWithTableOutput(partitions) =>
+                startItemScheduler(queryPlan.head, instructionCounter, workerHandler, context)
+                receiveComplete(queryPlan.tail, instructionCounter + 1)
         }
     }
 

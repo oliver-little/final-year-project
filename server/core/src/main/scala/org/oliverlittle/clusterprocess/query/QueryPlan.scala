@@ -6,56 +6,21 @@ import org.oliverlittle.clusterprocess.model.table._
 import org.oliverlittle.clusterprocess.model.table.sources._
 import org.oliverlittle.clusterprocess.connector.grpc.{WorkerHandler, ChannelManager}
 
+import akka.actor.typed.scaladsl.{Behaviors, LoggerOps, ActorContext}
 import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
 import akka.actor.typed.scaladsl.ActorContext
+import akka.actor.TypedActor.dispatcher
 
 import scala.collection.mutable.{Queue, ArrayBuffer}
-import scala.concurrent.Future
 import scala.util.{Success, Failure}
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{Promise, Future, ExecutionContext}
 
 // Messages for Query Scheduler Actor System
 sealed trait QueryInstruction
-case class InstructionComplete(partitions : Option[Seq[(Seq[ChannelManager], Seq[PartialDataSource])]]) extends QueryInstruction
+case class InstructionComplete() extends QueryInstruction
+case class InstructionCompleteWithTableOutput(partitions : Map[ChannelManager, Seq[PartialTable]]) extends QueryInstruction
+case class InstructionCompleteWithDataSourceOutput(partitions : Map[ChannelManager, Seq[PartialDataSource]]) extends QueryInstruction
 case class InstructionError(exception : Throwable) extends QueryInstruction
-
-object QueryPlanItem:
-    /**
-      * Generates a set of consumers and producers from ChannelManager/Query mappings
-      *
-      * @param producerFactory A factory object for producers
-      * @param consumerFactory A factory object for consumers
-      * @param queries A list of channel/query list pairs for optimal allocation
-      * @param allowQueryMixing Whether to allow channels to take work from other channels' query lists.
-      * @return A list of Producers and a list of consumers
-      */
-    def createConsumersAndProducers(queries : Seq[(Seq[ChannelManager], Seq[worker_query.QueryPlanItem])], counter : ActorRef[Counter.CounterEvent], allowQueryMixing : Boolean = false)(using producerFactory : WorkProducerFactory)(using consumerFactory : WorkConsumerFactory)(using context : ActorContext[QueryInstruction]) : (Seq[ActorRef[WorkProducer.ProducerEvent]], Seq[ActorRef[WorkConsumer.ConsumerEvent]]) = {
-        // For each sequence of requests, create a producer (with a unique identifier)
-        // pair._1 is the gRPC channel
-        // pair._2 is the work
-        val mappedProducers = queries.zipWithIndex.map((pair, index) => (pair._1, context.spawn(producerFactory.createProducer(pair._2), "producer" + index.toString)))
-        val producers = mappedProducers.map(_._2)
-        // For each possible stub, and it's matched producer, create a consumer and give it a list of producers to consume from
-        val consumers = if allowQueryMixing then getConsumersWithMixing(mappedProducers, counter)
-            else getConsumersWithoutMixing(mappedProducers, counter)
-    
-        if consumers.size == 0 then throw new IllegalArgumentException("Did not create any consumers (likely because no ChannelManagers were provided), cannot continue as this will result in a stuck state.")
-
-        return (producers, consumers)
-    }
-
-    def getConsumersWithMixing(mappedProducers : Seq[(Seq[ChannelManager], ActorRef[WorkProducer.ProducerEvent])], counter : ActorRef[Counter.CounterEvent])(using consumerFactory : WorkConsumerFactory)(using context : ActorContext[QueryInstruction]) : Seq[ActorRef[WorkConsumer.ConsumerEvent]] = {
-        val producers = mappedProducers.map(_._2)
-        val consumers = mappedProducers.zipWithIndex.map((pair, index) => pair._1.zipWithIndex.map((c, subIndex) => context.spawn(consumerFactory.createConsumer(c.workerComputeServiceBlockingStub, Seq(pair._2) ++ producers.filter(_ == pair._2), counter), "consumer" + index.toString + subIndex.toString))).flatten
-        return consumers
-    }
-
-    def getConsumersWithoutMixing(mappedProducers : Seq[(Seq[ChannelManager], ActorRef[WorkProducer.ProducerEvent])], counter : ActorRef[Counter.CounterEvent])(using consumerFactory : WorkConsumerFactory)(using context : ActorContext[QueryInstruction]) : Seq[ActorRef[WorkConsumer.ConsumerEvent]] = {
-        // Get any producers that aren't directly allocated to a Channel - these will have to be mixed anyway, or the work will not get done
-        val unallocatedProducers = mappedProducers.filter((channels, producer) => channels.size == 0).map(_._2)
-        val consumers = mappedProducers.zipWithIndex.map((pair, index) => pair._1.zipWithIndex.map((c, subIndex) => context.spawn(consumerFactory.createConsumer(c.workerComputeServiceBlockingStub, Seq(pair._2) ++ unallocatedProducers, counter), "consumer" + index.toString + subIndex.toString))).flatten
-        return consumers
-    }
 
 // High level objects representing query plan items
 sealed trait QueryPlanItem:
@@ -75,7 +40,7 @@ sealed trait QueryPlanItem:
       * @param partitions
       * @return
       */
-    def usePartitions(partitions : Seq[(Seq[ChannelManager], Seq[PartialDataSource])]) : QueryPlanItem = this
+    def usePartitions(partitions: Map[ChannelManager, Seq[PartialDataSource]]) : QueryPlanItem = this
 
 // Calculates a Table from a set of partial tables
 case class PrepareResult(table : Table) extends QueryPlanItem:
@@ -88,28 +53,45 @@ case class PrepareResult(table : Table) extends QueryPlanItem:
     (using counterFactory : CounterFactory)
     (using ec : ExecutionContext): Unit = {
         val partitions = table.getPartialTables(workerHandler)
-        val counter = context.spawn(counterFactory.createCounter(partitions.map(_._2.size).sum, () => {onResult ! InstructionComplete(None)}, (t) => {}), "counter")
+        val partitionsCount = partitions.map(_._2.size).sum
+        val promise = Promise[Map[ChannelManager, Seq[PartitionElement]]]()
+        val counter = context.spawn(counterFactory.createCounter(partitionsCount, promise), "counter")
+        promise.future.onComplete {
+            case Success(partitions) => onResult ! InstructionCompleteWithTableOutput(partitions.asInstanceOf[Map[ChannelManager, Seq[PartialTable]]])
+            case Failure(e) => onResult ! InstructionError(e)
+        }
+
         val queries = partitions.map((channel, tables) => 
             (channel, 
             tables.map(t =>
-                worker_query.QueryPlanItem().withPrepareResult(
-                worker_query.PrepareResult(Some(t.protobuf))
-            )))
+                (
+                    t,
+                    worker_query.QueryPlanItem().withPrepareResult(
+                        worker_query.PrepareResult(Some(t.protobuf))
+                    )
+                )
+            ))
         )
-        // Generate producers and consumers
-        val (producers, consumers) = QueryPlanItem.createConsumersAndProducers(queries, counter, true)
+        
+        val mappedProducers = queries.zipWithIndex.map((pair, index) => (pair._1, context.spawn(producerFactory.createProducer(pair._2), "producer" + index.toString)))
+        val producers = mappedProducers.map(_._2)
+        val unallocatedProducers = mappedProducers.filter((channels, producer) => channels.size == 0).map(_._2)
+        val consumers = mappedProducers.zipWithIndex.map((pair, index) => pair._1.zipWithIndex.map((c, subIndex) => context.spawn(consumerFactory.createConsumer(c, Seq(pair._2) ++ unallocatedProducers, counter), "consumer" + index.toString + subIndex.toString))).flatten
     }
 
-    override def usePartitions(partitions: Seq[(Seq[ChannelManager], Seq[PartialDataSource])]): QueryPlanItem = PrepareResultWithPartitions(table, partitions)
+    override def usePartitions(partitions: Map[ChannelManager, Seq[PartialDataSource]]): QueryPlanItem = PrepareResultWithPartitions(table, partitions)
 
 // Modified form of PrepareResult to execute differently using an existing set of partitions
-case class PrepareResultWithPartitions(table : Table, partitions : Seq[(Seq[ChannelManager], Seq[PartialDataSource])]) extends QueryPlanItem:
+case class PrepareResultWithPartitions(table : Table, partitions : Map[ChannelManager, Seq[PartialDataSource]]) extends QueryPlanItem:
     lazy val queries = partitions.map((channel, dataSources) => 
             (channel, 
             dataSources.map(ds =>
-                worker_query.QueryPlanItem().withPrepareResult(
-                    worker_query.PrepareResult(Some(table.withPartialDataSource(ds).protobuf))
-                ) 
+                (
+                    table.withPartialDataSource(ds),
+                    worker_query.QueryPlanItem().withPrepareResult(
+                        worker_query.PrepareResult(Some(table.withPartialDataSource(ds).protobuf))
+                    ) 
+                )
             ))
         )
     lazy val partitionsCount = partitions.map(_._2.size).sum
@@ -122,9 +104,18 @@ case class PrepareResultWithPartitions(table : Table, partitions : Seq[(Seq[Chan
     (using consumerFactory : WorkConsumerFactory)
     (using counterFactory : CounterFactory)
     (using ec : ExecutionContext): Unit = {
-        val counter = context.spawn(counterFactory.createCounter(partitionsCount, () => {onResult ! InstructionComplete(None)}, (t) => {}), "counter")
-        // Generate producers and consumers
-        val (producers, consumers) = QueryPlanItem.createConsumersAndProducers(queries, counter, false)
+        val promise = Promise[Map[ChannelManager, Seq[PartitionElement]]]()
+        val counter = context.spawn(counterFactory.createCounter(partitionsCount, promise), "counter")
+        promise.future.onComplete {
+            case Success(partitions) => onResult ! InstructionCompleteWithTableOutput(partitions.asInstanceOf[Map[ChannelManager, Seq[PartialTable]]])
+            case Failure(e) => onResult ! InstructionError(e)
+        }
+        
+        // Input: Pair._1 is the channel, Pair._2 is the (partition, request) pairs
+        val mappedProducers = queries.zipWithIndex.map((pair, index) => (pair._1, context.spawn(producerFactory.createProducer(pair._2), "producer" + index.toString)))
+        val producers = mappedProducers.map(_._2)
+        // Input: Pair._1 is the channel, Pair._2 is the corresponding producer
+        val consumers = mappedProducers.zipWithIndex.map((pair, index) => context.spawn(consumerFactory.createConsumer(pair._1, Seq(pair._2), counter), "consumer" + index.toString))
     }
 
 // Execute will be removing the item from the tablestore
@@ -138,7 +129,7 @@ case class DeleteResult(table : Table) extends QueryPlanItem:
     (using counterFactory : CounterFactory)
     (using ec : ExecutionContext): Unit = {
         sendDeleteResult(workerHandler).onComplete(_ match {
-            case Success(r) => onResult ! InstructionComplete(None)
+            case Success(r) => onResult ! InstructionComplete()
             case Failure(e) => onResult ! InstructionError(e)
         })
     }
@@ -150,7 +141,13 @@ case class DeleteResult(table : Table) extends QueryPlanItem:
     }
 
 // Get partition data from other workers
-case class GetPartition(dataSource : DataSource, partitions : Option[Seq[(Seq[ChannelManager], Seq[PartialDataSource])]] = None) extends QueryPlanItem:
+/*
+    This QueryPlanItem creates a subworker that runs 3 steps:
+        1: hash dependent tables
+        2: run GetPartition for all partitions
+        3: delete dependent table hashes
+*/
+case class GetPartition(dataSource : DataSource) extends QueryPlanItem:
     override def execute(
         workerHandler : WorkerHandler, 
         onResult : ActorRef[QueryInstruction])
@@ -159,88 +156,113 @@ case class GetPartition(dataSource : DataSource, partitions : Option[Seq[(Seq[Ch
     (using consumerFactory : WorkConsumerFactory)
     (using counterFactory : CounterFactory)
     (using ec : ExecutionContext): Unit = {
-        val usedPartitions = partitions.getOrElse(dataSource.getPartitions(workerHandler))
-
-        startShuffleWorkers(workerHandler, onResult, usedPartitions)
+        context.spawn(GetPartitionExecutor(dataSource, workerHandler, onResult), "GetPartitionExecutor")
     }
 
-    def startShuffleWorkers(
+
+object GetPartitionExecutor {
+    sealed trait GetPartitionExecutorEvent
+    final case class PrepareHashesFinished() extends GetPartitionExecutorEvent
+    final case class GetPartitionFinished(partitions : Map[ChannelManager, Seq[PartialDataSource]]) extends GetPartitionExecutorEvent
+    final case class DeletePreparedHashesFinished(partitions : Map[ChannelManager, Seq[PartialDataSource]]) extends GetPartitionExecutorEvent
+    final case class Error(e : Throwable) extends GetPartitionExecutorEvent
+
+    def apply(
+        dataSource : DataSource, 
         workerHandler : WorkerHandler, 
-        onResult : ActorRef[QueryInstruction],
-        partitions : Seq[(Seq[ChannelManager], Seq[PartialDataSource])]) 
-    (using producerFactory : WorkProducerFactory) 
-    (using consumerFactory : WorkConsumerFactory)
-    (using counterFactory : CounterFactory)
-    (using context : ActorContext[QueryInstruction]) : Unit = {
+        onResult : ActorRef[QueryInstruction])
+        (using producerFactory : WorkProducerFactory) 
+        (using consumerFactory : WorkConsumerFactory)
+        (using counterFactory : CounterFactory) : Behavior[GetPartitionExecutorEvent] = Behaviors.setup { context =>
+        val partitions = dataSource.getPartitions(workerHandler)
         val partitionsCount = partitions.map(_._2.size).sum
-        val counter = context.spawn(counterFactory.createCounter(partitionsCount, () => {onResult ! InstructionComplete(Some(partitions))}, (t) => {}), "counter")
+        val future = sendPreparedHashes(dataSource, partitionsCount, workerHandler, context)
+        
+        context.pipeToSelf(future) {
+            case Success(_) => PrepareHashesFinished()
+            case Failure(e) => Error(e)
+        }
+
+        handleEvent(partitions, dataSource, workerHandler, onResult)
+    }
+
+    def handleEvent(
+        partialPartition : Seq[(Seq[ChannelManager], Seq[PartialDataSource])], 
+        dataSource : DataSource, 
+        workerHandler : WorkerHandler, 
+        onResult : ActorRef[QueryInstruction])
+        (using producerFactory : WorkProducerFactory) 
+        (using consumerFactory : WorkConsumerFactory)
+        (using counterFactory : CounterFactory) : Behavior[GetPartitionExecutorEvent] = Behaviors.receive {(context, message) => 
+        message match {
+            case PrepareHashesFinished() =>
+                val future = sendGetPartitions(partialPartition, workerHandler, context)
+                context.pipeToSelf(future) {
+                    case Success(partitions) => GetPartitionFinished(partitions.asInstanceOf[Map[ChannelManager, Seq[PartialDataSource]]])
+                    case Failure(e) => Error(e)
+                }
+                Behaviors.same
+            case GetPartitionFinished(partitions) =>
+                val future = sendDeletePreparedHashes(dataSource, partitions.values.map(_.size).sum, workerHandler)
+                context.pipeToSelf(future) {
+                    case Success(_) => DeletePreparedHashesFinished(partitions)
+                    case Failure(e) => Error(e)
+                }
+                Behaviors.same
+            case DeletePreparedHashesFinished(partitions) => 
+                onResult ! InstructionCompleteWithDataSourceOutput(partitions)
+                Behaviors.stopped
+            case Error(e) => 
+                onResult ! InstructionError(e)
+                Behaviors.stopped
+        }    
+    }
+
+    def sendPreparedHashes(dataSource : DataSource, partitionCount : Int,  workerHandler : WorkerHandler, context : ActorContext[GetPartitionExecutorEvent]) : Future[Seq[worker_query.ProcessQueryPlanItemResult]] = {
+        val query = worker_query.QueryPlanItem().withPrepareHashes(worker_query.PrepareHashes(Some(dataSource.protobuf), partitionCount))
+        val futures = workerHandler.channels.map(c => c.workerComputeServiceStub.processQueryPlanItem(query))
+        Future.sequence(futures)
+    }
+
+    def sendGetPartitions(
+        partitions : Seq[(Seq[ChannelManager], Seq[PartialDataSource])], 
+        workerHandler : WorkerHandler, 
+        context : ActorContext[GetPartitionExecutorEvent])
+        (using producerFactory : WorkProducerFactory) 
+        (using consumerFactory : WorkConsumerFactory)
+        (using counterFactory : CounterFactory) : Future[Map[ChannelManager, Seq[PartitionElement]]] = {
+        val partitionsCount = partitions.map(_._2.size).sum
+        val promise = Promise[Map[ChannelManager, Seq[PartitionElement]]]()
+        val counter = context.spawn(counterFactory.createCounter(partitionsCount, promise), "counter")
+        
         // Parse the partitions into queries 
         val queries = partitions.map((channel, dataSources) => 
             (channel, 
             dataSources.map(ds =>
-                worker_query.QueryPlanItem().withGetPartition(
-                    worker_query.GetPartition(Some(ds.protobuf), workerHandler.channels.diff(channel).map(c => table_model.InetSocketAddress(c.host, c.port)))
+                (
+                    ds,
+                    worker_query.QueryPlanItem().withGetPartition(
+                        worker_query.GetPartition(Some(ds.protobuf), workerHandler.channels.diff(channel).map(c => table_model.InetSocketAddress(c.host, c.port)))
+                    )
                 )
             ))
         )
 
-        // Generate producers and consumers
-        val (producers, consumers) = QueryPlanItem.createConsumersAndProducers(queries, counter, true)
+        // Input: Pair._1 is the list of channels, Pair._2 is the (partition, request) pairs
+        val mappedProducers = queries.zipWithIndex.map((pair, index) => (pair._1, context.spawn(producerFactory.createProducer(pair._2), "producer" + index.toString)))
+        val producers = mappedProducers.map(_._2)
+        // Input: Pair._1 is the list of channels, Pair._2 is the corresponding producer
+        val consumers = mappedProducers.zipWithIndex.map((pair, index) => pair._1.zipWithIndex.map((c, subIndex) => context.spawn(consumerFactory.createConsumer(c, Seq(pair._2) ++ producers.filter(_ == pair._2), counter), "consumer" + index.toString + subIndex.toString))).flatten
 
-        context.log.info("Generated queries and actors, expecting " + partitionsCount + " results.")
+        return promise.future
     }
 
-    override def usePartitions(partitions: Seq[(Seq[ChannelManager], Seq[PartialDataSource])]): QueryPlanItem = GetPartition(dataSource, Some(partitions))
-
-// Calculates the hashes of the dependencies of a DependentDataSource
-case class PrepareHashes(dataSource : DependentDataSource) extends QueryPlanItem:
-    override def execute(
-        workerHandler : WorkerHandler, 
-        onResult : ActorRef[QueryInstruction])
-    (using context : ActorContext[QueryInstruction])
-    (using producerFactory : WorkProducerFactory) 
-    (using consumerFactory : WorkConsumerFactory)
-    (using counterFactory : CounterFactory)
-    (using ec : ExecutionContext): Unit = {
-        val partitions = dataSource.getPartitions(workerHandler)
-        val future = sendPreparedHashes(workerHandler, partitions.map(_._2.size).sum)
-        future.onComplete {
-            case Success(_) => onResult ! InstructionComplete(Some(partitions))
-            case Failure(e) => onResult ! InstructionError(e)
-        }
-    }
-
-    def sendPreparedHashes(workerHandler : WorkerHandler, partitionCount : Int)(using ec : ExecutionContext) : Future[Seq[worker_query.ProcessQueryPlanItemResult]] = {
-        val query = worker_query.QueryPlanItem().withPrepareHashes(worker_query.PrepareHashes(Some(dataSource.protobuf), partitionCount))
-        val futures = workerHandler.channels.map(c => c.workerComputeServiceStub.processQueryPlanItem(query))
-        return Future.sequence(futures)
-    }
-
-// Deletes the hashes of the dependencies of a DependentDataSource
-case class DeletePreparedHashes(dataSource : DependentDataSource, partitions : Option[Seq[(Seq[ChannelManager], Seq[PartialDataSource])]] = None) extends QueryPlanItem:
-    override def execute(
-        workerHandler : WorkerHandler, 
-        onResult : ActorRef[QueryInstruction])
-    (using context : ActorContext[QueryInstruction])
-    (using producerFactory : WorkProducerFactory) 
-    (using consumerFactory : WorkConsumerFactory)
-    (using counterFactory : CounterFactory)
-    (using ec : ExecutionContext): Unit = {
-        val usedPartitions = partitions.getOrElse(dataSource.getPartitions(workerHandler))
-        val future = sendDeletePreparedHashes(workerHandler, usedPartitions.map(_._2.size).sum)
-        future.onComplete {
-            case Success(_) => onResult ! InstructionComplete(Some(usedPartitions))
-            case Failure(e) => onResult ! InstructionError(e)
-        }
-    }
-
-    def sendDeletePreparedHashes(workerHandler : WorkerHandler, partitionCount : Int)(using ec : ExecutionContext) : Future[Seq[worker_query.ProcessQueryPlanItemResult]] = {
+    def sendDeletePreparedHashes(dataSource : DataSource, partitionCount : Int, workerHandler : WorkerHandler)(using ec : ExecutionContext) : Future[Seq[worker_query.ProcessQueryPlanItemResult]] = {
         val query = worker_query.QueryPlanItem().withDeletePreparedHashes(worker_query.DeletePreparedHashes(Some(dataSource.protobuf), partitionCount))
         val futures = workerHandler.channels.map(c => c.workerComputeServiceStub.processQueryPlanItem(query))
         return Future.sequence(futures)
     }
-
-    override def usePartitions(partitions: Seq[(Seq[ChannelManager], Seq[PartialDataSource])]): QueryPlanItem = DeletePreparedHashes(dataSource, Some(partitions))
+}
 
 // Clear prepared partition data from each worker
 case class DeletePartition(dataSource : DataSource) extends QueryPlanItem:
@@ -253,7 +275,7 @@ case class DeletePartition(dataSource : DataSource) extends QueryPlanItem:
     (using counterFactory : CounterFactory)
     (using ec : ExecutionContext): Unit = {
         sendDeletePartition(workerHandler).onComplete(_ match {
-            case Success(r) => onResult ! InstructionComplete(None)
+            case Success(r) => onResult ! InstructionComplete()
             case Failure(e) => onResult ! InstructionError(e)
         })
     }

@@ -15,8 +15,9 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Success, Failure}
 import scala.util.Properties.{envOrElse, envOrNone}
-import collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import com.typesafe.config.ConfigFactory
 
 object ClientQueryServer {
@@ -76,10 +77,12 @@ class ClientQueryServer( workerAddresses : Seq[(String, Int)])(using executionCo
             serverCallStreamObserver.setOnReadyHandler(runnable)
 
             // Start execution, and add hook to send the data when finished
-            WorkExecutionScheduler.startExecution(calculateQueryPlan, workerHandler, {() =>
-                ClientQueryServer.logger.info("Result ready from workers, pulling data")
-                ResultAssembler.startExecution(table, workerHandler.channels, serverCallStreamObserver)                
-            })
+            WorkExecutionScheduler.startExecution(calculateQueryPlan, workerHandler).onComplete {
+                case Success(_) =>
+                    ClientQueryServer.logger.info("Result ready from workers, pulling data")
+                    ResultAssembler.startExecution(table, workerHandler.channels, serverCallStreamObserver)          
+                case Failure(e) => throw e // Rethrow any errors to propagate them to the client    
+            }
         } 
     }
 }
