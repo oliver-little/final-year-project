@@ -9,6 +9,8 @@ service WorkerComputeService {
     rpc ProcessQueryPlanItem(QueryPlanItem) returns (ProcessQueryPlanItemResult);
     rpc GetTableData(GetTableDataRequest) returns (stream StreamedTableResult);
     rpc GetHashedPartitionData(GetHashedPartitionDataRequest) returns (stream StreamedTableResult);
+    rpc GetTableStoreData(GetTableStoreDataRequest) returns (TableStoreData);
+    rpc ModifyCache(ModifyCacheRequest) returns (TableStoreData);
 }
 
 message GetLocalCassandraNodeRequest {
@@ -32,6 +34,21 @@ message GetHashedPartitionDataRequest {
     uint32 totalPartitions = 2;
     uint32 partitionNum = 3;
 }
+
+message GetTableStoreDataRequest {
+
+}
+
+message ModifyCacheRequest {
+    enum CacheOperation {
+        UNKNOWN_TYPE = 0;
+        PUSH = 1;
+        POP = 2;
+    }
+
+    CacheOperation cache_operation = 1;
+}
+
 
 
 // Query Plan Items
@@ -71,4 +88,18 @@ message GetPartition {
 
 message DeletePartition {
     DataSource data_source = 1;
+}
+
+// TableStore
+message TableStoreData {
+    message PartialTableList {
+        repeated PartialTable partial_tables = 1;
+    }
+
+    message PartialDataSourceList {
+        repeated PartialDataSource partial_data_sources = 1;
+    }
+
+    repeated PartialTableList tables = 1;
+    repeated PartialDataSourceList data_sources = 2;
 }

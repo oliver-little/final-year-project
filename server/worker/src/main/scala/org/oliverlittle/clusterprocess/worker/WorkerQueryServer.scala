@@ -3,7 +3,7 @@ package org.oliverlittle.clusterprocess.worker
 import org.oliverlittle.clusterprocess.worker_query
 import org.oliverlittle.clusterprocess.table_model
 import org.oliverlittle.clusterprocess.query.PartialQueryPlanItem
-import org.oliverlittle.clusterprocess.model.table.{Table, TableTransformation, TableStore, TableResult}
+import org.oliverlittle.clusterprocess.model.table.{Table, TableTransformation, TableStore, TableStoreData, TableResult}
 import org.oliverlittle.clusterprocess.connector.grpc.{StreamedTableResult, TableResultRunnable, DelayedTableResultRunnable}
 import org.oliverlittle.clusterprocess.connector.cassandra.{CassandraConfig, CassandraConnector}
 
@@ -127,15 +127,28 @@ class WorkerQueryServer(executionContext: ExecutionContext, store : ActorRef[Tab
 
             val runnable = responseObserverToDelayedRunnable(responseObserver)
 
-            store.ask(ref => TableStore.GetHash(table, request.totalPartitions, request.partitionNum, ref)) onComplete {
-                case Success(Some(result : TableResult)) => runnable.setData(result)
-                case _ => 
-                    val status = Status.newBuilder()
-                        .setCode(Code.NOT_FOUND.getNumber)
-                        .setMessage("Partition not found in table store")
-                        .build()
-                    responseObserver.onError(StatusProto.toStatusRuntimeException(status))
+            WorkerQueryServer.logger.info("getHashedPartitionData")
+            WorkerQueryServer.logger.info(table.toString)
+
+            store.ask[Option[TableResult]](ref => TableStore.GetHash(table, request.totalPartitions, request.partitionNum, ref)).onComplete {
+                case Success(None) => runnable.setData(table.empty)
+                case Success(Some(t)) => runnable.setData(t)
+                case Failure(e) => runnable.setError(e)
             }
+        }
+
+        override def getTableStoreData(request : worker_query.GetTableStoreDataRequest) : Future[worker_query.TableStoreData] = store.ask[TableStoreData](ref => TableStore.GetData(ref)).map(_.protobuf)
+
+        override def modifyCache(request : worker_query.ModifyCacheRequest) : Future[worker_query.TableStoreData] = request.cacheOperation match {
+            case worker_query.ModifyCacheRequest.CacheOperation.PUSH => 
+                store ! TableStore.PushCache()
+                store.ask[TableStoreData](ref => TableStore.GetData(ref)).map(_.protobuf)
+            case worker_query.ModifyCacheRequest.CacheOperation.POP =>
+                store.ask[Option[TableStoreData]](ref => TableStore.PopCache(ref)).map {
+                    case Some(data) => data.protobuf
+                    case None => throw IllegalStateException("No cache data available to pop")
+                }
+            case _ => throw new IllegalArgumentException("Unknown cache operation provided")
         }
 
         private def responseObserverToDelayedRunnable(responseObserver : StreamObserver[table_model.StreamedTableResult]) : DelayedTableResultRunnable = {
