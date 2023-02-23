@@ -19,6 +19,10 @@ case class Table(dataSource : DataSource, transformations : Seq[TableTransformat
 
     lazy val empty : TableResult = EvaluatedTableResult(outputHeaders, Seq())
 
+    // Finally, check if the table is valid - this will throw an error in some cases, but will also return false in others
+    // Throw our own error if the table is not valid
+    if !isValid then throw new IllegalArgumentException("Table cannot be computed - not valid.")
+
     def addTransformation(transformation : TableTransformation) : Table = Table(dataSource, transformations :+ transformation)
 
     def getPartialTables(workerHandler : WorkerHandler) : Seq[(Seq[ChannelManager], Seq[PartialTable])] = dataSource.getPartitions(workerHandler).map((channels, partialSources) => (channels, partialSources.map(PartialTable(_, transformations))))

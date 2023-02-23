@@ -11,6 +11,8 @@ import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
 
 import io.grpc.{ServerBuilder, ManagedChannelBuilder}
 import io.grpc.stub.{ServerCallStreamObserver, StreamObserver}
+import io.grpc.protobuf.StatusProto
+import com.google.rpc.{Status, Code}
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -19,6 +21,7 @@ import scala.util.{Success, Failure}
 import scala.util.Properties.{envOrElse, envOrNone}
 import scala.jdk.CollectionConverters._
 import com.typesafe.config.ConfigFactory
+import scala.util.Try
 
 object ClientQueryServer {
     private val logger = LoggerFactory.getLogger(classOf[ClientQueryServer].getName)
@@ -59,29 +62,42 @@ class ClientQueryServer( workerAddresses : Seq[(String, Int)])(using executionCo
         override def computeTable(request: client_query.ComputeTableRequest, responseObserver : StreamObserver[table_model.StreamedTableResult]): Unit = {
             ClientQueryServer.logger.info("Compute table request received")
 
-            val table = Table.fromProtobuf(request.table.get)
-            ClientQueryServer.logger.info("Created table instance.")
-            
-            if !table.isValid then responseObserver.onError(new IllegalArgumentException("Table cannot be computed"))
+            Try{Table.fromProtobuf(request.table.get)} match {
+                // Table created successfully
+                case Success(table) => 
+                    // Generate a query plan
+                    val calculateQueryPlan = table.getQueryPlan
+                    val getCleanupQueryPlan = table.getCleanupQueryPlan
+                    ClientQueryServer.logger.info("Calculated query plan")
 
-            // Generate a query plan
-            val calculateQueryPlan = table.getQueryPlan
-            val getCleanupQueryPlan = table.getCleanupQueryPlan
-            ClientQueryServer.logger.info("Calculated query plan")
+                    // Able to make this unchecked cast because this is a response from a server
+                    val serverCallStreamObserver = responseObserver.asInstanceOf[ServerCallStreamObserver[table_model.StreamedTableResult]]
+                    
+                    // Prepare onReady hook 
+                    val runnable = DelayedTableResultRunnable(serverCallStreamObserver)
+                    serverCallStreamObserver.setOnReadyHandler(runnable)
 
-            // Able to make this unchecked cast because this is a response from a server
-            val serverCallStreamObserver = responseObserver.asInstanceOf[ServerCallStreamObserver[table_model.StreamedTableResult]]
-            
-            // Prepare onReady hook 
-            val runnable = DelayedTableResultRunnable(serverCallStreamObserver)
-            serverCallStreamObserver.setOnReadyHandler(runnable)
-
-            // Start execution, and add hook to send the data when finished
-            WorkExecutionScheduler.startExecution(calculateQueryPlan, workerHandler).onComplete {
-                case Success(_) =>
-                    ClientQueryServer.logger.info("Result ready from workers, pulling data")
-                    ResultAssembler.startExecution(table, workerHandler.channels, serverCallStreamObserver)          
-                case Failure(e) => throw e // Rethrow any errors to propagate them to the client    
+                    // Start execution, and add hook to send the data when finished
+                    WorkExecutionScheduler.startExecution(calculateQueryPlan, workerHandler).onComplete {
+                        case Success(_) =>
+                            ClientQueryServer.logger.info("Result ready from workers, pulling data")
+                            ResultAssembler.startExecution(table, workerHandler.channels, serverCallStreamObserver)          
+                        case Failure(e) => 
+                            // Build a status exception for unknown error
+                            val status = Status.newBuilder
+                                .setCode(Code.UNKNOWN.getNumber)
+                                .setMessage(e.getMessage)
+                                .build()
+                            responseObserver.onError(StatusProto.toStatusRuntimeException(status))   
+                    }
+                // Table creation failed
+                case Failure(e) => 
+                    // Build a status exception for Illegal Argument
+                    val status = Status.newBuilder
+                        .setCode(Code.INVALID_ARGUMENT.getNumber)
+                        .setMessage(e.getMessage)
+                        .build()
+                    responseObserver.onError(StatusProto.toStatusRuntimeException(status))
             }
         } 
     }
