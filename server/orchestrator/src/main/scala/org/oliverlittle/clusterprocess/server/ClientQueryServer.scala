@@ -62,6 +62,7 @@ class ClientQueryServer( workerAddresses : Seq[(String, Int)])(using executionCo
         override def computeTable(request: client_query.ComputeTableRequest, responseObserver : StreamObserver[table_model.StreamedTableResult]): Unit = {
             ClientQueryServer.logger.info("Compute table request received")
 
+            // Attempt to construct the table
             Try{Table.fromProtobuf(request.table.get)} match {
                 // Table created successfully
                 case Success(table) => 
@@ -77,19 +78,43 @@ class ClientQueryServer( workerAddresses : Seq[(String, Int)])(using executionCo
                     val runnable = DelayedTableResultRunnable(serverCallStreamObserver)
                     serverCallStreamObserver.setOnReadyHandler(runnable)
 
-                    // Start execution, and add hook to send the data when finished
-                    WorkExecutionScheduler.startExecution(calculateQueryPlan, workerHandler).onComplete {
+                    // Attempt to make a cache store
+                    Future.sequence(
+                        workerHandler.channels.map(_.workerComputeServiceStub.modifyCache(worker_query.ModifyCacheRequest(worker_query.ModifyCacheRequest.CacheOperation.PUSH)))
+                    ).onComplete {
+                        // Cache store successful
                         case Success(_) =>
-                            ClientQueryServer.logger.info("Result ready from workers, pulling data")
-                            ResultAssembler.startExecution(table, workerHandler.channels, serverCallStreamObserver)          
-                        case Failure(e) => 
+                            // Start execution, and add hook to send the data when finished
+                            WorkExecutionScheduler.startExecution(calculateQueryPlan, workerHandler).flatMap { _ =>
+                                    ClientQueryServer.logger.info("Result ready from workers, pulling data")
+                                    ResultAssembler.startExecution(table, workerHandler.channels, serverCallStreamObserver)          
+                            }.onComplete {queryPlanTry =>
+                                ClientQueryServer.logger.info("Completed query, cleaning up")
+                                // No matter what, pop from the cache to clean-up
+                                Future.sequence(workerHandler.channels.map(_.workerComputeServiceStub.modifyCache(worker_query.ModifyCacheRequest(worker_query.ModifyCacheRequest.CacheOperation.POP))))
+                                queryPlanTry match {
+                                    // Do nothing on success
+                                    case Success(_) => 
+                                    // Report the error on failure
+                                    case Failure(e) => 
+                                        // Build a status exception for unknown error
+                                        val status = Status.newBuilder
+                                            .setCode(Code.UNKNOWN.getNumber)
+                                            .setMessage(e.getMessage)
+                                            .build()
+                                        responseObserver.onError(StatusProto.toStatusRuntimeException(status))  
+                                } 
+                            }
+                        // Cache store failed
+                        case Failure(e) =>
                             // Build a status exception for unknown error
                             val status = Status.newBuilder
                                 .setCode(Code.UNKNOWN.getNumber)
                                 .setMessage(e.getMessage)
                                 .build()
-                            responseObserver.onError(StatusProto.toStatusRuntimeException(status))   
+                            responseObserver.onError(StatusProto.toStatusRuntimeException(status))  
                     }
+
                 // Table creation failed
                 case Failure(e) => 
                     // Build a status exception for Illegal Argument

@@ -7,8 +7,13 @@ import org.oliverlittle.clusterprocess.connector.cassandra.token._
 import org.oliverlittle.clusterprocess.model.table.{Table, TableResult, LazyTableResult}
 
 import io.grpc.stub.{StreamObserver, ServerCallStreamObserver}
+import io.grpc.protobuf.StatusProto
+import com.google.rpc.{Status, Code}
 import akka.actor.typed.scaladsl.{Behaviors, LoggerOps, ActorContext}
-import akka.actor.typed.{ActorRef, ActorSystem, Behavior, Terminated}
+import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
+import akka.Done
+
+import scala.concurrent.Future
 
 object ResultAssembler {
     sealed trait ResultEvent
@@ -17,8 +22,9 @@ object ResultAssembler {
     case class Error(e : Throwable) extends ResultEvent
 
 
-    def startExecution(table : Table, channels : Seq[ChannelManager], output : ServerCallStreamObserver[table_model.StreamedTableResult]) : Unit = {
+    def startExecution(table : Table, channels : Seq[ChannelManager], output : ServerCallStreamObserver[table_model.StreamedTableResult]) : Future[Done] = {
         val system = ActorSystem(ResultAssembler(table, channels, output), "ResultAssembler")
+        return system.whenTerminated
     }
 
     def apply(table : Table, channels : Seq[ChannelManager], output : ServerCallStreamObserver[table_model.StreamedTableResult]): Behavior[ResultEvent] = Behaviors.setup {context =>
@@ -85,7 +91,11 @@ class ResultAssembler(expectedResponses : Int, output : ServerCallStreamObserver
     }
 
     def handleError(e : Throwable) : Behavior[ResultEvent] = Behaviors.setup {context =>
-        output.onError(e)
+        val status = Status.newBuilder
+            .setCode(Code.UNKNOWN.getNumber)
+            .setMessage(e.getMessage)
+            .build()
+        output.onError(StatusProto.toStatusRuntimeException(status))
         context.system.terminate()
         Behaviors.stopped
     }
