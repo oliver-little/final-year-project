@@ -9,11 +9,11 @@ import org.oliverlittle.clusterprocess.connector.grpc.{WorkerHandler, ChannelMan
 import akka.actor.typed.scaladsl.{Behaviors, LoggerOps, ActorContext}
 import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
 import akka.actor.typed.scaladsl.ActorContext
-import akka.actor.TypedActor.dispatcher
 
 import scala.collection.mutable.{Queue, ArrayBuffer}
 import scala.util.{Success, Failure}
 import scala.concurrent.{Promise, Future, ExecutionContext}
+import akka.actor.typed.DispatcherSelector
 
 // Messages for Query Scheduler Actor System
 sealed trait QueryInstruction
@@ -32,7 +32,7 @@ sealed trait QueryPlanItem:
       * @param consumerFactory A factory object for consumers
       * @param counterFactory A factory object for counters
       */
-    def execute(workerHandler : WorkerHandler, onResult : ActorRef[QueryInstruction])(using context : ActorContext[QueryInstruction])(using producerFactory : WorkProducerFactory)(using consumerFactory : WorkConsumerFactory)(using counterFactory : CounterFactory)(using ec : ExecutionContext) : Unit
+    def execute(workerHandler : WorkerHandler, onResult : ActorRef[QueryInstruction])(using context : ActorContext[QueryInstruction])(using ec : ExecutionContext) : Unit
 
     /**
       * Allows a QueryPlanItem to adjust its functionality based on the last set of available partitions
@@ -48,35 +48,17 @@ case class PrepareResult(table : Table) extends QueryPlanItem:
         workerHandler : WorkerHandler, 
         onResult : ActorRef[QueryInstruction])
     (using context : ActorContext[QueryInstruction])
-    (using producerFactory : WorkProducerFactory) 
-    (using consumerFactory : WorkConsumerFactory)
-    (using counterFactory : CounterFactory)
-    (using ec : ExecutionContext): Unit = {
-        val partitions = table.getPartialTables(workerHandler)
-        val partitionsCount = partitions.map(_._2.size).sum
-        val promise = Promise[Map[ChannelManager, Seq[PartitionElement]]]()
-        val counter = context.spawn(counterFactory.createCounter(partitionsCount, promise), "counter")
-        promise.future.onComplete {
-            case Success(partitions) => onResult ! InstructionCompleteWithTableOutput(partitions.asInstanceOf[Map[ChannelManager, Seq[PartialTable]]])
-            case Failure(e) => onResult ! InstructionError(e)
-        }
+    (using ec : ExecutionContext) = executeWithFactories(workerHandler, onResult)
 
-        val queries = partitions.map((channel, tables) => 
-            (channel, 
-            tables.map(t =>
-                (
-                    t,
-                    worker_query.QueryPlanItem().withPrepareResult(
-                        worker_query.PrepareResult(Some(t.protobuf))
-                    )
-                )
-            ))
-        )
-        
-        val mappedProducers = queries.zipWithIndex.map((pair, index) => (pair._1, context.spawn(producerFactory.createProducer(pair._2), "producer" + index.toString)))
-        val producers = mappedProducers.map(_._2)
-        val unallocatedProducers = mappedProducers.filter((channels, producer) => channels.size == 0).map(_._2)
-        val consumers = mappedProducers.zipWithIndex.map((pair, index) => pair._1.zipWithIndex.map((c, subIndex) => context.spawn(consumerFactory.createConsumer(c, Seq(pair._2) ++ unallocatedProducers, counter), "consumer" + index.toString + subIndex.toString))).flatten
+    def executeWithFactories(
+        workerHandler : WorkerHandler, 
+        onResult : ActorRef[QueryInstruction])
+    (using context : ActorContext[QueryInstruction])
+    (using ec : ExecutionContext)
+    (using consumerFactory : PrepareResultConsumerFactory = BasePrepareResultConsumerFactory())
+    (using counterFactory : PrepareResultCounterFactory = BasePrepareResultCounterFactory()) : Unit = {
+        // Discover actual partitions here, then call usePartitions
+        throw new IllegalStateException("No partitions provided, cannot execute PrepareResult")
     }
 
     override def usePartitions(partitions: Map[ChannelManager, Seq[PartialDataSource]]): QueryPlanItem = PrepareResultWithPartitions(table, partitions)
@@ -100,36 +82,40 @@ case class PrepareResultWithPartitions(table : Table, partitions : Map[ChannelMa
         workerHandler : WorkerHandler, 
         onResult : ActorRef[QueryInstruction])
     (using context : ActorContext[QueryInstruction])
-    (using producerFactory : WorkProducerFactory) 
-    (using consumerFactory : WorkConsumerFactory)
-    (using counterFactory : CounterFactory)
-    (using ec : ExecutionContext): Unit = {
-        val promise = Promise[Map[ChannelManager, Seq[PartitionElement]]]()
+    (using ec : ExecutionContext) = executeWithFactories(workerHandler, onResult)
+
+    def executeWithFactories(
+        workerHandler : WorkerHandler, 
+        onResult : ActorRef[QueryInstruction])
+    (using context : ActorContext[QueryInstruction])
+    (using ec : ExecutionContext) 
+    (using consumerFactory : PrepareResultConsumerFactory = BasePrepareResultConsumerFactory())
+    (using counterFactory : PrepareResultCounterFactory = BasePrepareResultCounterFactory()) : Unit = {
+        val promise = Promise[Map[ChannelManager, Seq[PartialTable]]]()
         val counter = context.spawn(counterFactory.createCounter(partitionsCount, promise), "counter")
         promise.future.onComplete {
-            case Success(partitions) => onResult ! InstructionCompleteWithTableOutput(partitions.asInstanceOf[Map[ChannelManager, Seq[PartialTable]]])
+            case Success(partitions) => onResult ! InstructionCompleteWithTableOutput(partitions)
             case Failure(e) => onResult ! InstructionError(e)
         }
         
-        // Input: Pair._1 is the channel, Pair._2 is the (partition, request) pairs
-        val mappedProducers = queries.zipWithIndex.map((pair, index) => (pair._1, context.spawn(producerFactory.createProducer(pair._2), "producer" + index.toString)))
-        val producers = mappedProducers.map(_._2)
-        // Input: Pair._1 is the channel, Pair._2 is the corresponding producer
-        val consumers = mappedProducers.zipWithIndex.map((pair, index) => context.spawn(consumerFactory.createConsumer(pair._1, Seq(pair._2), counter), "consumer" + index.toString))
+        // Pair._1 is the gRPC channel
+        // Pair._2 is the PartialTable/query pair list
+        val consumers = queries.zipWithIndex.map((pair, index) => context.spawn(consumerFactory.createConsumer(pair._1, pair._2, counter), "consumer" + index.toString))
     }
 
 // Execute will be removing the item from the tablestore
-case class DeleteResult(table : Table) extends QueryPlanItem:
+case class DeleteResult(table : Table, partitions : Option[Map[ChannelManager, Seq[PartialDataSource]]] = None) extends QueryPlanItem:
     override def execute(
         workerHandler : WorkerHandler, 
         onResult : ActorRef[QueryInstruction])
     (using context : ActorContext[QueryInstruction])
-    (using producerFactory : WorkProducerFactory) 
-    (using consumerFactory : WorkConsumerFactory)
-    (using counterFactory : CounterFactory)
     (using ec : ExecutionContext): Unit = {
         sendDeleteResult(workerHandler).onComplete(_ match {
-            case Success(r) => onResult ! InstructionComplete()
+            case Success(r) =>
+                partitions match {
+                    case Some(p) => onResult ! InstructionCompleteWithDataSourceOutput(p)
+                    case None => onResult ! InstructionComplete()
+                }
             case Failure(e) => onResult ! InstructionError(e)
         })
     }
@@ -139,6 +125,9 @@ case class DeleteResult(table : Table) extends QueryPlanItem:
         val futures = workerHandler.channels.map(c => c.workerComputeServiceStub.processQueryPlanItem(query))
         return Future.sequence(futures)
     }
+
+    // Take partitions to override them
+    override def usePartitions(partitions: Map[ChannelManager, Seq[PartialDataSource]]) : QueryPlanItem = DeleteResult(table, Some(partitions))
 
 // Get partition data from other workers
 /*
@@ -152,10 +141,16 @@ case class GetPartition(dataSource : DataSource) extends QueryPlanItem:
         workerHandler : WorkerHandler, 
         onResult : ActorRef[QueryInstruction])
     (using context : ActorContext[QueryInstruction])
-    (using producerFactory : WorkProducerFactory) 
-    (using consumerFactory : WorkConsumerFactory)
-    (using counterFactory : CounterFactory)
-    (using ec : ExecutionContext): Unit = {
+    (using ec : ExecutionContext) : Unit = executeWithFactories(workerHandler, onResult)
+
+    def executeWithFactories(
+        workerHandler : WorkerHandler, 
+        onResult : ActorRef[QueryInstruction])
+    (using context : ActorContext[QueryInstruction])
+    (using ec : ExecutionContext)
+    (using producerFactory : GetPartitionProducerFactory = BaseGetPartitionProducerFactory()) 
+    (using consumerFactory : GetPartitionConsumerFactory = BaseGetPartitionConsumerFactory())
+    (using counterFactory : GetPartitionCounterFactory = BaseGetPartitionCounterFactory()) : Unit = {
         context.spawn(GetPartitionExecutor(dataSource, workerHandler, onResult), "GetPartitionExecutor")
     }
 
@@ -171,43 +166,61 @@ object GetPartitionExecutor {
         dataSource : DataSource, 
         workerHandler : WorkerHandler, 
         onResult : ActorRef[QueryInstruction])
-        (using producerFactory : WorkProducerFactory) 
-        (using consumerFactory : WorkConsumerFactory)
-        (using counterFactory : CounterFactory) : Behavior[GetPartitionExecutorEvent] = Behaviors.setup { context =>
+        (using producerFactory : GetPartitionProducerFactory) 
+        (using consumerFactory : GetPartitionConsumerFactory)
+        (using counterFactory : GetPartitionCounterFactory) : Behavior[GetPartitionExecutorEvent] = Behaviors.setup { context =>
         val partitions = dataSource.getPartitions(workerHandler)
-        val partitionsCount = partitions.map(_._2.size).sum
-        val future = sendPreparedHashes(dataSource, partitionsCount, workerHandler, context)
-        
-        context.pipeToSelf(future) {
-            case Success(_) => PrepareHashesFinished()
-            case Failure(e) => Error(e)
-        }
 
-        handleEvent(partitions, dataSource, workerHandler, onResult)
+        new GetPartitionExecutor(dataSource, partitions, workerHandler, onResult, context).start()
+    }
+}
+
+class GetPartitionExecutor private (
+    dataSource : DataSource, 
+    partialPartitions : Seq[(Seq[ChannelManager], Seq[PartialDataSource])], 
+    workerHandler : WorkerHandler, 
+    onResult : ActorRef[QueryInstruction], 
+    context : ActorContext[GetPartitionExecutor.GetPartitionExecutorEvent])
+    (using producerFactory : GetPartitionProducerFactory) 
+    (using consumerFactory : GetPartitionConsumerFactory)
+    (using counterFactory : GetPartitionCounterFactory) {
+
+    import GetPartitionExecutor._
+
+    implicit val executionContext : ExecutionContext = context.system.dispatchers.lookup(DispatcherSelector.fromConfig("cluster-process-dispatcher"))
+
+    def start() : Behavior[GetPartitionExecutorEvent] = Behaviors.setup {context => 
+        val partitionsCount = partialPartitions.map(_._2.size).sum
+        // If there are dependencies, hash them first. Otherwise, move straight to calculating the PartialDataSources
+        if !dataSource.getDependencies.isEmpty then 
+            context.pipeToSelf(sendPreparedHashes(dataSource, partitionsCount, workerHandler, context)) {
+                case Success(_) => PrepareHashesFinished()
+                case Failure(e) => Error(e)
+            }
+        else
+            context.self ! PrepareHashesFinished()    
+        
+        handleEvent()
     }
 
-    def handleEvent(
-        partialPartition : Seq[(Seq[ChannelManager], Seq[PartialDataSource])], 
-        dataSource : DataSource, 
-        workerHandler : WorkerHandler, 
-        onResult : ActorRef[QueryInstruction])
-        (using producerFactory : WorkProducerFactory) 
-        (using consumerFactory : WorkConsumerFactory)
-        (using counterFactory : CounterFactory) : Behavior[GetPartitionExecutorEvent] = Behaviors.receive {(context, message) => 
+    def handleEvent() : Behavior[GetPartitionExecutorEvent] = Behaviors.receive {(context, message) => 
         message match {
             case PrepareHashesFinished() =>
-                val future = sendGetPartitions(partialPartition, workerHandler, context)
+                val future = sendGetPartitions(partialPartitions, workerHandler, context)
                 context.pipeToSelf(future) {
                     case Success(partitions) => GetPartitionFinished(partitions.asInstanceOf[Map[ChannelManager, Seq[PartialDataSource]]])
                     case Failure(e) => Error(e)
                 }
                 Behaviors.same
             case GetPartitionFinished(partitions) =>
-                val future = sendDeletePreparedHashes(dataSource, partitions.values.map(_.size).sum, workerHandler)
-                context.pipeToSelf(future) {
-                    case Success(_) => DeletePreparedHashesFinished(partitions)
-                    case Failure(e) => Error(e)
-                }
+                // If there are dependencies, clear the stored data. Otherwise, move to the last step
+                if !dataSource.getDependencies.isEmpty then
+                    context.pipeToSelf(sendDeletePreparedHashes(dataSource, partitions.values.map(_.size).sum, workerHandler)) {
+                        case Success(_) => DeletePreparedHashesFinished(partitions)
+                        case Failure(e) => Error(e)
+                    }
+                else 
+                    context.self ! DeletePreparedHashesFinished(partitions)
                 Behaviors.same
             case DeletePreparedHashesFinished(partitions) => 
                 onResult ! InstructionCompleteWithDataSourceOutput(partitions)
@@ -228,9 +241,9 @@ object GetPartitionExecutor {
         partitions : Seq[(Seq[ChannelManager], Seq[PartialDataSource])], 
         workerHandler : WorkerHandler, 
         context : ActorContext[GetPartitionExecutorEvent])
-        (using producerFactory : WorkProducerFactory) 
-        (using consumerFactory : WorkConsumerFactory)
-        (using counterFactory : CounterFactory) : Future[Map[ChannelManager, Seq[PartitionElement]]] = {
+        (using producerFactory : GetPartitionProducerFactory) 
+        (using consumerFactory : GetPartitionConsumerFactory)
+        (using counterFactory : GetPartitionCounterFactory) : Future[Map[ChannelManager, Seq[PartitionElement]]] = {
         val partitionsCount = partitions.map(_._2.size).sum
         val promise = Promise[Map[ChannelManager, Seq[PartitionElement]]]()
         val counter = context.spawn(counterFactory.createCounter(partitionsCount, promise), "counter")
@@ -270,9 +283,6 @@ case class DeletePartition(dataSource : DataSource) extends QueryPlanItem:
         workerHandler : WorkerHandler, 
         onResult : ActorRef[QueryInstruction])
     (using context : ActorContext[QueryInstruction])
-    (using producerFactory : WorkProducerFactory) 
-    (using consumerFactory : WorkConsumerFactory)
-    (using counterFactory : CounterFactory)
     (using ec : ExecutionContext): Unit = {
         sendDeletePartition(workerHandler).onComplete(_ match {
             case Success(r) => onResult ! InstructionComplete()

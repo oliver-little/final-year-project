@@ -21,14 +21,11 @@ object WorkExecutionScheduler {
     def apply(
         queryPlan : Seq[QueryPlanItem], 
         workerHandler : WorkerHandler,
-        promise : Promise[Option[Map[ChannelManager, Seq[PartialTable]]]],
-        producerFactory : WorkProducerFactory = BaseWorkProducerFactory(), 
-        consumerFactory : WorkConsumerFactory = BaseWorkConsumerFactory(),
-        counterFactory : CounterFactory = BaseCounterFactory()
-    ): Behavior[QueryInstruction] = Behaviors.setup{context => new WorkExecutionScheduler(producerFactory, consumerFactory, counterFactory, workerHandler, promise, context).start(queryPlan)}
+        promise : Promise[Option[Map[ChannelManager, Seq[PartialTable]]]]
+    ): Behavior[QueryInstruction] = Behaviors.setup{context => new WorkExecutionScheduler(workerHandler, promise, context).start(queryPlan)}
 }
 
-class WorkExecutionScheduler(producerFactory : WorkProducerFactory, consumerFactory : WorkConsumerFactory, counterFactory : CounterFactory, workerHandler : WorkerHandler, promise : Promise[Option[Map[ChannelManager, Seq[PartialTable]]]], context : ActorContext[QueryInstruction]) {
+class WorkExecutionScheduler(workerHandler : WorkerHandler, promise : Promise[Option[Map[ChannelManager, Seq[PartialTable]]]], context : ActorContext[QueryInstruction]) {
     import WorkExecutionScheduler._
 
     implicit val executionContext : ExecutionContext = context.system.dispatchers.lookup(DispatcherSelector.sameAsParent())
@@ -72,7 +69,7 @@ class WorkExecutionScheduler(producerFactory : WorkProducerFactory, consumerFact
     }
 
     def startItemScheduler(item : QueryPlanItem, index : Int, workerHandler : WorkerHandler, context : ActorContext[QueryInstruction]) : ActorRef[QueryInstruction] = context.spawn(
-        QueryPlanItemScheduler(item, workerHandler, context.self)(using producerFactory)(using consumerFactory)(using counterFactory), 
+        QueryPlanItemScheduler(item, workerHandler, context.self), 
         "QueryPlanItemScheduler" + index.toString
     )
 }

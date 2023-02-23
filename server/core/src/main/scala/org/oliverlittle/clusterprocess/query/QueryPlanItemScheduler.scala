@@ -8,7 +8,7 @@ import scala.concurrent.ExecutionContext
 
 // Container actor to ensure clean shutdown when this item is completed
 object QueryPlanItemScheduler:
-    def apply(item : QueryPlanItem, workerHandler : WorkerHandler, onResult : ActorRef[QueryInstruction])(using producerFactory : WorkProducerFactory)(using consumerFactory : WorkConsumerFactory)(using counterFactory : CounterFactory)(using ec : ExecutionContext)  : Behavior[QueryInstruction] = Behaviors.setup{context => 
+    def apply(item : QueryPlanItem, workerHandler : WorkerHandler, onResult : ActorRef[QueryInstruction])(using ec : ExecutionContext)  : Behavior[QueryInstruction] = Behaviors.setup{context => 
         context.log.info("Starting item: " + item.getClass.getSimpleName)
         item.execute(workerHandler, context.self)(using context)
         context.log.info("Finished setup, waiting for complete confirmation")
