@@ -11,6 +11,7 @@ service WorkerComputeService {
     rpc GetHashedPartitionData(GetHashedPartitionDataRequest) returns (stream StreamedTableResult);
     rpc GetTableStoreData(GetTableStoreDataRequest) returns (TableStoreData);
     rpc ModifyCache(ModifyCacheRequest) returns (TableStoreData);
+    rpc GetEstimatedTableSize(GetEstimatedTableSizeRequest) returns (GetEstimatedTableSizeResult);
 }
 
 message GetLocalCassandraNodeRequest {
@@ -49,7 +50,13 @@ message ModifyCacheRequest {
     CacheOperation cache_operation = 1;
 }
 
+message GetEstimatedTableSizeRequest {
+    Table table = 1;
+}
 
+message GetEstimatedTableSizeResult {
+    uint64 estimated_size_mb = 1;
+}
 
 // Query Plan Items
 message QueryPlanItem {

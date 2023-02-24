@@ -36,7 +36,7 @@ case class GroupByDataSource(source : Table, uniqueFields : Seq[NamedFieldExpres
     def hashPartitionedData(result : TableResult, numPartitions : Int) : MapView[Int, TableResult] = {
         val resolved = uniqueFields.map(_.resolve(result.header))
         // Hash every row by the unique fields, then convert to a result
-        return result.rows.groupBy(row => MurmurHash3.unorderedHash(resolved.map(_.evaluate(row))) % numPartitions).mapValues(LazyTableResult(result.header, _))
+        return result.rows.groupBy(row => MurmurHash3.unorderedHash(resolved.map(_.evaluate(row))) % numPartitions).view.mapValues(LazyTableResult(result.header, _))
     }
 
     lazy val groupByProtobuf : table_model.GroupByDataSource = table_model.GroupByDataSource(Some(source.protobuf), uniqueFields.map(_.protobuf), aggregates.map(_.protobuf))

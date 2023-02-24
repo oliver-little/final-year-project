@@ -1,6 +1,7 @@
 package org.oliverlittle.clusterprocess.connector.grpc
 
 import org.oliverlittle.clusterprocess.worker_query
+import org.oliverlittle.clusterprocess.model.table.Table
 import org.oliverlittle.clusterprocess.connector.grpc.ChannelManager
 import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
 import org.oliverlittle.clusterprocess.connector.cassandra.node.CassandraNode
@@ -17,6 +18,7 @@ import java.net.InetSocketAddress
 import com.typesafe.config.ConfigFactory
 import scala.jdk.CollectionConverters._
 import scala.util.Try
+import scala.concurrent.{Future, ExecutionContext}
 
 class WorkerHandler(workerAddresses : Seq[(String, Int)]) {
     private val logger = LoggerFactory.getLogger(classOf[WorkerHandler].getName)
@@ -97,5 +99,10 @@ class WorkerHandler(workerAddresses : Seq[(String, Int)]) {
         channelMap.foreach((node, channels) => logger.info("Cassandra node: " + node.getAddressAsString + " has workers " + channels.toString))
 
         return channelMap
+    }
+
+    def getTableStoreEstimatedSizeMB(table : Table)(using ec : ExecutionContext) : Future[Long] = {
+        val request = worker_query.GetEstimatedTableSizeRequest(Some(table.protobuf))
+        Future.sequence(channels.map(_.workerComputeServiceStub.getEstimatedTableSize(request))).map(result => result.map(_.estimatedSizeMb).sum)
     }
 }

@@ -6,6 +6,7 @@ import org.oliverlittle.clusterprocess.query.PartialQueryPlanItem
 import org.oliverlittle.clusterprocess.model.table.{Table, TableTransformation, TableStore, TableStoreData, TableResult}
 import org.oliverlittle.clusterprocess.connector.grpc.{StreamedTableResult, TableResultRunnable, DelayedTableResultRunnable}
 import org.oliverlittle.clusterprocess.connector.cassandra.{CassandraConfig, CassandraConnector}
+import org.oliverlittle.clusterprocess.dependency.SizeEstimator
 
 import io.grpc.{ServerBuilder}
 import io.grpc.stub.{ServerCallStreamObserver, StreamObserver}
@@ -152,6 +153,16 @@ class WorkerQueryServer(executionContext: ExecutionContext, store : ActorRef[Tab
                 }
             case _ => throw new IllegalArgumentException("Unknown cache operation provided")
         }
+
+        override def getEstimatedTableSize(request : worker_query.GetEstimatedTableSizeRequest) : Future[worker_query.GetEstimatedTableSizeResult] = 
+            val table = Table.fromProtobuf(request.table.get)
+
+            store.ask[Seq[TableResult]](ref => TableStore.GetAllResults(table, ref)).map {
+                case Seq() => worker_query.GetEstimatedTableSizeResult(estimatedSizeMb = 0)
+                case results => worker_query.GetEstimatedTableSizeResult(estimatedSizeMb = (SizeEstimator.estimate(results).toDouble / 1000).round)
+            }.recover { _ =>
+                worker_query.GetEstimatedTableSizeResult(estimatedSizeMb = 0)
+            }
 
         private def responseObserverToDelayedRunnable(responseObserver : StreamObserver[table_model.StreamedTableResult]) : DelayedTableResultRunnable = {
             // Able to make this unchecked cast because this is a response from a server
