@@ -1,17 +1,11 @@
 package org.oliverlittle.clusterprocess.model.table
 
 import org.oliverlittle.clusterprocess.UnitSpec
-import org.oliverlittle.clusterprocess.model.table.sources.DataSource
+import org.oliverlittle.clusterprocess.model.table.sources.{MockDataSource, MockPartialDataSource}
 import org.oliverlittle.clusterprocess.model.table.field._
 import org.oliverlittle.clusterprocess.model.field.expressions.{F, V}
 import org.oliverlittle.clusterprocess.model.field.expressions.FieldOperations.AddInt
 import org.oliverlittle.clusterprocess.worker_query
-
-class MockDataSource extends DataSource {
-    def getHeaders = TableResultHeader(Seq(BaseIntField("a")))
-    def getData = EvaluatedTableResult(getHeaders, Seq(Seq(Some(IntValue(2)))))
-    def protobuf = worker_query.DataSource().withCassandra(worker_query.CassandraDataSource(keyspace="test", table="test"))
-}
 
 class TableSpec extends UnitSpec {
     "A table" should "add a transformation correctly" in {
@@ -21,13 +15,49 @@ class TableSpec extends UnitSpec {
         newTable.transformations should have length 1
     }
 
-    it should "compute a single transformation correctly" in {
-        val table = Table(MockDataSource(), Seq(SelectTransformation(AddInt(F("a"), V(1)).as("a"))))
-        table.computePartial should be (LazyTableResult(TableResultHeader(Seq(BaseIntField("a"))), Seq(Seq(Some(IntValue(3))))))
+    it should "convert to protobuf correctly" in {
+        fail()
     }
 
-    it should "compute sequential transformations correctly" in {
-        val table = Table(MockDataSource(), Seq(SelectTransformation(AddInt(F("a"), V(1)).as("a")), SelectTransformation(AddInt(F("a"), V(-3)).as("b"))))
-        table.computePartial should be (LazyTableResult(TableResultHeader(Seq(BaseIntField("b"))), Seq(Seq(Some(IntValue(0))))))
+    it should "calculate the output headers correctly" in {
+        fail()
+    }
+
+    it should "be valid if the DataSource and all transformations are valid" in {
+        fail()
+    }
+
+    it should "be invalid if any dependency is invalid" in {
+        fail()
+    }
+
+    it should "convert to a PartialTable when provided with a PartialDataSource" in {
+        fail()
+    }
+
+    it should "fail to convert to a PartialTable if the PartialDataSource is the incorrect type" in {
+        fail()
+    }
+
+    it should "assemble partial results based on the final transformation's assembler" in {
+        fail()
+    }
+}
+
+class PartialTableSpec extends UnitSpec {
+    "A PartialTable" should "convert from protobuf correctly" in {
+        fail()
+    }
+
+    it should "convert to protobuf correctly" in {
+        fail()
+    }
+
+    it should "compute a partial result correctly" in {
+        fail()
+    }
+
+    it should "fail to compute if the provided table result has incorrect headers" in {
+        fail()
     }
 }
