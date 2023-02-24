@@ -43,9 +43,9 @@ case class PartialPrepareResult(table : PartialTable) extends PartialQueryPlanIt
         store.ask[Option[TableResult]](ref => TableStore.GetPartition(table.dataSource, ref)).flatMap {
             case Some(t) => store.ask(ref => TableStore.AddResult(table, table.compute(t), ref)) // If we got a partition, try to compute and store the result
             case None => throw new IllegalArgumentException("Missing partial data source for table") // Otherwise, throw an error
-        }.map {
-            case StatusReply.Success(_) => worker_query.ProcessQueryPlanItemResult(true) // If that operation was successful, return successful state
-            case StatusReply.Error(e) => throw e
+        }.flatMap {
+            case StatusReply.Success(_) => Future.successful(worker_query.ProcessQueryPlanItemResult(true)) // If that operation was successful, return successful state
+            case StatusReply.Error(e) => Future.failed(e)
         }
 
 case class PartialDeleteResult(table : Table) extends PartialQueryPlanItem:
@@ -60,9 +60,9 @@ case class PartialPrepareHashes(dataSource : DependentDataSource, numPartitions 
     val innerProtobuf : worker_query.QueryPlanItem.Item = worker_query.QueryPlanItem.Item.PrepareHashes(worker_query.PrepareHashes(Some(dataSource.protobuf), numPartitions))
 
     def execute(store: ActorRef[TableStore.TableStoreEvent])(using t : Timeout)(using system : ActorSystem[_])(using ec : ExecutionContext = system.executionContext) : Future[worker_query.ProcessQueryPlanItemResult] =
-        store.ask[StatusReply[Done]](ref => TableStore.HashPartition(dataSource, numPartitions, ref)).map {
-            case StatusReply.Success(_) => worker_query.ProcessQueryPlanItemResult(true)
-            case StatusReply.Error(e) => worker_query.ProcessQueryPlanItemResult(false)
+        store.ask[StatusReply[Done]](ref => TableStore.HashPartition(dataSource, numPartitions, ref)).flatMap {
+            case StatusReply.Success(_) => Future.successful(worker_query.ProcessQueryPlanItemResult(true))
+            case StatusReply.Error(e) => Future.failed(e)
         }
 
 case class PartialDeletePreparedHashes(dataSource : DataSource, numPartitions : Int) extends PartialQueryPlanItem:
@@ -83,10 +83,10 @@ case class PartialGetPartition(dataSource : PartialDataSource, workerURLs : Seq[
         ).flatMap {
             // Once the partial data is ready, store the partition in the TableStore
             result => store.ask[StatusReply[Done]](ref => TableStore.AddPartition(dataSource, result, ref)) 
-        }.map {
-            case StatusReply.Success(_) => worker_query.ProcessQueryPlanItemResult(true) // If that operation was successful, return successful state
-            case StatusReply.Error(e) => throw e
-        } 
+        }.flatMap {
+            case StatusReply.Success(_) => Future.successful(worker_query.ProcessQueryPlanItemResult(true))
+            case StatusReply.Error(e) => Future.failed(e)
+        }
 
 case class PartialDeletePartition(dataSource : DataSource) extends PartialQueryPlanItem:
     val innerProtobuf : worker_query.QueryPlanItem.Item = worker_query.QueryPlanItem.Item.DeletePartition(worker_query.DeletePartition(Some(dataSource.protobuf)))

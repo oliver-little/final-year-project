@@ -1,4 +1,4 @@
-package org.oliverlittle.clusterprocess.scheduler
+package org.oliverlittle.clusterprocess.query
 
 import org.oliverlittle.clusterprocess.UnitSpec
 import org.oliverlittle.clusterprocess.model.table._
@@ -16,8 +16,8 @@ import akka.actor.typed._
 import akka.actor.typed.scaladsl._
 
 
-class WorkProducerTest extends UnitSpec {
-    "A WorkProducer" should "provide results while it has data" in {
+class GetPartitionProducerTest extends UnitSpec {
+    "A GetPartitionProducer" should "provide results while it has data" in {
         val one = worker_query.ComputePartialResultCassandraRequest(dataSource=Some(table_model.CassandraDataSource("test", "one")))
         val two = worker_query.ComputePartialResultCassandraRequest(dataSource=Some(table_model.CassandraDataSource("test", "two")))
         val data = Seq(one, two)
@@ -103,5 +103,19 @@ class WorkConsumerTest extends UnitSpec with MockitoSugar {
         inboxThree.expectMessage(WorkProducer.RequestWork(testKit.ref))
         testKit.run(WorkConsumer.NoWork())
         testKit.isAlive should be (false)
+    }
+
+    it should "provide the partitions it is holding as a message when it completes" in {
+        fail()
+    }
+}
+
+class GetPartitionCounterTest extends UnitSpec with MockitoSugar {
+    "A GetPartitionCounter" should "complete the promise when the expected number of responses is reached" in {
+        fail()
+    }
+
+    it should "complete the promise when the expected number of responses is reached (and this number is 1)" in {
+        fail()
     }
 }

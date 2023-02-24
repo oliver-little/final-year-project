@@ -16,7 +16,6 @@ import com.datastax.oss.driver.api.core.metadata.schema.{TableMetadata, ColumnMe
 import com.datastax.oss.driver.api.core.{CqlIdentifier}
 import com.datastax.oss.driver.api.core.`type`.{DataTypes, DataType}
 import com.datastax.oss.driver.api.core.cql.Row
-
 import java.util.{Arrays, Collections}
 
 class CassandraDataSourceTest extends UnitSpec with MockitoSugar {
@@ -113,6 +112,20 @@ class CassandraDataSourceTest extends UnitSpec with MockitoSugar {
         CassandraDataSource(mockConnector, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1"), None).toCql(false) should be ("CREATE TABLE test.test_table (field1 bigint,field2 boolean, PRIMARY KEY (field1));")
         CassandraDataSource(mockConnector, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1", "field2"), None).toCql() should be ("CREATE TABLE IF NOT EXISTS test.test_table (field1 bigint,field2 boolean, PRIMARY KEY (field1,field2));")
         CassandraDataSource(mockConnector, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1", "field2"), Seq("field1", "field2"), None).toCql() should be ("CREATE TABLE IF NOT EXISTS test.test_table (field1 bigint,field2 boolean, PRIMARY KEY ((field1,field2)));")
+    }
+}
+
+class PartialCassandraDataSourceTest extends UnitSpec with MockitoSugar {
+    "A PartialCassandraDataSource" should "convert to protobuf correctly" in {
+        fail()
+    }
+
+    it should "produce a number of data queries for each TokenRange" in {
+        fail()
+    }
+
+    it should "return a TableResult from the database" in {
+        fail()
     }
 }
 

@@ -31,7 +31,7 @@ object TableStore {
     final case class PopCache(replyTo : ActorRef[Option[TableStoreData]]) extends TableStoreEvent
     final case class GetData(replyTo : ActorRef[TableStoreData]) extends TableStoreEvent
 
-    def apply() : Behavior[TableStoreEvent] = processResults(TableStoreData(HashMap(), HashMap(), HashMap()), LinearSeq().toSeq)
+    def apply() : Behavior[TableStoreEvent] = processResults(, LinearSeq().toSeq)
         
     def processResults(tableStoreData : TableStoreData, cache : Seq[TableStoreData]) : Behavior[TableStoreEvent] = Behaviors.receive{ (context, message) =>
         message match {
@@ -85,12 +85,10 @@ object TableStore {
             case PushCache() =>
                 processResults(tableStoreData, tableStoreData +: cache)
 
-            case PopCache(replyTo) if cache.isEmpty =>
-                replyTo ! None
-                Behaviors.same
             case PopCache(replyTo) =>
-                replyTo ! Some(cache.head)
-                processResults(cache.head, cache.tail)
+                val head = cache.headOption.getOrElse(TableStoreData.empty)
+                replyTo ! Some(head)
+                processResults(head, cache.tail)
 
             case GetData(replyTo) =>
                 replyTo ! tableStoreData
@@ -98,6 +96,9 @@ object TableStore {
         }
     }
 }
+
+object TableStoreData:
+    def empty = TableStoreData(HashMap(), HashMap(), HashMap())
 
 case class TableStoreData(tables : Map[Table, Map[PartialTable, TableResult]], partitions : Map[DataSource, Map[PartialDataSource, TableResult]], hashes : Map[(Table, Int), MapView[Int, TableResult]]):
     lazy val protobuf = worker_query.TableStoreData(
