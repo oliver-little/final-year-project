@@ -103,7 +103,14 @@ class WorkerQueryServer(executionContext: ExecutionContext, store : ActorRef[Tab
         override def processQueryPlanItem(item : worker_query.QueryPlanItem) : Future[worker_query.ProcessQueryPlanItemResult] = {
             val queryPlanItem = PartialQueryPlanItem.fromProtobuf(item)
             WorkerQueryServer.logger.info("processQueryPlanItem - " + queryPlanItem.getClass.getSimpleName)
-            val res = queryPlanItem.execute(store)
+            val res = queryPlanItem.execute(store).recoverWith {
+                case e : Throwable => 
+                    val status = Status.newBuilder
+                        .setCode(Code.UNKNOWN.getNumber)
+                        .setMessage(e.getMessage)
+                        .build()
+                    Future.failed(StatusProto.toStatusRuntimeException(status))
+            }
             WorkerQueryServer.logger.info("processQueryPlanItem - done")
             return res
         }
