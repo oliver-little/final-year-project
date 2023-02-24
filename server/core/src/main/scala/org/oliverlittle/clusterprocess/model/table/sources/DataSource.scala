@@ -35,7 +35,7 @@ trait DataSource:
 	  *
 	  * @return
 	  */
-	def getPartitions(workerHandler : WorkerHandler) : Seq[(Seq[ChannelManager], Seq[PartialDataSource])]
+	def getPartitions(workerHandler : WorkerHandler)(using ec : ExecutionContext) : Future[Seq[(Seq[ChannelManager], Seq[PartialDataSource])]]
 
 	/**
 	  * Gets the dependencies that must be calculated before this data source can be calculated

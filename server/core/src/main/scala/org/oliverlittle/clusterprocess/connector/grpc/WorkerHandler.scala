@@ -40,6 +40,8 @@ class WorkerHandler(workerAddresses : Seq[(String, Int)]) {
         return new InetSocketAddress(result.get.host, result.get.port)
     }
 
+    lazy val chunkSize : Int = ConfigFactory.load.getString("clusterprocess.chunk.chunk_size_mb").toInt
+
     /**
       * Provides a mapping from ChannelManager to CassandraPartition
       * Essentially this represents the ideal partition allocation based on data locality
@@ -55,8 +57,6 @@ class WorkerHandler(workerAddresses : Seq[(String, Int)]) {
         val tokenMap = metadata.getTokenMap.get
         val sizeEstimator = TableSizeEstimation.estimateTableSize(session, keyspace, table)
         val channelMap = getChannelMapping(channels, metadata)
-
-        val chunkSize : Int = ConfigFactory.load.getString("clusterprocess.chunk.chunk_size_mb").toInt
 
         // For each node, split the token range to be small enough to fit the chunk size (or if the table is really small, just output the full tokenRange)
         val channelAssignment = channelMap.map((node, matchedChannels) => 
@@ -100,6 +100,8 @@ class WorkerHandler(workerAddresses : Seq[(String, Int)]) {
 
         return channelMap
     }
+
+    def getNumPartitionsForTable(table : Table)(using ec : ExecutionContext)  : Future[Int] = getTableStoreEstimatedSizeMB(table).map(size => Math.max(size.toDouble / chunkSize, 1).round.toInt)
 
     def getTableStoreEstimatedSizeMB(table : Table)(using ec : ExecutionContext) : Future[Long] = {
         val request = worker_query.GetEstimatedTableSizeRequest(Some(table.protobuf))

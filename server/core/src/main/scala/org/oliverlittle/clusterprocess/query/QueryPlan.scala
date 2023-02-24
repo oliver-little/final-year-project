@@ -157,7 +157,8 @@ case class GetPartition(dataSource : DataSource) extends QueryPlanItem:
 
 object GetPartitionExecutor {
     sealed trait GetPartitionExecutorEvent
-    final case class PrepareHashesFinished() extends GetPartitionExecutorEvent
+    final case class GetPartitionsFinished(optimalPartitions : Seq[(Seq[ChannelManager], Seq[PartialDataSource])]) extends GetPartitionExecutorEvent
+    final case class PrepareHashesFinished(optimalPartitions : Seq[(Seq[ChannelManager], Seq[PartialDataSource])]) extends GetPartitionExecutorEvent
     final case class GetPartitionFinished(partitions : Map[ChannelManager, Seq[PartialDataSource]]) extends GetPartitionExecutorEvent
     final case class DeletePreparedHashesFinished(partitions : Map[ChannelManager, Seq[PartialDataSource]]) extends GetPartitionExecutorEvent
     final case class Error(e : Throwable) extends GetPartitionExecutorEvent
@@ -169,44 +170,51 @@ object GetPartitionExecutor {
         (using producerFactory : GetPartitionProducerFactory) 
         (using consumerFactory : GetPartitionConsumerFactory)
         (using counterFactory : GetPartitionCounterFactory) : Behavior[GetPartitionExecutorEvent] = Behaviors.setup { context =>
-        val partitions = dataSource.getPartitions(workerHandler)
+        
+        implicit val executionContext : ExecutionContext = context.system.dispatchers.lookup(DispatcherSelector.fromConfig("cluster-process-dispatcher"))    
 
-        new GetPartitionExecutor(dataSource, partitions, workerHandler, onResult, context).start()
+        new GetPartitionExecutor(dataSource, workerHandler, onResult, context).start()  
     }
 }
 
 class GetPartitionExecutor private (
-    dataSource : DataSource, 
-    partialPartitions : Seq[(Seq[ChannelManager], Seq[PartialDataSource])], 
+    dataSource : DataSource,
     workerHandler : WorkerHandler, 
     onResult : ActorRef[QueryInstruction], 
     context : ActorContext[GetPartitionExecutor.GetPartitionExecutorEvent])
     (using producerFactory : GetPartitionProducerFactory) 
     (using consumerFactory : GetPartitionConsumerFactory)
-    (using counterFactory : GetPartitionCounterFactory) {
+    (using counterFactory : GetPartitionCounterFactory)
+    (using ec : ExecutionContext) {
 
     import GetPartitionExecutor._
 
-    implicit val executionContext : ExecutionContext = context.system.dispatchers.lookup(DispatcherSelector.fromConfig("cluster-process-dispatcher"))
-
     def start() : Behavior[GetPartitionExecutorEvent] = Behaviors.setup {context => 
-        val partitionsCount = partialPartitions.map(_._2.size).sum
-        // If there are dependencies, hash them first. Otherwise, move straight to calculating the PartialDataSources
-        if !dataSource.getDependencies.isEmpty then 
-            context.pipeToSelf(sendPreparedHashes(dataSource, partitionsCount, workerHandler, context)) {
-                case Success(_) => PrepareHashesFinished()
-                case Failure(e) => Error(e)
-            }
-        else
-            context.self ! PrepareHashesFinished()    
-        
+        val future = dataSource.getPartitions(workerHandler)
+
+        context.pipeToSelf(future) {
+            case Success(partitions) => GetPartitionsFinished(partitions)
+            case Failure(e) => Error(e)
+        }  
+
         handleEvent()
     }
 
     def handleEvent() : Behavior[GetPartitionExecutorEvent] = Behaviors.receive {(context, message) => 
         message match {
-            case PrepareHashesFinished() =>
-                val future = sendGetPartitions(partialPartitions, workerHandler, context)
+            case GetPartitionsFinished(optimalPartitions) =>
+                val partitionsCount = optimalPartitions.map(_._2.size).sum
+                // If there are dependencies, hash them first. Otherwise, move straight to calculating the PartialDataSources
+                if !dataSource.getDependencies.isEmpty then 
+                    context.pipeToSelf(sendPreparedHashes(dataSource, partitionsCount, workerHandler, context)) {
+                        case Success(_) => PrepareHashesFinished(optimalPartitions)
+                        case Failure(e) => Error(e)
+                    }
+                else
+                    context.self ! PrepareHashesFinished(optimalPartitions)   
+                Behaviors.same
+            case PrepareHashesFinished(optimalPartitions) =>
+                val future = sendGetPartitions(optimalPartitions, workerHandler, context)
                 context.pipeToSelf(future) {
                     case Success(partitions) => GetPartitionFinished(partitions.asInstanceOf[Map[ChannelManager, Seq[PartialDataSource]]])
                     case Failure(e) => Error(e)

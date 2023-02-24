@@ -7,6 +7,8 @@ import org.oliverlittle.clusterprocess.connector.grpc.{ChannelManager, WorkerHan
 import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
 import org.oliverlittle.clusterprocess.query._
 
+import scala.concurrent.{Future, ExecutionContext}
+
 object Table:
     def fromProtobuf(table : table_model.Table) : Table = Table(DataSource.fromProtobuf(table.dataSource.get), TableTransformation.fromProtobuf(table.transformations))
 
@@ -25,7 +27,7 @@ case class Table(dataSource : DataSource, transformations : Seq[TableTransformat
 
     def addTransformation(transformation : TableTransformation) : Table = Table(dataSource, transformations :+ transformation)
 
-    def getPartialTables(workerHandler : WorkerHandler) : Seq[(Seq[ChannelManager], Seq[PartialTable])] = dataSource.getPartitions(workerHandler).map((channels, partialSources) => (channels, partialSources.map(PartialTable(_, transformations))))
+    def getPartialTables(workerHandler : WorkerHandler)(using ec : ExecutionContext) : Future[Seq[(Seq[ChannelManager], Seq[PartialTable])]] = dataSource.getPartitions(workerHandler).map(result => result.map((channels, partialSources) => (channels, partialSources.map(PartialTable(_, transformations)))))
 
     /**
 	  * Generates the high level query plan to create this table in the TableStore

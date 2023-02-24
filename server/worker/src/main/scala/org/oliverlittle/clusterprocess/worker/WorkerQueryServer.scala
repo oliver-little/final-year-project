@@ -159,7 +159,7 @@ class WorkerQueryServer(executionContext: ExecutionContext, store : ActorRef[Tab
 
             store.ask[Seq[TableResult]](ref => TableStore.GetAllResults(table, ref)).map {
                 case Seq() => worker_query.GetEstimatedTableSizeResult(estimatedSizeMb = 0)
-                case results => worker_query.GetEstimatedTableSizeResult(estimatedSizeMb = (SizeEstimator.estimate(results).toDouble / 1000).round)
+                case results => worker_query.GetEstimatedTableSizeResult(estimatedSizeMb = (SizeEstimator.estimate(results).toDouble / 1000000).round)
             }.recover { _ =>
                 worker_query.GetEstimatedTableSizeResult(estimatedSizeMb = 0)
             }
