@@ -251,9 +251,9 @@ class GetPartitionExecutor private (
         context : ActorContext[GetPartitionExecutorEvent])
         (using producerFactory : GetPartitionProducerFactory) 
         (using consumerFactory : GetPartitionConsumerFactory)
-        (using counterFactory : GetPartitionCounterFactory) : Future[Map[ChannelManager, Seq[PartitionElement]]] = {
+        (using counterFactory : GetPartitionCounterFactory) : Future[Map[ChannelManager, Seq[PartialDataSource]]] = {
         val partitionsCount = partitions.map(_._2.size).sum
-        val promise = Promise[Map[ChannelManager, Seq[PartitionElement]]]()
+        val promise = Promise[Map[ChannelManager, Seq[PartialDataSource]]]()
         val counter = context.spawn(counterFactory.createCounter(partitionsCount, promise), "counter")
         
         // Parse the partitions into queries 

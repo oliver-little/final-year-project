@@ -13,18 +13,18 @@ import collection.mutable.{Buffer, ArrayBuffer}
 import scala.concurrent.Promise
 
 trait GetPartitionProducerFactory:
-    def createProducer(items : Seq[(PartitionElement, worker_query.QueryPlanItem)]) : Behavior[GetPartitionProducer.ProducerEvent] 
+    def createProducer(items : Seq[(PartialDataSource, worker_query.QueryPlanItem)]) : Behavior[GetPartitionProducer.ProducerEvent] 
         
 class BaseGetPartitionProducerFactory extends GetPartitionProducerFactory:
-    def createProducer(items : Seq[(PartitionElement, worker_query.QueryPlanItem)]) : Behavior[GetPartitionProducer.ProducerEvent] = GetPartitionProducer(items)
+    def createProducer(items : Seq[(PartialDataSource, worker_query.QueryPlanItem)]) : Behavior[GetPartitionProducer.ProducerEvent] = GetPartitionProducer(items)
 
 object GetPartitionProducer {
     sealed trait ProducerEvent
     final case class RequestWork(replyTo : ActorRef[GetPartitionConsumer.ConsumerEvent]) extends ProducerEvent
     
-    def apply(items : Seq[(PartitionElement, worker_query.QueryPlanItem)]) : Behavior[ProducerEvent] = list(items)
+    def apply(items : Seq[(PartialDataSource, worker_query.QueryPlanItem)]) : Behavior[ProducerEvent] = list(items)
 
-    private def list(items : Seq[(PartitionElement, worker_query.QueryPlanItem)]) : Behavior[ProducerEvent] = Behaviors.receiveMessage {
+    private def list(items : Seq[(PartialDataSource, worker_query.QueryPlanItem)]) : Behavior[ProducerEvent] = Behaviors.receiveMessage {
         case RequestWork(replyTo) =>
             items.isEmpty match {
                 case true => 
@@ -47,7 +47,7 @@ class BaseGetPartitionConsumerFactory extends GetPartitionConsumerFactory:
 
 object GetPartitionConsumer:
     sealed trait ConsumerEvent
-    final case class HasWork(partition : PartitionElement, request : worker_query.QueryPlanItem) extends ConsumerEvent
+    final case class HasWork(partition : PartialDataSource, request : worker_query.QueryPlanItem) extends ConsumerEvent
     final case class NoWork() extends ConsumerEvent
 
     def apply(channel : ChannelManager, producers : Seq[ActorRef[GetPartitionProducer.ProducerEvent]], counter : ActorRef[GetPartitionCounter.CounterEvent]) : Behavior[ConsumerEvent] = Behaviors.setup{context => 
@@ -58,7 +58,7 @@ object GetPartitionConsumer:
 class GetPartitionConsumer private (channel : ChannelManager, stub : worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub, counter : ActorRef[GetPartitionCounter.CounterEvent]) {
     import GetPartitionConsumer._
 
-    private def computeWork(partitions : Seq[PartitionElement], producers : Seq[ActorRef[GetPartitionProducer.ProducerEvent]]) : Behavior[ConsumerEvent] = Behaviors.receive{(context, message) => 
+    private def computeWork(partitions : Seq[PartialDataSource], producers : Seq[ActorRef[GetPartitionProducer.ProducerEvent]]) : Behavior[ConsumerEvent] = Behaviors.receive{(context, message) => 
         message match {
             case NoWork() if producers.length == 1 => 
                 counter ! GetPartitionCounter.Increment(channel, partitions)
@@ -77,20 +77,20 @@ class GetPartitionConsumer private (channel : ChannelManager, stub : worker_quer
 }
 
 trait GetPartitionCounterFactory:
-    def createCounter(expectedResponses : Int, promise : Promise[Map[ChannelManager, Seq[PartitionElement]]]) : Behavior[GetPartitionCounter.CounterEvent]
+    def createCounter(expectedResponses : Int, promise : Promise[Map[ChannelManager, Seq[PartialDataSource]]]) : Behavior[GetPartitionCounter.CounterEvent]
 
 class BaseGetPartitionCounterFactory extends GetPartitionCounterFactory:
-    def createCounter(expectedResponses : Int, promise : Promise[Map[ChannelManager, Seq[PartitionElement]]]) : Behavior[GetPartitionCounter.CounterEvent] = GetPartitionCounter(expectedResponses, promise)
+    def createCounter(expectedResponses : Int, promise : Promise[Map[ChannelManager, Seq[PartialDataSource]]]) : Behavior[GetPartitionCounter.CounterEvent] = GetPartitionCounter(expectedResponses, promise)
 
 object GetPartitionCounter:
     sealed trait CounterEvent
-    case class Increment(channel : ChannelManager, partition : Seq[PartitionElement]) extends CounterEvent
+    case class Increment(channel : ChannelManager, partition : Seq[PartialDataSource]) extends CounterEvent
 
-    def apply(expectedResponses : Int, promise : Promise[Map[ChannelManager, Seq[PartitionElement]]]) : Behavior[CounterEvent] = Behaviors.setup{context => 
+    def apply(expectedResponses : Int, promise : Promise[Map[ChannelManager, Seq[PartialDataSource]]]) : Behavior[CounterEvent] = Behaviors.setup{context => 
         new GetPartitionCounter(expectedResponses, promise, context).start()
     }
 
-class GetPartitionCounter private (expectedResponses : Int, promise : Promise[Map[ChannelManager, Seq[PartitionElement]]], context : ActorContext[GetPartitionCounter.CounterEvent]) {
+class GetPartitionCounter private (expectedResponses : Int, promise : Promise[Map[ChannelManager, Seq[PartialDataSource]]], context : ActorContext[GetPartitionCounter.CounterEvent]) {
     import GetPartitionCounter._
 
     /**
@@ -109,7 +109,7 @@ class GetPartitionCounter private (expectedResponses : Int, promise : Promise[Ma
     /**
      *  Handles receiving all subsequent responses from consumers until expectedResponses is reached
      */
-    private def getResponses(mapping : Map[ChannelManager, Seq[PartitionElement]]) : Behavior[GetPartitionCounter.CounterEvent] = Behaviors.receive { (context, message) =>
+    private def getResponses(mapping : Map[ChannelManager, Seq[PartialDataSource]]) : Behavior[GetPartitionCounter.CounterEvent] = Behaviors.receive { (context, message) =>
         message match {
             case Increment(channel, partitions) => 
                 val newMap = mapping + (channel -> (mapping.getOrElse(channel, Seq()) ++ partitions))
