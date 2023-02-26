@@ -40,6 +40,10 @@ class GroupByDataSourceTest extends UnitSpec with MockitoSugar {
     it should "convert to DataSource protobuf correctly" in {
         fail()
     }
+
+    it should "convert from protobuf correctly" in {
+        fail()
+    }
 }
 
 class PartialGroupByDataSourceTest extends UnitSpec with MockitoSugar {
