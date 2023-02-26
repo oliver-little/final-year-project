@@ -21,7 +21,7 @@ class SelectTransformationTest extends UnitSpec {
     }
 
     it should "convert to protobuf" in {
-        SelectTransformation(F("name"), FieldOperations.AddInt(V(1), V(1)).as("sum")).protobuf should be (table_model.Table.TableTransformation().withSelect(table_model.Select(Seq(F.fToNamed(F("name")).protobuf, FieldOperations.AddInt(V(1), V(1)).as("sum").protobuf))))
+        SelectTransformation(F("name"), FieldOperations.AddInt(V(1), V(1)).as("sum")).protobuf should be (table_model.TableTransformation().withSelect(table_model.Select(Seq(F.fToNamed(F("name")).protobuf, FieldOperations.AddInt(V(1), V(1)).as("sum").protobuf))))
     }
 
     it should "evaluate to a TableResult" in {
@@ -94,7 +94,7 @@ class FilterTransformationTest extends UnitSpec {
     it should "convert to protobuf" in {
         val filter = EqualityFieldComparison(F("name"), EqualsComparator.EQ,  V(1))
         
-        FilterTransformation(filter).protobuf should be (table_model.Table.TableTransformation().withFilter(filter.protobuf))
+        FilterTransformation(filter).protobuf should be (table_model.TableTransformation().withFilter(filter.protobuf))
     }
 
     it should "evaluate to a TableResult" in {
@@ -174,7 +174,7 @@ class AggregateTransformationTest extends UnitSpec {
     }
 
     it should "convert to protobuf" in {
-        AggregateTransformation(Avg(F("name"))).protobuf should be (table_model.Table.TableTransformation().withAggregate(table_model.Aggregate(Seq(Avg(F("name")).protobuf))))
+        AggregateTransformation(Avg(F("name"))).protobuf should be (table_model.TableTransformation().withAggregate(table_model.Aggregate(Seq(Avg(F("name")).protobuf))))
     }
 
     it should "evaluate to a partial TableResult" in {

@@ -43,7 +43,7 @@ class ValueSpec extends UnitSpec {
     // Instantiation
     "A Value" should "return the same value it is given" in {
         val value = V("a")
-        assert(value.resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value == "a")
+        value.resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be ("a")
     }
 
     // Protobufs
@@ -425,28 +425,24 @@ class ToDoubleSpec extends UnitSpec {
 
     it should "convert Ints" in {
         val result = ToDouble(V(1 : Int)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.asInstanceOf[DoubleValue]
-        result shouldBe a [DoubleValue]
         result.value should be (1)
         result.value shouldBe a [Double]
     }
 
     it should "convert Longs" in {
         val result = ToDouble(V(1 : Long)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.asInstanceOf[DoubleValue]
-        result shouldBe a [DoubleValue]
         result.value should be (1)
         result.value shouldBe a [Double]
     }
 
     it should "convert Floats" in {
         val result = ToDouble(V(1.01 : Float)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.asInstanceOf[DoubleValue]
-        result shouldBe a [DoubleValue]
         result.value should be (1.01 +- 0.01)
         result.value shouldBe a [Double] 
     }
 
     it should "convert Doubles" in {
         val result = ToDouble(V(1.01 : Double)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.asInstanceOf[DoubleValue]
-        result shouldBe a [DoubleValue]
         result.value should be (1.01 +- 0.01)
         result.value shouldBe a [Double]
     }

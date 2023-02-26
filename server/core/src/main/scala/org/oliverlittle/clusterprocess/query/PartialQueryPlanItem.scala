@@ -4,7 +4,7 @@ import org.oliverlittle.clusterprocess.worker_query
 import org.oliverlittle.clusterprocess.table_model
 import org.oliverlittle.clusterprocess.model.table._
 import org.oliverlittle.clusterprocess.model.table.sources._
-import org.oliverlittle.clusterprocess.connector.grpc.ChannelManager
+import org.oliverlittle.clusterprocess.connector.grpc.{ChannelManager, BaseChannelManager}
 
 import akka.actor.typed.{ActorRef, ActorSystem}
 import akka.actor.typed.scaladsl.AskPattern._
@@ -79,7 +79,7 @@ case class PartialGetPartition(dataSource : PartialDataSource, workerURLs : Seq[
     def execute(store: ActorRef[TableStore.TableStoreEvent])(using t : Timeout)(using system : ActorSystem[_])(using ec : ExecutionContext = system.executionContext) : Future[worker_query.ProcessQueryPlanItemResult] = 
         dataSource.getPartialData( // Get the partial data from the data source
             store,  // Requires the TableStore reference
-            workerURLs.map(address => ChannelManager(address.getHostName, address.getPort)) // Also requires references to the other channels to be able to collate data
+            workerURLs.map(address => BaseChannelManager(address.getHostName, address.getPort)) // Also requires references to the other channels to be able to collate data
         ).flatMap {
             // Once the partial data is ready, store the partition in the TableStore
             result => store.ask[StatusReply[Done]](ref => TableStore.AddPartition(dataSource, result, ref)) 

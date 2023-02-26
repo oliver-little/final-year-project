@@ -2,7 +2,7 @@ package org.oliverlittle.clusterprocess.connector.grpc
 
 import org.oliverlittle.clusterprocess.worker_query
 import org.oliverlittle.clusterprocess.model.table.Table
-import org.oliverlittle.clusterprocess.connector.grpc.ChannelManager
+import org.oliverlittle.clusterprocess.connector.grpc.{ChannelManager, BaseChannelManager}
 import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
 import org.oliverlittle.clusterprocess.connector.cassandra.node.CassandraNode
 import org.oliverlittle.clusterprocess.connector.cassandra.token._
@@ -24,7 +24,7 @@ class WorkerHandler(workerAddresses : Seq[(String, Int)]) {
     private val logger = LoggerFactory.getLogger(classOf[WorkerHandler].getName)
     
     // Setup channels and get nodes
-    val channels : Seq[ChannelManager] = workerAddresses.map((host, port) => ChannelManager(host, port))
+    val channels : Seq[ChannelManager] = workerAddresses.map((host, port) => BaseChannelManager(host, port))
 
     logger.info(f"Opened up channels with " + workerAddresses.length.toString + " workers.")
 

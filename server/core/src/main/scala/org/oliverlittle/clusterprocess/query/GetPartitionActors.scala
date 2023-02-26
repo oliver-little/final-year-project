@@ -3,6 +3,7 @@ package org.oliverlittle.clusterprocess.query
 import org.oliverlittle.clusterprocess.worker_query
 import org.oliverlittle.clusterprocess.table_model
 import org.oliverlittle.clusterprocess.model.table._
+import org.oliverlittle.clusterprocess.model.table.sources.PartialDataSource
 import org.oliverlittle.clusterprocess.model.table.field._
 import org.oliverlittle.clusterprocess.connector.grpc.{ChannelManager}
 

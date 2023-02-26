@@ -31,7 +31,7 @@ object TableStore {
     final case class PopCache(replyTo : ActorRef[Option[TableStoreData]]) extends TableStoreEvent
     final case class GetData(replyTo : ActorRef[TableStoreData]) extends TableStoreEvent
 
-    def apply() : Behavior[TableStoreEvent] = processResults(, LinearSeq().toSeq)
+    def apply() : Behavior[TableStoreEvent] = processResults(TableStoreData(HashMap(), HashMap(), HashMap()), LinearSeq().toSeq)
         
     def processResults(tableStoreData : TableStoreData, cache : Seq[TableStoreData]) : Behavior[TableStoreEvent] = Behaviors.receive{ (context, message) =>
         message match {

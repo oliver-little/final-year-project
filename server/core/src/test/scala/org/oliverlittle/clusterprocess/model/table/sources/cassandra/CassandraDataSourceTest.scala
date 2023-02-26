@@ -5,6 +5,7 @@ import org.oliverlittle.clusterprocess.connector.grpc.{WorkerHandler, ChannelMan
 import org.oliverlittle.clusterprocess.connector.cassandra.{CassandraConfig, CassandraConnector}
 import org.oliverlittle.clusterprocess.model.table.TableResultHeader
 import org.oliverlittle.clusterprocess.model.table.field._
+import org.oliverlittle.clusterprocess.model.table.sources.cassandra.PartialCassandraDataSource
 import org.oliverlittle.clusterprocess.connector.cassandra.token._
 import org.oliverlittle.clusterprocess.table_model
 
@@ -22,7 +23,7 @@ import com.datastax.oss.driver.api.core.CqlSession
 import java.util.{Arrays, Collections}
 
 object MockCassandraConfig:
-    def apply() : CassandraConfig = MockConfigHolder(mock[CassandraConnector])
+    def apply() : CassandraConfig = MockConfigHolder(mock(classOf[CassandraConnector]))
 
     case class MockConfigHolder(connector : CassandraConnector) extends CassandraConfig
 
@@ -41,22 +42,22 @@ class CassandraDataSourceTest extends UnitSpec with MockitoSugar {
         when(mockColumnMetadata.getType).thenReturn(DataTypes.BIGINT)
         when(mockColumnMetadata.getName).thenReturn(mockCqlIdentifier)
 
-        val table = CassandraDataSource.inferDataSourceFromCassandra(mockConnector, "test", "test_table")       
+        val table = CassandraDataSource.inferDataSourceFromCassandra("test", "test_table")(using mockConfig)       
 
-        table should be (CassandraDataSource(mockConnector, "test", "test_table", Seq(CassandraIntField("fieldName")), Seq("fieldName"), Seq("fieldName"), None))
+        table should be (CassandraDataSource(mockConfig, "test", "test_table", Seq(CassandraIntField("fieldName")), Seq("fieldName"), Seq("fieldName")))
     }
 
     it should "generate field names based on field definitions" in {
         val mockConfig = MockCassandraConfig()
         val mockConnector = mockConfig.connector
-        CassandraDataSource(mockConnector, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1"), None).names should be (Set("field1", "field2"))
+        CassandraDataSource(mockConfig, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1")).names should be (Set("field1", "field2"))
     }
 
     it should "throw an error if there are any duplicate field names" in {
         val mockConfig = MockCassandraConfig()
         val mockConnector = mockConfig.connector
         assertThrows[IllegalArgumentException] {
-            CassandraDataSource(mockConnector, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field1")), Seq("field1"), Seq("field1"), None)
+            CassandraDataSource(mockConfig, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field1")), Seq("field1"), Seq("field1"))
         }
     }
 
@@ -64,7 +65,7 @@ class CassandraDataSourceTest extends UnitSpec with MockitoSugar {
         val mockConfig = MockCassandraConfig()
         val mockConnector = mockConfig.connector
         assertThrows[IllegalArgumentException] {
-            CassandraDataSource(mockConnector, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq(), Seq(), None)
+            CassandraDataSource(mockConfig, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq(), Seq())
         }
     }
 
@@ -72,7 +73,7 @@ class CassandraDataSourceTest extends UnitSpec with MockitoSugar {
         val mockConfig = MockCassandraConfig()
         val mockConnector = mockConfig.connector
         assertThrows[IllegalArgumentException] {
-            CassandraDataSource(mockConnector, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq(), None)
+            CassandraDataSource(mockConfig, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq())
         }
     }
 
@@ -80,7 +81,7 @@ class CassandraDataSourceTest extends UnitSpec with MockitoSugar {
         val mockConfig = MockCassandraConfig()
         val mockConnector = mockConfig.connector
         assertThrows[IllegalArgumentException] {
-            CassandraDataSource(mockConnector, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field3"), Seq("field3"), None)
+            CassandraDataSource(mockConfig, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field3"), Seq("field3"))
         }
     }
 
@@ -88,70 +89,57 @@ class CassandraDataSourceTest extends UnitSpec with MockitoSugar {
         val mockConfig = MockCassandraConfig()
         val mockConnector = mockConfig.connector
         assertThrows[IllegalArgumentException] {
-            CassandraDataSource(mockConnector, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1", "field3"), None)
+            CassandraDataSource(mockConfig, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1", "field3"))
         }
     }
 
     it should "correctly calculate the clustering keys from the partition and primary key list" in {
         val mockConfig = MockCassandraConfig()
         val mockConnector = mockConfig.connector
-        CassandraDataSource(mockConnector, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1"), None).clusterKeys should be (Seq())
-        CassandraDataSource(mockConnector, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1", "field2"), None).clusterKeys should be (Seq("field2"))
-        CassandraDataSource(mockConnector, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1", "field2"), Seq("field1", "field2"), None).clusterKeys should be (Seq())
+        CassandraDataSource(mockConfig, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1")).clusterKeys should be (Seq())
+        CassandraDataSource(mockConfig, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1", "field2")).clusterKeys should be (Seq("field2"))
+        CassandraDataSource(mockConfig, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1", "field2"), Seq("field1", "field2")).clusterKeys should be (Seq())
     
     }
 
     it should "generate the correct TableResultHeader" in {
         val mockConfig = MockCassandraConfig()
         val mockConnector = mockConfig.connector
-        CassandraDataSource(mockConnector, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1"), None).getHeaders should be (TableResultHeader(Seq(CassandraIntField("field1"), CassandraBoolField("field2"))))
+        CassandraDataSource(mockConfig, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1")).getHeaders should be (TableResultHeader(Seq(CassandraIntField("field1"), CassandraBoolField("field2"))))
     }
 
     it should "convert to a DataSource protobuf correctly" in {
         val mockConfig = MockCassandraConfig()
         val mockConnector = mockConfig.connector
-        CassandraDataSource(mockConnector, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1"), None).protobuf should be (table_model.DataSource().withCassandra(table_model.CassandraDataSource("test", "test_table")))
-    }
-
-    it should "convert to a protobuf correctly" in {
-        val mockConfig = MockCassandraConfig()
-        val mockConnector = mockConfig.connector
-        CassandraDataSource(mockConnector, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1"), None).getCassandraProtobuf should be (Some(table_model.CassandraDataSource("test", "test_table")))
-    }
-
-    it should "convert to a CQL query" in {
-        val mockConfig = MockCassandraConfig()
-        val mockConnector = mockConfig.connector
-        CassandraDataSource(mockConnector, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1"), None).getDataQuery should be ("SELECT * FROM test.test_table;")
-        CassandraDataSource(mockConnector, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1"), Some(CassandraTokenRange(CassandraToken(0), CassandraToken(100)))).getDataQuery should be ("SELECT * FROM test.test_table WHERE token(field1) > 0 AND token(field1) <= 100;")
+        CassandraDataSource(mockConfig, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1")).protobuf should be (table_model.DataSource().withCassandra(table_model.CassandraDataSource("test", "test_table")))
     }
 
     it should "convert to a CQL create table statement" in {
         val mockConfig = MockCassandraConfig()
         val mockConnector = mockConfig.connector
-        CassandraDataSource(mockConnector, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1"), None).toCql() should be ("CREATE TABLE IF NOT EXISTS test.test_table (field1 bigint,field2 boolean, PRIMARY KEY (field1));")
-        CassandraDataSource(mockConnector, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1"), None).toCql(false) should be ("CREATE TABLE test.test_table (field1 bigint,field2 boolean, PRIMARY KEY (field1));")
-        CassandraDataSource(mockConnector, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1", "field2"), None).toCql() should be ("CREATE TABLE IF NOT EXISTS test.test_table (field1 bigint,field2 boolean, PRIMARY KEY (field1,field2));")
-        CassandraDataSource(mockConnector, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1", "field2"), Seq("field1", "field2"), None).toCql() should be ("CREATE TABLE IF NOT EXISTS test.test_table (field1 bigint,field2 boolean, PRIMARY KEY ((field1,field2)));")
+        CassandraDataSource(mockConfig, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1")).toCql() should be ("CREATE TABLE IF NOT EXISTS test.test_table (field1 bigint,field2 boolean, PRIMARY KEY (field1));")
+        CassandraDataSource(mockConfig, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1")).toCql(false) should be ("CREATE TABLE test.test_table (field1 bigint,field2 boolean, PRIMARY KEY (field1));")
+        CassandraDataSource(mockConfig, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1", "field2")).toCql() should be ("CREATE TABLE IF NOT EXISTS test.test_table (field1 bigint,field2 boolean, PRIMARY KEY (field1,field2));")
+        CassandraDataSource(mockConfig, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1", "field2"), Seq("field1", "field2")).toCql() should be ("CREATE TABLE IF NOT EXISTS test.test_table (field1 bigint,field2 boolean, PRIMARY KEY ((field1,field2)));")
     }
 }
 
 class PartialCassandraDataSourceTest extends UnitSpec with MockitoSugar {
 
-    val partition = CassandraPartition(CassandraTokenRange.fromLong(0, 1))
+    val partition = CassandraPartition(Seq(CassandraTokenRange.fromLong(0, 1)))
 
     "A PartialCassandraDataSource" should "convert to protobuf correctly" in {
         val mockConfig = MockCassandraConfig()
         val mockConnector = mockConfig.connector
-        val cassandraDataSource = CassandraDataSource(mockConnector, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1"), None)
-        PartialDataSource(cassandraDataSource, partition).protobuf should be (table_model.PartialDataSource().withCassandra(table_model.PartialCassandraDataSource("test", "test_table", partition.protobuf)))
+        val cassandraDataSource = CassandraDataSource(mockConfig, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1"))
+        PartialCassandraDataSource(cassandraDataSource, partition).protobuf should be (table_model.PartialDataSource().withCassandra(table_model.PartialCassandraDataSource("test", "test_table", partition.protobuf)))
     }
 
     it should "produce a number of data queries for each TokenRange" in {
         val mockConfig = MockCassandraConfig()
         val mockConnector = mockConfig.connector
-        val cassandraDataSource = CassandraDataSource(mockConnector, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1"), None)
-        PartialDataSource(cassandraDataSource, partition).getDataQueries should be (Seq("SELECT * FROM test.test_table WHERE, token(field1) > 0 AND token(field1) <= 1"))
+        val cassandraDataSource = CassandraDataSource(mockConfig, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1"))
+        PartialCassandraDataSource(cassandraDataSource, partition).getDataQueries should be (Seq("SELECT * FROM test.test_table WHERE, token(field1) > 0 AND token(field1) <= 1"))
     }
 }
 
