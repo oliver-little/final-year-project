@@ -155,8 +155,7 @@ class WorkerQueryServer(executionContext: ExecutionContext, store : ActorRef[Tab
             case worker_query.ModifyCacheRequest.CacheOperation.POP =>
                 WorkerQueryServer.logger.info("Cache popped")
                 store.ask[Option[TableStoreData]](ref => TableStore.PopCache(ref)).map {
-                    case Some(data) => data.protobuf
-                    case None => throw IllegalStateException("No cache data available to pop")
+                    case data => data.protobuf
                 }
             case _ => throw new IllegalArgumentException("Unknown cache operation provided")
         }

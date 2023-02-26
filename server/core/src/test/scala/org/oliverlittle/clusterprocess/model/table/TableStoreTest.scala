@@ -1,61 +1,235 @@
 package org.oliverlittle.clusterprocess.model.table
 
 import org.oliverlittle.clusterprocess.UnitSpec
+import org.oliverlittle.clusterprocess.model.table.{PartialTable, Table}
+import org.oliverlittle.clusterprocess.model.table.sources.{MockDataSource, MockPartialDataSource}
+
+import org.mockito.ArgumentCaptor
+import org.mockito.ArgumentMatchers.any
+import org.mockito.Mockito._
+import org.scalatestplus.mockito.MockitoSugar
+import akka.actor.testkit.typed.scaladsl.BehaviorTestKit
+import akka.actor.testkit.typed.scaladsl.TestInbox
+import akka.actor.typed._
+import akka.actor.typed.scaladsl._
+import akka.pattern.StatusReply
+import akka.Done
 
 class TableStoreTest extends UnitSpec {
     "A TableStore" should "add a PartialTable" in {
-        fail()
+        val testKit = BehaviorTestKit(TableStore())
+        val resultInbox = TestInbox[StatusReply[Done]]()
+        val table = PartialTable(MockPartialDataSource(), Seq())
+        testKit.run(TableStore.AddResult(table, table.parent.empty, resultInbox.ref))
+        resultInbox.expectMessage(StatusReply.ack())
+        
+        val dataInbox = TestInbox[TableStoreData]()
+        testKit.run(TableStore.GetData(dataInbox.ref))
+        val data = dataInbox.receiveMessage()
+        data.tables(table.parent)(table) should be (table.parent.empty)
     }
 
     it should "remove all instances of a Table" in {
-        fail()
+        // Setup and verify exists
+        val testKit = BehaviorTestKit(TableStore())
+        val resultInbox = TestInbox[StatusReply[Done]]()
+        val table = PartialTable(MockPartialDataSource(), Seq())
+        testKit.run(TableStore.AddResult(table, table.parent.empty, resultInbox.ref))
+        resultInbox.expectMessage(StatusReply.ack())
+        
+        val dataInbox = TestInbox[TableStoreData]()
+        testKit.run(TableStore.GetData(dataInbox.ref))
+        dataInbox.receiveMessage().tables(table.parent)(table) should be (table.parent.empty)
+
+        testKit.run(TableStore.DeleteResult(table.parent))
+
+        testKit.run(TableStore.GetData(dataInbox.ref))
+        dataInbox.receiveMessage().tables.contains(table.parent) should be (false)
     }
 
     it should "get a result for a PartialTable" in {
+        // Setup
+        val testKit = BehaviorTestKit(TableStore())
+        val resultInbox = TestInbox[StatusReply[Done]]()
+        val table = PartialTable(MockPartialDataSource(), Seq())
+        testKit.run(TableStore.AddResult(table, table.parent.empty, resultInbox.ref))
+        resultInbox.expectMessage(StatusReply.ack())
         
+        val dataInbox = TestInbox[Option[TableResult]]()
+        testKit.run(TableStore.GetResult(table, dataInbox.ref))
+        dataInbox.receiveMessage() should be (Some(table.parent.empty))
+
+        testKit.run(TableStore.GetResult(PartialTable(MockPartialDataSource(), Seq()), dataInbox.ref))
+        dataInbox.receiveMessage() should be (None)
     }
 
     it should "get all results for a Table" in {
-        fail()
+        // Setup
+        val testKit = BehaviorTestKit(TableStore())
+        val resultInbox = TestInbox[StatusReply[Done]]()
+        val dataSource = MockDataSource()
+        val table = PartialTable(MockPartialDataSource(dataSource), Seq())
+        testKit.run(TableStore.AddResult(table, table.parent.empty, resultInbox.ref))
+        resultInbox.expectMessage(StatusReply.ack())
+        val tableTwo = PartialTable(MockPartialDataSource(dataSource), Seq())
+        testKit.run(TableStore.AddResult(tableTwo, tableTwo.parent.empty, resultInbox.ref))
+        resultInbox.expectMessage(StatusReply.ack())
+        
+        val dataInbox = TestInbox[Seq[TableResult]]()
+        testKit.run(TableStore.GetAllResults(table.parent, dataInbox.ref))
+        dataInbox.receiveMessage().toSet should be (Set(table.parent.empty, tableTwo.parent.empty))
+
+        testKit.run(TableStore.GetAllResults(Table(MockDataSource(), Seq()), dataInbox.ref))
+        dataInbox.receiveMessage() should be (Seq())
     }
 
     it should "add a result for a PartialDataSource" in {
-        fail()
+        val testKit = BehaviorTestKit(TableStore())
+        val resultInbox = TestInbox[StatusReply[Done]]()
+        val dataSource = MockPartialDataSource()
+        testKit.run(TableStore.AddPartition(dataSource, dataSource.parent.empty, resultInbox.ref))
+        resultInbox.expectMessage(StatusReply.ack())
+
+        val dataInbox = TestInbox[TableStoreData]()
+        testKit.run(TableStore.GetData(dataInbox.ref))
+        dataInbox.receiveMessage().partitions(dataSource.parent)(dataSource) should be (dataSource.parent.empty)
     }
 
     it should "remove all partitions for a DataSource" in {
-        fail()
+        val testKit = BehaviorTestKit(TableStore())
+        val resultInbox = TestInbox[StatusReply[Done]]()
+        val dataSource = MockPartialDataSource()
+        testKit.run(TableStore.AddPartition(dataSource, dataSource.parent.empty, resultInbox.ref))
+        resultInbox.expectMessage(StatusReply.ack())
+
+        val dataInbox = TestInbox[TableStoreData]()
+        testKit.run(TableStore.GetData(dataInbox.ref))
+        dataInbox.receiveMessage().partitions(dataSource.parent) should be (Map(dataSource -> dataSource.parent.empty))
+
+        testKit.run(TableStore.DeletePartition(dataSource.parent))
+
+        testKit.run(TableStore.GetData(dataInbox.ref))
+        dataInbox.receiveMessage().partitions.contains(dataSource.parent) should be (false)
+
     }
 
     it should "get the result for a PartialDataSource" in {
-        fail()
+        val testKit = BehaviorTestKit(TableStore())
+        val resultInbox = TestInbox[StatusReply[Done]]()
+        val dataSource = MockPartialDataSource()
+        testKit.run(TableStore.AddPartition(dataSource, dataSource.parent.empty, resultInbox.ref))
+        resultInbox.expectMessage(StatusReply.ack())
+
+        val dataInbox = TestInbox[Option[TableResult]]()
+        testKit.run(TableStore.GetPartition(dataSource, dataInbox.ref))
+        dataInbox.receiveMessage() should be (Some(dataSource.parent.empty))
+
+        testKit.run(TableStore.GetPartition(MockPartialDataSource(), dataInbox.ref))
+        dataInbox.receiveMessage() should be (None)
     }
 
     it should "hash a PartialDataSource's dependencies" in {
-        fail()
+        // Setup
+        val testKit = BehaviorTestKit(TableStore())
+        val resultInbox = TestInbox[StatusReply[Done]]()
+        val dataSource = MockPartialDataSource()
+        val table = dataSource.parent.getDependencies(0)
+        val partialTable = PartialTable(table.dataSource.asInstanceOf[MockDataSource].partial, Seq())
+        testKit.run(TableStore.AddResult(partialTable, partialTable.parent.empty, resultInbox.ref))
+        resultInbox.expectMessage(StatusReply.ack())
+
+        testKit.run(TableStore.HashPartition(dataSource.parent, 2, resultInbox.ref))
+        resultInbox.expectMessage(StatusReply.ack())
+
+        val dataInbox = TestInbox[TableStoreData]()
+        testKit.run(TableStore.GetData(dataInbox.ref))
+        dataInbox.receiveMessage().hashes((partialTable.parent, 2)).toMap should be (dataSource.parent.partitionHash.toMap)
     }
 
     it should "get the hashed dependency" in {
-        fail()
+        // Setup
+        val testKit = BehaviorTestKit(TableStore())
+        val resultInbox = TestInbox[StatusReply[Done]]()
+        val dataSource = MockPartialDataSource()
+        val table = dataSource.parent.getDependencies(0)
+        val partialTable = PartialTable(table.dataSource.asInstanceOf[MockDataSource].partial, Seq())
+        testKit.run(TableStore.AddResult(partialTable, partialTable.parent.empty, resultInbox.ref))
+        resultInbox.expectMessage(StatusReply.ack())
+
+        testKit.run(TableStore.HashPartition(dataSource.parent, 2, resultInbox.ref))
+        resultInbox.expectMessage(StatusReply.ack())
+
+        val dataInbox = TestInbox[Option[TableResult]]()
+        testKit.run(TableStore.GetHash(table, 2, 0, dataInbox.ref))
+        dataInbox.receiveMessage() should be (Some(dataSource.parent.partitionHash(0)))
+
+        testKit.run(TableStore.GetHash(table, 3, 1, dataInbox.ref))
+        dataInbox.receiveMessage() should be (None)
     }
 
     it should "delete a hashed dependency" in {
-        fail()
+        // Setup
+        val testKit = BehaviorTestKit(TableStore())
+        val resultInbox = TestInbox[StatusReply[Done]]()
+        val dataSource = MockPartialDataSource()
+        val table = dataSource.parent.getDependencies(0)
+        val partialTable = PartialTable(table.dataSource.asInstanceOf[MockDataSource].partial, Seq())
+        testKit.run(TableStore.AddResult(partialTable, partialTable.parent.empty, resultInbox.ref))
+        resultInbox.expectMessage(StatusReply.ack())
+
+        testKit.run(TableStore.HashPartition(dataSource.parent, 2, resultInbox.ref))
+        resultInbox.expectMessage(StatusReply.ack())
+
+        val dataInbox = TestInbox[TableStoreData]()
+        testKit.run(TableStore.GetData(dataInbox.ref))
+        dataInbox.receiveMessage().hashes((partialTable.parent, 2)).toMap should be (dataSource.parent.partitionHash.toMap)
+
+        testKit.run(TableStore.DeleteHash(dataSource.parent, 2))
+
+        testKit.run(TableStore.GetData(dataInbox.ref))
+        dataInbox.receiveMessage().hashes.contains((partialTable.parent, 2)) should be (false)
     }
 
-    it should "push a copy of the TableStoreData to the cache stack" in {
-        fail()
-    }
+    it should "push a copy of the TableStoreData to the cache stack, and replace the TableStoreData when popped" in {
+        // Setup
+        val testKit = BehaviorTestKit(TableStore())
+        val resultInbox = TestInbox[StatusReply[Done]]()
+        val table = PartialTable(MockPartialDataSource(), Seq())
+        testKit.run(TableStore.AddResult(table, table.parent.empty, resultInbox.ref))
+        resultInbox.expectMessage(StatusReply.ack())
 
-    it should "replace the current TableStoreData with the top cache element" in {
-        fail()
-    } 
+        testKit.run(TableStore.PushCache())
+        testKit.run(TableStore.DeleteResult(table.parent))
+        
+        val dataInbox = TestInbox[TableStoreData]()
+        testKit.run(TableStore.GetData(dataInbox.ref))
+        dataInbox.receiveMessage().tables.contains(table.parent) should be (false)
+
+        testKit.run(TableStore.PopCache(dataInbox.ref))
+        dataInbox.receiveMessage().tables(table.parent)(table) should be (table.parent.empty)
+    }
 
     it should "clear the TableStoreData if there are no cache elements" in {
-        fail()
+         // Setup
+        val testKit = BehaviorTestKit(TableStore())
+        val resultInbox = TestInbox[StatusReply[Done]]()
+        val table = PartialTable(MockPartialDataSource(), Seq())
+        testKit.run(TableStore.AddResult(table, table.parent.empty, resultInbox.ref))
+        resultInbox.expectMessage(StatusReply.ack())
+        
+        val dataInbox = TestInbox[TableStoreData]()
+        testKit.run(TableStore.GetData(dataInbox.ref))
+        dataInbox.receiveMessage().tables(table.parent)(table) should be (table.parent.empty)
+
+        testKit.run(TableStore.PopCache(dataInbox.ref))
+        dataInbox.receiveMessage().tables.contains(table.parent) should be (false)
     }
 
     it should "get the TableStoreData" in {
-        fail()
+        val testKit = BehaviorTestKit(TableStore()) 
+        val dataInbox = TestInbox[TableStoreData]()
+        testKit.run(TableStore.GetData(dataInbox.ref))
+        val data = dataInbox.receiveMessage()
+        data should be (TableStoreData.empty)
     }
 }

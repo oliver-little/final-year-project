@@ -28,7 +28,7 @@ object TableStore {
     final case class DeleteHash(dataSource : DataSource, numPartitions : Int) extends TableStoreEvent
     // Push/Pop cache stack
     final case class PushCache() extends TableStoreEvent
-    final case class PopCache(replyTo : ActorRef[Option[TableStoreData]]) extends TableStoreEvent
+    final case class PopCache(replyTo : ActorRef[TableStoreData]) extends TableStoreEvent
     final case class GetData(replyTo : ActorRef[TableStoreData]) extends TableStoreEvent
 
     def apply() : Behavior[TableStoreEvent] = processResults(TableStoreData(HashMap(), HashMap(), HashMap()), LinearSeq().toSeq)
@@ -87,8 +87,8 @@ object TableStore {
 
             case PopCache(replyTo) =>
                 val head = cache.headOption.getOrElse(TableStoreData.empty)
-                replyTo ! Some(head)
-                processResults(head, cache.tail)
+                replyTo ! head
+                processResults(head, cache.drop(1))
 
             case GetData(replyTo) =>
                 replyTo ! tableStoreData

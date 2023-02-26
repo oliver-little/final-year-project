@@ -15,9 +15,14 @@ import akka.actor.typed.{ActorRef, ActorSystem}
 import akka.util.Timeout
 
 import scala.concurrent.{Future, ExecutionContext}
+import java.util.UUID
+import scala.collection.MapView
 
-class MockDataSource extends DataSource with MockitoSugar {
+case class MockDataSource(randomiser : UUID = UUID.randomUUID()) extends DependentDataSource with MockitoSugar {
     def getHeaders = TableResultHeader(Seq(BaseIntField("a")))
+
+    def empty : TableResult = EvaluatedTableResult(getHeaders, Seq())
+
     def getPartitions(workerHandler : WorkerHandler)(using ec : ExecutionContext) : Future[Seq[(Seq[ChannelManager], Seq[PartialDataSource])]] = 
         Future.successful(Seq((Seq(mock[ChannelManager]), Seq(MockPartialDataSource()))))
 
@@ -27,10 +32,17 @@ class MockDataSource extends DataSource with MockitoSugar {
     def isValid = true
 
     def protobuf = table_model.DataSource().withCassandra(table_model.CassandraDataSource(keyspace="test", table="test"))
+
+    lazy val partial = MockPartialDataSource(this)
+
+    override lazy val getDependencies: Seq[Table] = Seq(Table(MockDataSource(), Seq()))
+
+    val partitionHash : MapView[Int, TableResult] = Map(0 -> EvaluatedTableResult(getHeaders, Seq(Seq(Some(IntValue(1))))), 1 -> empty).view
+
+    def hashPartitionedData(result: TableResult, numPartitions: Int): MapView[Int, TableResult] = partitionHash
 }
 
-class MockPartialDataSource extends PartialDataSource with MockitoSugar {
-    val parent = MockDataSource()
+case class MockPartialDataSource(parent : MockDataSource = MockDataSource(), randomiser : UUID = UUID.randomUUID()) extends PartialDataSource with MockitoSugar {
 
     def protobuf: table_model.PartialDataSource = table_model.PartialDataSource().withCassandra(table_model.PartialCassandraDataSource("test", "test_table", Seq(table_model.CassandraTokenRange(0, 1))))
 
