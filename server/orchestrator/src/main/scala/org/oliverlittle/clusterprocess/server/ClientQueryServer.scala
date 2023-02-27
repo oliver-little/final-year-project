@@ -44,8 +44,9 @@ object ClientQueryServer {
     }
 }
 
-class ClientQueryServer( workerAddresses : Seq[(String, Int)])(using executionContext : ExecutionContext) {
-    private val server =  ServerBuilder.forPort(ClientQueryServer.port).addService(client_query.TableClientServiceGrpc.bindService(new ClientQueryServicer(new WorkerHandler(workerAddresses)), executionContext)).build.start
+class ClientQueryServer(workerAddresses : Seq[(String, Int)])(using executionContext : ExecutionContext) {
+    private val channels = workerAddresses.map((host, port) => BaseChannelManager(host, port))
+    private val server =  ServerBuilder.forPort(ClientQueryServer.port).addService(client_query.TableClientServiceGrpc.bindService(new ClientQueryServicer(new WorkerHandler(channels)), executionContext)).build.start
     ClientQueryServer.logger.info("gRPC Server started, listening on " + ClientQueryServer.port)
     
     sys.addShutdownHook({
