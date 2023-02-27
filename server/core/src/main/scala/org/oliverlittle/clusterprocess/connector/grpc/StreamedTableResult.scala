@@ -88,8 +88,6 @@ class StreamedTableResultCompiler(onComplete : Promise[Option[TableResult]]) ext
 
     override def onError(t: Throwable) : Unit = onComplete.failure(t)
 
-    override def onCompleted(): Unit = {
+    override def onCompleted(): Unit = 
         if header.isEmpty then onComplete.success(None)
-
-        onComplete.success(Some(EvaluatedTableResult(header.get, rows.toSeq)))
-    }
+        else onComplete.success(Some(EvaluatedTableResult(header.get, rows.toSeq)))
