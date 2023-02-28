@@ -66,12 +66,72 @@ class PrepareResultConsumerTest extends AsyncUnitSpec with MockitoSugar with Bef
     }
 }
 
-class PrepareResultCounterTest extends UnitSpec with MockitoSugar {
+class PrepareResultCounterTest extends AsyncUnitSpec with MockitoSugar with BeforeAndAfterAll {
+    // TestKit setup and teardown
+    val testKit : ActorTestKit = ActorTestKit()
+
+    override def beforeAll() : Unit = {
+        super.beforeAll()
+    }    
+
+    override def afterAll() : Unit = {
+        super.afterAll()
+        testKit.shutdownTestKit()
+    }
+
     "A PrepareResultCounter" should "complete the promise when the expected number of responses is reached" in {
-        fail()
+        val partialTable = PartialTable(MockPartialDataSource(), Seq())
+        val mockChannelManager = MockitoChannelManager()
+
+        val promise = Promise[Map[ChannelManager, Seq[PartialTable]]]()
+        val probe = testKit.createTestProbe()
+        val counter = testKit.spawn(PrepareResultCounter(2, promise))
+        counter ! PrepareResultCounter.Increment(mockChannelManager, Seq(partialTable, partialTable))
+        promise.future map {res =>
+            probe.expectTerminated(counter)
+            res should be (Map(mockChannelManager -> Seq(partialTable, partialTable)))
+        } 
     }
 
     it should "complete the promise when the expected number of responses is reached (and this number is 1)" in {
-        fail()
+        val partialTable = PartialTable(MockPartialDataSource(), Seq())
+        val mockChannelManager = MockitoChannelManager()
+
+        val promise = Promise[Map[ChannelManager, Seq[PartialTable]]]()
+        val probe = testKit.createTestProbe()
+        val counter = testKit.spawn(PrepareResultCounter(1, promise))
+        counter ! PrepareResultCounter.Increment(mockChannelManager, Seq(partialTable))
+        promise.future map {res =>
+            probe.expectTerminated(counter)
+            res should be (Map(mockChannelManager -> Seq(partialTable)))
+        } 
+    }
+
+    it should "wait for more responses if not all responses are received" in {
+        val partialTable = PartialTable(MockPartialDataSource(), Seq())
+        val mockChannelManager = MockitoChannelManager()
+        val mockChannelManagerTwo = MockitoChannelManager()
+
+        val promise = Promise[Map[ChannelManager, Seq[PartialTable]]]()
+        val probe = testKit.createTestProbe()
+        val counter = testKit.spawn(PrepareResultCounter(2, promise))
+        counter ! PrepareResultCounter.Increment(mockChannelManager, Seq(partialTable))
+        promise.isCompleted should be (false)
+        counter ! PrepareResultCounter.Increment(mockChannelManagerTwo, Seq(partialTable))
+        promise.future map {res =>
+            probe.expectTerminated(counter)
+            res should be (Map(mockChannelManager -> Seq(partialTable), mockChannelManagerTwo -> Seq(partialTable)))
+        } 
+    }
+
+    it should "forward error messages" in {
+        val promise = Promise[Map[ChannelManager, Seq[PartialTable]]]()
+        val probe = testKit.createTestProbe()
+        val counter = testKit.spawn(PrepareResultCounter(2, promise))
+        val error = new IllegalStateException("Test exception")
+        counter ! PrepareResultCounter.Error(error)
+        recoverToSucceededIf[IllegalStateException] {
+            promise.future
+        }
     }
 }
