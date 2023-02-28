@@ -1,4 +1,4 @@
-package org.oliverlittle.clusterprocess.worker
+package org.oliverlittle.clusterprocess.model.table
 
 import org.oliverlittle.clusterprocess.model.table.TableStore
 

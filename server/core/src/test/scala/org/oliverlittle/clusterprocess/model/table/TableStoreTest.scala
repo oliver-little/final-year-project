@@ -232,4 +232,20 @@ class TableStoreTest extends UnitSpec {
         val data = dataInbox.receiveMessage()
         data should be (TableStoreData.empty)
     }
+
+    it should "reset all data" in {
+        // Setup
+        val testKit = BehaviorTestKit(TableStore())
+        val resultInbox = TestInbox[StatusReply[Done]]()
+        val table = PartialTable(MockPartialDataSource(), Seq())
+        testKit.run(TableStore.AddResult(table, table.parent.empty, resultInbox.ref))
+        resultInbox.expectMessage(StatusReply.ack())
+        
+        val dataInbox = TestInbox[TableStoreData]()
+        testKit.run(TableStore.GetData(dataInbox.ref))
+        dataInbox.receiveMessage().tables(table.parent)(table) should be (table.parent.empty)
+
+        testKit.run(TableStore.GetData(dataInbox.ref))
+        dataInbox.receiveMessage() should be (TableStoreData.empty)
+    }
 }

@@ -6,7 +6,7 @@ import org.oliverlittle.clusterprocess.client_query
 import org.oliverlittle.clusterprocess.model.table.sources.DataSource
 import org.oliverlittle.clusterprocess.model.table.{Table, TableTransformation, TableResult}
 import org.oliverlittle.clusterprocess.scheduler.{WorkExecutionScheduler, ResultAssembler}
-import org.oliverlittle.clusterprocess.connector.grpc.{WorkerHandler, StreamedTableResult, DelayedTableResultRunnable}
+import org.oliverlittle.clusterprocess.connector.grpc.{WorkerHandler, BaseChannelManager, StreamedTableResult, DelayedTableResultRunnable}
 import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
 
 import io.grpc.{ServerBuilder, ManagedChannelBuilder}

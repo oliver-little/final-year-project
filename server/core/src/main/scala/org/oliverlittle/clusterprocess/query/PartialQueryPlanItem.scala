@@ -33,6 +33,7 @@ sealed trait PartialQueryPlanItem:
     val innerProtobuf : worker_query.QueryPlanItem.Item
     def protobuf : worker_query.QueryPlanItem = worker_query.QueryPlanItem(innerProtobuf)
 
+    // System implicit dependency required for ask patterns
     def execute(store: ActorRef[TableStore.TableStoreEvent])(using t : Timeout)(using system : ActorSystem[_])(using ec : ExecutionContext = system.executionContext) : Future[worker_query.ProcessQueryPlanItemResult]
 
 case class PartialPrepareResult(table : PartialTable) extends PartialQueryPlanItem:

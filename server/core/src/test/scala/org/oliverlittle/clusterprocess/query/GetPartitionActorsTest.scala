@@ -6,7 +6,7 @@ import org.oliverlittle.clusterprocess.{AsyncUnitSpec, UnitSpec}
 import org.oliverlittle.clusterprocess.model.table._
 import org.oliverlittle.clusterprocess.model.table.field._
 import org.oliverlittle.clusterprocess.model.table.sources._
-import org.oliverlittle.clusterprocess.connector.grpc.{ChannelManager, MockChannelManager}
+import org.oliverlittle.clusterprocess.connector.grpc.{ChannelManager, MockitoChannelManager}
 
 import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.any
@@ -57,7 +57,7 @@ class GetPartitionProducerTest extends UnitSpec {
 class GetPartitionConsumerTest extends UnitSpec with MockitoSugar {
     "A GetPartitionConsumer" should "compute work when it receives it" in {
         val partialDataSource = MockPartialDataSource()
-        val mockChannelManager = MockChannelManager()
+        val mockChannelManager = MockitoChannelManager()
         val one = (partialDataSource, worker_query.QueryPlanItem().withGetPartition(worker_query.GetPartition(Some(partialDataSource.protobuf), Seq())))
         
         val header = TableResultHeader(Seq(BaseStringField("a")))
@@ -75,7 +75,7 @@ class GetPartitionConsumerTest extends UnitSpec with MockitoSugar {
 
     it should "move to the next producer when the current one is empty" in {
         val partialDataSource = MockPartialDataSource()
-        val mockChannelManager = MockChannelManager()
+        val mockChannelManager = MockitoChannelManager()
         val one = (partialDataSource, worker_query.QueryPlanItem().withGetPartition(worker_query.GetPartition(Some(partialDataSource.protobuf), Seq())))
         val header = TableResultHeader(Seq(BaseStringField("a")))
         when(mockChannelManager.workerComputeServiceBlockingStub.processQueryPlanItem(one._2)).thenReturn(Seq(table_model.StreamedTableResult().withHeader(header.protobuf)).iterator)
@@ -95,7 +95,7 @@ class GetPartitionConsumerTest extends UnitSpec with MockitoSugar {
 
     it should "stop when all producers are empty" in {
         val partialDataSource = MockPartialDataSource()
-        val mockChannelManager = MockChannelManager()
+        val mockChannelManager = MockitoChannelManager()
         val one = (partialDataSource, worker_query.QueryPlanItem().withGetPartition(worker_query.GetPartition(Some(partialDataSource.protobuf), Seq())))
         val header = TableResultHeader(Seq(BaseStringField("a")))
         when(mockChannelManager.workerComputeServiceBlockingStub.processQueryPlanItem(one._2)).thenReturn(Seq(table_model.StreamedTableResult().withHeader(header.protobuf)).iterator)
@@ -117,7 +117,7 @@ class GetPartitionConsumerTest extends UnitSpec with MockitoSugar {
 
     it should "provide the partitions it is holding as a message when it completes" in {
         val partialDataSource = MockPartialDataSource()
-        val mockChannelManager = MockChannelManager()
+        val mockChannelManager = MockitoChannelManager()
         val one = (partialDataSource, worker_query.QueryPlanItem().withGetPartition(worker_query.GetPartition(Some(partialDataSource.protobuf), Seq())))
         
         val header = TableResultHeader(Seq(BaseStringField("a")))
@@ -142,7 +142,7 @@ class GetPartitionCounterTest extends AsyncUnitSpec with MockitoSugar {
         val promise = Promise[Map[ChannelManager, Seq[PartialDataSource]]]()
         val testKit = BehaviorTestKit(GetPartitionCounter(2, promise))
 
-        val mockChannelManager = MockChannelManager()
+        val mockChannelManager = MockitoChannelManager()
         val mockPartitions = Seq(MockPartialDataSource(), MockPartialDataSource())
         testKit.run(GetPartitionCounter.Increment(mockChannelManager, mockPartitions))
         testKit.isAlive should be (false)
@@ -156,7 +156,7 @@ class GetPartitionCounterTest extends AsyncUnitSpec with MockitoSugar {
         val promise = Promise[Map[ChannelManager, Seq[PartialDataSource]]]()
         val testKit = BehaviorTestKit(GetPartitionCounter(1, promise))
 
-        val mockChannelManager = MockChannelManager()
+        val mockChannelManager = MockitoChannelManager()
         val mockPartitions = Seq(MockPartialDataSource())
         testKit.run(GetPartitionCounter.Increment(mockChannelManager, mockPartitions))
         testKit.isAlive should be (false)
@@ -170,11 +170,11 @@ class GetPartitionCounterTest extends AsyncUnitSpec with MockitoSugar {
         val promise = Promise[Map[ChannelManager, Seq[PartialDataSource]]]()
         val testKit = BehaviorTestKit(GetPartitionCounter(2, promise))
 
-        val mockChannelManager = MockChannelManager()
+        val mockChannelManager = MockitoChannelManager()
         val mockPartitions = Seq(MockPartialDataSource())
         testKit.run(GetPartitionCounter.Increment(mockChannelManager, mockPartitions))
         testKit.isAlive should be (true)
-        val mockChannelManagerTwo = MockChannelManager()
+        val mockChannelManagerTwo = MockitoChannelManager()
         val mockPartitionsTwo = Seq(MockPartialDataSource())
         testKit.run(GetPartitionCounter.Increment(mockChannelManagerTwo, mockPartitionsTwo))
         testKit.isAlive should be (false)

@@ -3,7 +3,7 @@ package org.oliverlittle.clusterprocess.worker
 import org.oliverlittle.clusterprocess.worker_query
 import org.oliverlittle.clusterprocess.table_model
 import org.oliverlittle.clusterprocess.query.PartialQueryPlanItem
-import org.oliverlittle.clusterprocess.model.table.{Table, TableTransformation, TableStore, TableStoreData, TableResult}
+import org.oliverlittle.clusterprocess.model.table.{Table, TableTransformation, TableStore, TableStoreData, TableStoreSystem, TableResult}
 import org.oliverlittle.clusterprocess.connector.grpc.{StreamedTableResult, TableResultRunnable, DelayedTableResultRunnable}
 import org.oliverlittle.clusterprocess.connector.cassandra.{CassandraConfig, CassandraConnector}
 import org.oliverlittle.clusterprocess.dependency.SizeEstimator
@@ -24,8 +24,8 @@ import scala.concurrent.duration._
 import scala.util.{Success, Failure}
 
 
-// Globally set timeout for asks
-given timeout : Timeout = 3.seconds
+// Globally set timeout for asks (this might not be long enough, as some PartialQueryPlanItems will be long running jobs)
+given timeout : Timeout = 1.minute
 
 object WorkerQueryServer {
     private val logger = LoggerFactory.getLogger(classOf[WorkerQueryServer].getName)
@@ -154,7 +154,7 @@ class WorkerQueryServer(executionContext: ExecutionContext, store : ActorRef[Tab
                 store.ask[TableStoreData](ref => TableStore.GetData(ref)).map(_.protobuf)
             case worker_query.ModifyCacheRequest.CacheOperation.POP =>
                 WorkerQueryServer.logger.info("Cache popped")
-                store.ask[Option[TableStoreData]](ref => TableStore.PopCache(ref)).map {
+                store.ask[TableStoreData](ref => TableStore.PopCache(ref)).map {
                     case data => data.protobuf
                 }
             case _ => throw new IllegalArgumentException("Unknown cache operation provided")
