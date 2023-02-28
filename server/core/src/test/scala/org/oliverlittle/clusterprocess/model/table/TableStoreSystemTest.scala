@@ -6,13 +6,24 @@ import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito._
 import org.scalatestplus.mockito.MockitoSugar
+import akka.util.Timeout
+import akka.actor.typed.scaladsl.AskPattern._
+import akka.actor.typed.Behavior
 
-class TableStoreSystemTest extends UnitSpec with MockitoSugar {
+import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext
+
+given Timeout = 3.seconds
+
+class TableStoreSystemTest extends UnitSpec{
     "A TableStoreSystem" should "create a TableStore actor as a child" in {
-        fail()
-    }
+        val system = TableStoreSystem.create()
 
-    it should "return the TableStore in a response" in {
-        fail()
+        implicit val ec: ExecutionContext = system.executionContext
+        implicit val scheduler = system.scheduler
+
+        system.ask(ref => TableStoreSystem.GetStore(ref)) map {
+            store => store shouldBe a [Behavior[TableStore.TableStoreEvent]]
+        }
     }
 }
