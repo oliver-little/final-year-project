@@ -60,8 +60,7 @@ class GetPartitionConsumerTest extends UnitSpec with MockitoSugar {
         val mockChannelManager = MockitoChannelManager()
         val one = (partialDataSource, worker_query.QueryPlanItem().withGetPartition(worker_query.GetPartition(Some(partialDataSource.protobuf), Seq())))
         
-        val header = TableResultHeader(Seq(BaseStringField("a")))
-        when(mockChannelManager.workerComputeServiceBlockingStub.processQueryPlanItem(one._2)).thenReturn(Seq(table_model.StreamedTableResult().withHeader(header.protobuf)).iterator)
+        when(mockChannelManager.workerComputeServiceBlockingStub.processQueryPlanItem(one._2)).thenReturn(worker_query.ProcessQueryPlanItemResult(true))
 
         val inbox = TestInbox[GetPartitionProducer.ProducerEvent]()
         val counterInbox = TestInbox[GetPartitionCounter.CounterEvent]()
@@ -69,7 +68,6 @@ class GetPartitionConsumerTest extends UnitSpec with MockitoSugar {
         
         inbox.expectMessage(GetPartitionProducer.RequestWork(testKit.ref))
         testKit.run(GetPartitionConsumer.HasWork(one._1, one._2))
-        counterInbox.expectMessage(GetPartitionCounter.Increment(mockChannelManager, Seq(one._1)))
         inbox.expectMessage(GetPartitionProducer.RequestWork(testKit.ref))
     }
 
@@ -77,8 +75,7 @@ class GetPartitionConsumerTest extends UnitSpec with MockitoSugar {
         val partialDataSource = MockPartialDataSource()
         val mockChannelManager = MockitoChannelManager()
         val one = (partialDataSource, worker_query.QueryPlanItem().withGetPartition(worker_query.GetPartition(Some(partialDataSource.protobuf), Seq())))
-        val header = TableResultHeader(Seq(BaseStringField("a")))
-        when(mockChannelManager.workerComputeServiceBlockingStub.processQueryPlanItem(one._2)).thenReturn(Seq(table_model.StreamedTableResult().withHeader(header.protobuf)).iterator)
+        when(mockChannelManager.workerComputeServiceBlockingStub.processQueryPlanItem(one._2)).thenReturn(worker_query.ProcessQueryPlanItemResult(true))
 
         val inbox = TestInbox[GetPartitionProducer.ProducerEvent]()
         val inboxTwo = TestInbox[GetPartitionProducer.ProducerEvent]()
@@ -89,7 +86,6 @@ class GetPartitionConsumerTest extends UnitSpec with MockitoSugar {
         testKit.run(GetPartitionConsumer.NoWork())
         inboxTwo.expectMessage(GetPartitionProducer.RequestWork(testKit.ref))
         testKit.run(GetPartitionConsumer.HasWork(one._1, one._2))
-        counterInbox.expectMessage(GetPartitionCounter.Increment(mockChannelManager, Seq(one._1)))
         inboxTwo.expectMessage(GetPartitionProducer.RequestWork(testKit.ref))
     }
 
@@ -97,8 +93,7 @@ class GetPartitionConsumerTest extends UnitSpec with MockitoSugar {
         val partialDataSource = MockPartialDataSource()
         val mockChannelManager = MockitoChannelManager()
         val one = (partialDataSource, worker_query.QueryPlanItem().withGetPartition(worker_query.GetPartition(Some(partialDataSource.protobuf), Seq())))
-        val header = TableResultHeader(Seq(BaseStringField("a")))
-        when(mockChannelManager.workerComputeServiceBlockingStub.processQueryPlanItem(one._2)).thenReturn(Seq(table_model.StreamedTableResult().withHeader(header.protobuf)).iterator)
+        when(mockChannelManager.workerComputeServiceBlockingStub.processQueryPlanItem(one._2)).thenReturn(worker_query.ProcessQueryPlanItemResult(true))
 
         val inbox = TestInbox[GetPartitionProducer.ProducerEvent]()
         val inboxTwo = TestInbox[GetPartitionProducer.ProducerEvent]()
@@ -112,6 +107,7 @@ class GetPartitionConsumerTest extends UnitSpec with MockitoSugar {
         testKit.run(GetPartitionConsumer.NoWork())
         inboxThree.expectMessage(GetPartitionProducer.RequestWork(testKit.ref))
         testKit.run(GetPartitionConsumer.NoWork())
+        counterInbox.expectMessage(GetPartitionCounter.Increment(mockChannelManager, Seq()))
         testKit.isAlive should be (false)
     }
 
@@ -120,8 +116,7 @@ class GetPartitionConsumerTest extends UnitSpec with MockitoSugar {
         val mockChannelManager = MockitoChannelManager()
         val one = (partialDataSource, worker_query.QueryPlanItem().withGetPartition(worker_query.GetPartition(Some(partialDataSource.protobuf), Seq())))
         
-        val header = TableResultHeader(Seq(BaseStringField("a")))
-        when(mockChannelManager.workerComputeServiceBlockingStub.processQueryPlanItem(one._2)).thenReturn(Seq(table_model.StreamedTableResult().withHeader(header.protobuf)).iterator)
+        when(mockChannelManager.workerComputeServiceBlockingStub.processQueryPlanItem(one._2)).thenReturn(worker_query.ProcessQueryPlanItemResult(true))
 
         val inbox = TestInbox[GetPartitionProducer.ProducerEvent]()
         val counterInbox = TestInbox[GetPartitionCounter.CounterEvent]()
@@ -129,10 +124,27 @@ class GetPartitionConsumerTest extends UnitSpec with MockitoSugar {
         
         inbox.expectMessage(GetPartitionProducer.RequestWork(testKit.ref))
         testKit.run(GetPartitionConsumer.HasWork(one._1, one._2))
-        counterInbox.expectMessage(GetPartitionCounter.Increment(mockChannelManager, Seq(one._1)))
         inbox.expectMessage(GetPartitionProducer.RequestWork(testKit.ref))
         testKit.run(GetPartitionConsumer.NoWork())
         counterInbox.expectMessage(GetPartitionCounter.Increment(mockChannelManager, Seq(partialDataSource)))
+        testKit.isAlive should be (false)
+    }
+
+    it should "forward any errors received in responses" in {
+        val partialDataSource = MockPartialDataSource()
+        val mockChannelManager = MockitoChannelManager()
+        val one = (partialDataSource, worker_query.QueryPlanItem().withGetPartition(worker_query.GetPartition(Some(partialDataSource.protobuf), Seq())))
+        
+        val error = new IllegalStateException("Test exception")
+        when(mockChannelManager.workerComputeServiceBlockingStub.processQueryPlanItem(one._2)).thenThrow(error)
+
+        val inbox = TestInbox[GetPartitionProducer.ProducerEvent]()
+        val counterInbox = TestInbox[GetPartitionCounter.CounterEvent]()
+        val testKit = BehaviorTestKit(GetPartitionConsumer(mockChannelManager, Seq(inbox.ref), counterInbox.ref))
+        
+        inbox.expectMessage(GetPartitionProducer.RequestWork(testKit.ref))
+        testKit.run(GetPartitionConsumer.HasWork(one._1, one._2))
+        counterInbox.expectMessage(GetPartitionCounter.Error(error))
         testKit.isAlive should be (false)
     }
 }
@@ -182,6 +194,19 @@ class GetPartitionCounterTest extends AsyncUnitSpec with MockitoSugar {
         promise.future map { channelMap =>
             channelMap(mockChannelManager) should be (mockPartitions)
             channelMap(mockChannelManagerTwo) should be (mockPartitionsTwo)
+        }
+    }
+
+    it should "forward error messages" in {
+        val promise = Promise[Map[ChannelManager, Seq[PartialDataSource]]]()
+        val testKit = BehaviorTestKit(GetPartitionCounter(1, promise))
+
+        val error = new IllegalStateException("Test exception")
+        testKit.run(GetPartitionCounter.Error(error))
+        testKit.isAlive should be (false)
+
+        recoverToSucceededIf[IllegalStateException]{
+            promise.future
         }
     }
 }

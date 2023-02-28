@@ -13,13 +13,9 @@ import org.oliverlittle.clusterprocess.connector.cassandra.token._
 import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito._
-import org.scalatestplus.mockito.MockitoSugar
 import org.mockito.AdditionalAnswers
-import org.scalatest.BeforeAndAfterAll
 
-import io.grpc.inprocess.InProcessChannelBuilder
-import io.grpc.inprocess.InProcessServerBuilder
-import io.grpc.Server
+
 import com.datastax.oss.driver.api.core.metadata._
 import com.datastax.oss.driver.api.core.CqlSession
 import com.datastax.oss.driver.api.core.metadata.token._
@@ -31,10 +27,8 @@ import java.util.UUID
 import scala.jdk.CollectionConverters._
 import java.util.Optional
 
-
-class WorkerHandlerTest extends AsyncUnitSpec with MockitoSugar with BeforeAndAfterAll {
-
-    private class WorkerComputeServicePartialImpl() {
+class WorkerHandlerTest extends worker_query.WorkerComputeServiceTestServer(3) {
+    class WorkerComputeServicePartialImpl() {
         def getLocalCassandraNode(request : worker_query.GetLocalCassandraNodeRequest) : Future[worker_query.GetLocalCassandraNodeResult] = 
             Future.successful(worker_query.GetLocalCassandraNodeResult(Some(table_model.InetSocketAddress("localhost", 50002))))
 
@@ -45,25 +39,8 @@ class WorkerHandlerTest extends AsyncUnitSpec with MockitoSugar with BeforeAndAf
                     if request.table.get.transformations.size > 0 then 10 else 50
                 ))
     }
-    
-    var serviceImpl = mock[worker_query.WorkerComputeServiceGrpc.WorkerComputeService](AdditionalAnswers.delegatesTo(WorkerComputeServicePartialImpl()))
-    var server : Server = null
-    var channels : Seq[MockChannelManager] = null
-    var workerHandler : WorkerHandler = null
 
-
-    override protected def beforeAll(): Unit = {
-        // Create a server, add service, create clients
-        val serverName : String = InProcessServerBuilder.generateName()
-        server = InProcessServerBuilder.forName(serverName).directExecutor().addService(worker_query.WorkerComputeServiceGrpc.bindService(serviceImpl, ExecutionContext.global)).build().start()
-        channels = (1 to 3).map(_ => MockChannelManager(serverName))
-        workerHandler = WorkerHandler(channels)
-    }
-
-    override protected def afterAll(): Unit = {
-        channels.foreach(_.channel.shutdown())
-        server.shutdown()
-    }
+    val serviceImpl : worker_query.WorkerComputeServiceGrpc.WorkerComputeService = mock[worker_query.WorkerComputeServiceGrpc.WorkerComputeService](AdditionalAnswers.delegatesTo(WorkerComputeServicePartialImpl())) 
 
     "A WorkerHandler" should "calculate partitions for Cassandra" in {
         // Huge amounts of mocking because these are all dependencies of DataStax Java driver

@@ -1,7 +1,7 @@
 package org.oliverlittle.clusterprocess.query
 
 import org.oliverlittle.clusterprocess.worker_query
-import org.oliverlittle.clusterprocess.{AsyncUnitSpec, UnitSpec}
+import org.oliverlittle.clusterprocess.AsyncUnitSpec
 import org.oliverlittle.clusterprocess.model.table._
 import org.oliverlittle.clusterprocess.model.table.sources._
 import org.oliverlittle.clusterprocess.model.field.expressions._
