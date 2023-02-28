@@ -37,7 +37,6 @@ case class MockRootDataSource(randomiser : UUID = UUID.randomUUID()) extends Dat
 }
 
 case class MockPartialRootDataSource(parent : MockRootDataSource = MockRootDataSource(), randomiser : UUID = UUID.randomUUID()) extends PartialDataSource with MockitoSugar {
-
     val sampleResult : TableResult = EvaluatedTableResult(getHeaders, Seq(Seq(Some(IntValue(1))), Seq(Some(IntValue(2)))))
 
     def protobuf: table_model.PartialDataSource = table_model.PartialDataSource().withCassandra(table_model.PartialCassandraDataSource("test", "test_table", Seq(table_model.CassandraTokenRange(0, 1))))

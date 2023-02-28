@@ -79,21 +79,6 @@ class CassandraNodeTest extends UnitSpec with MockitoSugar {
         val node = CassandraNode(mockNode, mockRanges)
         val res = node.joinAndSplitForFullSize(100, 10, mockMap) 
         res should have length 1
-        print(mockRanges)
-        res should be (Seq(mockRanges.toSeq.head))
-    }
-
-    it should "perform a split and join correctly" in {
-        val mockNode = mock[Node]
-        val mockMap = mock[TokenMap]
-        val mockRanges = (1 to 10).map(i => mock[CassandraTokenRange]).toSet
-        mockRanges.foreach(r => when(r.percentageOfFullRing).thenReturn(0.01))
-        mockRanges.foreach(r => when(r.mergeWith(any[TokenMap](), any[CassandraTokenRange]())).thenReturn(r))
-
-        val node = CassandraNode(mockNode, mockRanges)
-        val res = node.joinAndSplitForFullSize(100, 10, mockMap) 
-        res should have length 1
-        print(mockRanges)
-        res should be (Seq(mockRanges.toSeq.head))
+        res should be (Seq(CassandraPartition(Seq(mockRanges.toSeq.head))))
     }
 }

@@ -139,7 +139,7 @@ class PartialCassandraDataSourceTest extends UnitSpec with MockitoSugar {
         val mockConfig = MockCassandraConfig()
         val mockConnector = mockConfig.connector
         val cassandraDataSource = CassandraDataSource(mockConfig, "test", "test_table", Seq(CassandraIntField("field1"), CassandraBoolField("field2")), Seq("field1"), Seq("field1"))
-        PartialCassandraDataSource(cassandraDataSource, partition).getDataQueries should be (Seq("SELECT * FROM test.test_table WHERE, token(field1) > 0 AND token(field1) <= 1"))
+        PartialCassandraDataSource(cassandraDataSource, partition).getDataQueries should be (Seq("SELECT * FROM test.test_table WHERE token(field1) > 0 AND token(field1) <= 1;"))
     }
 }
 

@@ -245,6 +245,8 @@ class TableStoreTest extends UnitSpec {
         testKit.run(TableStore.GetData(dataInbox.ref))
         dataInbox.receiveMessage().tables(table.parent)(table) should be (table.parent.empty)
 
+        testKit.run(TableStore.Reset())
+
         testKit.run(TableStore.GetData(dataInbox.ref))
         dataInbox.receiveMessage() should be (TableStoreData.empty)
     }
