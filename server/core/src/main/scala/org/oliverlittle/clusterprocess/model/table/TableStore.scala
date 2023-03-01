@@ -28,10 +28,12 @@ object TableStore {
     final case class DeleteHash(dataSource : DataSource, numPartitions : Int) extends TableStoreEvent
     // Push/Pop cache stack
     final case class PushCache() extends TableStoreEvent
-    final case class PopCache(replyTo : ActorRef[Option[TableStoreData]]) extends TableStoreEvent
+    final case class PopCache(replyTo : ActorRef[TableStoreData]) extends TableStoreEvent
     final case class GetData(replyTo : ActorRef[TableStoreData]) extends TableStoreEvent
+    // Reset state
+    final case class Reset() extends TableStoreEvent
 
-    def apply() : Behavior[TableStoreEvent] = processResults(TableStoreData(HashMap(), HashMap(), HashMap()), LinearSeq().toSeq)
+    def apply() : Behavior[TableStoreEvent] = empty
         
     def processResults(tableStoreData : TableStoreData, cache : Seq[TableStoreData]) : Behavior[TableStoreEvent] = Behaviors.receive{ (context, message) =>
         message match {
@@ -66,10 +68,14 @@ object TableStore {
 
             case HashPartition(dataSource, numPartitions, replyTo) =>
                 val dependencies = dataSource.getDependencies
-                dependencies.forall(dependency => tableStoreData.tables contains dependency)
-                val newMap = tableStoreData.hashes ++ dependencies.map(dependency => (dependency, numPartitions) -> dataSource.hashPartitionedData(tableStoreData.tables(dependency).values.reduce(_ ++ _), numPartitions))
-                replyTo ! StatusReply.ack()
-                processResults(tableStoreData.copy(hashes=newMap), cache)
+                if !dependencies.forall(dependency => tableStoreData.tables contains dependency)
+                then 
+                    replyTo ! StatusReply.Error(new IllegalArgumentException("Dependency information for dataSource is missing."))
+                    Behaviors.same
+                else
+                    val newMap = tableStoreData.hashes ++ dependencies.map(dependency => (dependency, numPartitions) -> dataSource.hashPartitionedData(tableStoreData.tables(dependency).values.reduce(_ ++ _), numPartitions))
+                    replyTo ! StatusReply.ack()
+                    processResults(tableStoreData.copy(hashes=newMap), cache)
 
             case GetHash(table, totalPartitions, partitionNum, replyTo) =>
                 // Attempt to get the partition
@@ -85,19 +91,24 @@ object TableStore {
             case PushCache() =>
                 processResults(tableStoreData, tableStoreData +: cache)
 
-            case PopCache(replyTo) if cache.isEmpty =>
-                replyTo ! None
-                Behaviors.same
             case PopCache(replyTo) =>
-                replyTo ! Some(cache.head)
-                processResults(cache.head, cache.tail)
+                val head = cache.headOption.getOrElse(TableStoreData.empty)
+                replyTo ! head
+                processResults(head, cache.drop(1))
 
             case GetData(replyTo) =>
                 replyTo ! tableStoreData
                 Behaviors.same
+
+            case Reset() => empty
         }
     }
+
+    def empty : Behavior[TableStoreEvent] = processResults(TableStoreData.empty, LinearSeq().toSeq)
 }
+
+object TableStoreData:
+    def empty = TableStoreData(HashMap(), HashMap(), HashMap())
 
 case class TableStoreData(tables : Map[Table, Map[PartialTable, TableResult]], partitions : Map[DataSource, Map[PartialDataSource, TableResult]], hashes : Map[(Table, Int), MapView[Int, TableResult]]):
     lazy val protobuf = worker_query.TableStoreData(

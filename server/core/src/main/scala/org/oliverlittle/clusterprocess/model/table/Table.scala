@@ -50,19 +50,25 @@ case class Table(dataSource : DataSource, transformations : Seq[TableTransformat
       * Returns whether this table can be evaluated with the provided data source and transformations
       */
     def isValid : Boolean = {
+        // Check data source is valid
         if !dataSource.isValid then return false
-        // This could possibly be simplified to just a forall check?
+        
+        // Check for aggregate transformations anywhere except the last element (as these will not be handled correctly)
+        // This is a temporary solution until Aggregates are converted to a DataSource
+        if transformations.size > 0 && transformations.init.collect { case a : AggregateTransformation => a }.size > 0 then return false
+
+        // Check all transformations are valid - this could possibly just be a forall check
         val itemHeaderPairs = transformations.iterator.zip(headerList)
         val validStages = itemHeaderPairs.takeWhile((item, header) => item.isValid(header))
         return validStages.size == transformations.size
     }
 
-    def assemble(partialResults : Iterable[TableResult]) : TableResult = transformations.last.assemblePartial(partialResults)
+    val assembler : Assembler = transformations.lastOption.map(_.assembler).getOrElse(DefaultAssembler())
 
 object PartialTable:
     def fromProtobuf(table : table_model.PartialTable) : PartialTable = PartialTable(PartialDataSource.fromProtobuf(table.dataSource.get), TableTransformation.fromProtobuf(table.transformations))
 
-case class PartialTable(dataSource : PartialDataSource, transformations : Seq[TableTransformation] = Seq()) extends PartitionElement:
+case class PartialTable(dataSource : PartialDataSource, transformations : Seq[TableTransformation] = Seq()):
     lazy val parent = Table(dataSource.parent, transformations)
     lazy val protobuf : table_model.PartialTable = table_model.PartialTable(Some(dataSource.protobuf), transformations.map(_.protobuf))
 

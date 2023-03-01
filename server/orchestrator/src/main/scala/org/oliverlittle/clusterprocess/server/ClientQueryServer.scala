@@ -4,9 +4,9 @@ import org.oliverlittle.clusterprocess.worker_query
 import org.oliverlittle.clusterprocess.table_model
 import org.oliverlittle.clusterprocess.client_query
 import org.oliverlittle.clusterprocess.model.table.sources.DataSource
-import org.oliverlittle.clusterprocess.model.table.{Table, TableTransformation, TableResult}
-import org.oliverlittle.clusterprocess.scheduler.{WorkExecutionScheduler, ResultAssembler}
-import org.oliverlittle.clusterprocess.connector.grpc.{WorkerHandler, StreamedTableResult, DelayedTableResultRunnable}
+import org.oliverlittle.clusterprocess.model.table._
+import org.oliverlittle.clusterprocess.scheduler.{WorkExecutionScheduler, ResultAssembler, CustomResultAssembler}
+import org.oliverlittle.clusterprocess.connector.grpc.{WorkerHandler, ChannelManager, BaseChannelManager, StreamedTableResult, DelayedTableResultRunnable}
 import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
 
 import io.grpc.{ServerBuilder, ManagedChannelBuilder}
@@ -39,13 +39,14 @@ object ClientQueryServer {
         val workerAddresses : Seq[(String, Int)] = 
             if numWorkers.isDefined then (0 to numWorkers.get.toInt).map(num => (nodeName.get + "-" + num.toString + "." + baseURL.get, workerPort))
             else ConfigFactory.load.getStringList("clusterprocess.test.worker_urls").asScala.toSeq.map((_, workerPort))
-        val server = new ClientQueryServer(workerAddresses)(using ExecutionContext.global)
+        val channels = workerAddresses.map((host, port) => BaseChannelManager(host, port))
+        val server = new ClientQueryServer(channels)(using ExecutionContext.global)
         server.blockUntilShutdown()
     }
 }
 
-class ClientQueryServer( workerAddresses : Seq[(String, Int)])(using executionContext : ExecutionContext) {
-    private val server =  ServerBuilder.forPort(ClientQueryServer.port).addService(client_query.TableClientServiceGrpc.bindService(new ClientQueryServicer(new WorkerHandler(workerAddresses)), executionContext)).build.start
+class ClientQueryServer(channels : Seq[ChannelManager])(using executionContext : ExecutionContext) {
+    private val server =  ServerBuilder.forPort(ClientQueryServer.port).addService(client_query.TableClientServiceGrpc.bindService(new ClientQueryServicer(new WorkerHandler(channels)), executionContext)).build.start
     ClientQueryServer.logger.info("gRPC Server started, listening on " + ClientQueryServer.port)
     
     sys.addShutdownHook({
@@ -87,7 +88,11 @@ class ClientQueryServer( workerAddresses : Seq[(String, Int)])(using executionCo
                             // Start execution, and add hook to send the data when finished
                             WorkExecutionScheduler.startExecution(calculateQueryPlan, workerHandler).flatMap { _ =>
                                     ClientQueryServer.logger.info("Result ready from workers, pulling data")
-                                    ResultAssembler.startExecution(table, workerHandler.channels, serverCallStreamObserver)          
+                                    table.assembler match {
+                                        case d : DefaultAssembler => ResultAssembler.startExecution(table, workerHandler.channels, serverCallStreamObserver)   
+                                        case a => CustomResultAssembler.startExecution(table, table.assembler, workerHandler.channels, serverCallStreamObserver)
+                                    }
+                                           
                             }.onComplete {queryPlanTry =>
                                 ClientQueryServer.logger.info("Completed query, cleaning up")
                                 // No matter what, pop from the cache to clean-up

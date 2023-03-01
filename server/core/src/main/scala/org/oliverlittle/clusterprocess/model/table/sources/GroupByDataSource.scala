@@ -23,7 +23,7 @@ case class GroupByDataSource(source : Table, uniqueFields : Seq[NamedFieldExpres
     // Same as in DataSource definition
     lazy val getHeaders : TableResultHeader = TableResultHeader(uniqueFields.map(_.outputTableField(source.outputHeaders)) ++ aggregates.flatMap(_.outputFinalTableFields(source.outputHeaders)))
     override val getDependencies: Seq[Table] = Seq(source)
-    lazy val isValid = source.isValid && Try{uniqueFields.map(_.resolve(source.outputHeaders))}.isSuccess
+    lazy val isValid = source.isValid && Try{uniqueFields.map(_.resolve(source.outputHeaders))}.isSuccess && Try{aggregates.map(_.outputPartialTableFields(source.outputHeaders))}.isSuccess
 
     def getPartitions(workerHandler : WorkerHandler)(using ec : ExecutionContext) : Future[Seq[(Seq[ChannelManager], Seq[PartialDataSource])]] = 
         // Get the number of partitions

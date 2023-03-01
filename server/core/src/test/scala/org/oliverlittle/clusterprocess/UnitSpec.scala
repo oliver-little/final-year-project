@@ -2,6 +2,6 @@ package org.oliverlittle.clusterprocess
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.{Inside, OptionValues, AppendedClues}
-import org.scalatest.matchers._
+import org.scalatest.matchers.should._
 
-abstract class UnitSpec extends AnyFlatSpec with Inside with OptionValues with AppendedClues with should.Matchers
+abstract class UnitSpec extends AnyFlatSpec with Inside with OptionValues with AppendedClues with Matchers

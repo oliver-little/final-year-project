@@ -2,9 +2,9 @@ package org.oliverlittle.clusterprocess.scheduler
 
 import org.oliverlittle.clusterprocess.table_model
 import org.oliverlittle.clusterprocess.worker_query
-import org.oliverlittle.clusterprocess.connector.grpc.ChannelManager
+import org.oliverlittle.clusterprocess.connector.grpc.{ChannelManager, TableResultRunnable, StreamedTableResult, StreamedTableResultCompiler}
 import org.oliverlittle.clusterprocess.connector.cassandra.token._
-import org.oliverlittle.clusterprocess.model.table.{Table, TableResult, LazyTableResult}
+import org.oliverlittle.clusterprocess.model.table.{Table, TableResult, LazyTableResult, Assembler}
 
 import io.grpc.stub.{StreamObserver, ServerCallStreamObserver}
 import io.grpc.protobuf.StatusProto
@@ -13,7 +13,8 @@ import akka.actor.typed.scaladsl.{Behaviors, LoggerOps, ActorContext}
 import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
 import akka.Done
 
-import scala.concurrent.Future
+import scala.concurrent.{Promise, Future}
+import scala.util.{Success, Failure}
 
 object ResultAssembler {
     sealed trait ResultEvent
@@ -32,8 +33,6 @@ object ResultAssembler {
         channels.map(_.workerComputeServiceStub.getTableData(query, MessageStreamedTableResultObserver(context.self)))
         new ResultAssembler(channels.size, output).getFirstHeader(0, Seq())
     }
-
-    
 }
 
 class ResultAssembler(expectedResponses : Int, output : ServerCallStreamObserver[table_model.StreamedTableResult]) {
@@ -110,3 +109,61 @@ class MessageStreamedTableResultObserver(replyTo : ActorRef[ResultAssembler.Resu
     override def onError(e : Throwable) : Unit = replyTo ! ResultAssembler.Error(e)
 
     override def onCompleted(): Unit = replyTo ! ResultAssembler.Complete()
+
+/**
+  * ResultAssembler definition for alternative Assembler classes, does not apply short circuiting - all results will be held in memory until they are ready
+  */
+object CustomResultAssembler {
+    sealed trait ResultEvent
+    case class Data(result : TableResult) extends ResultEvent
+    case class NoData() extends ResultEvent
+    case class Error(e : Throwable) extends ResultEvent
+
+
+    def startExecution(table : Table, assembler : Assembler, channels : Seq[ChannelManager], output : ServerCallStreamObserver[table_model.StreamedTableResult]) : Future[Boolean] = {
+        val promise = Promise[Boolean]()
+        val system = ActorSystem(CustomResultAssembler(table, assembler, channels, output, promise), "CustomResultAssembler")
+        return promise.future
+    }
+
+    def apply(table : Table, assembler : Assembler, channels : Seq[ChannelManager], output : ServerCallStreamObserver[table_model.StreamedTableResult], onComplete : Promise[Boolean]): Behavior[ResultEvent] = Behaviors.setup {context =>
+        val query = worker_query.GetTableDataRequest(Some(table.protobuf))
+        // Map results to self
+        channels.map {channel =>
+            val promise = Promise[Option[TableResult]]()
+            context.pipeToSelf(promise.future) {
+                case Success(Some(t)) => Data(t)
+                case Success(None) => NoData()
+                case Failure(e) => Error(e)
+            }
+
+            channel.workerComputeServiceStub.getTableData(query, StreamedTableResultCompiler(promise))
+        }
+        new CustomResultAssembler(channels.size, assembler, output, onComplete, context).getResults(0, Seq())
+    }
+}
+
+class CustomResultAssembler private (expectedResponses : Int, assembler : Assembler, output : ServerCallStreamObserver[table_model.StreamedTableResult], onComplete : Promise[Boolean], context : ActorContext[CustomResultAssembler.ResultEvent]) {
+    import CustomResultAssembler._
+
+    def getResults(numResponses : Int, results : Seq[TableResult]) : Behavior[ResultEvent] = Behaviors.receiveMessage {
+        case Data(result) if numResponses + 1 == expectedResponses =>
+            finished(results :+ result)
+            Behaviors.stopped
+        case NoData() if numResponses + 1 == expectedResponses =>
+            finished(results)
+            Behaviors.stopped
+        case Data(result) => getResults(numResponses + 1, results :+ result)
+        case NoData() => getResults(numResponses + 1, results)
+        case Error(e) => 
+            output.onError(e)
+            onComplete.failure(e)
+            Behaviors.stopped
+    }
+
+    def finished(results : Seq[TableResult]) : Unit = {
+        val finalResult = assembler.assemblePartial(results) 
+        val runnable = TableResultRunnable(output, StreamedTableResult.tableResultToIterator(finalResult), Some(onComplete))
+        runnable.run()
+    }
+}

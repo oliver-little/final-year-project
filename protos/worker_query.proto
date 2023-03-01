@@ -67,6 +67,7 @@ message QueryPlanItem {
         DeletePreparedHashes delete_prepared_hashes = 4;
         GetPartition get_partition = 5;
         DeletePartition delete_partition = 6;
+        Identity identity = 7;
     }
 }
 
@@ -95,6 +96,10 @@ message GetPartition {
 
 message DeletePartition {
     DataSource data_source = 1;
+}
+
+message Identity {
+    bool fail = 1;
 }
 
 // TableStore

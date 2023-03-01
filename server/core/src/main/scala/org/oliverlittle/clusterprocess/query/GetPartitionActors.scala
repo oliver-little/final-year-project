@@ -3,6 +3,7 @@ package org.oliverlittle.clusterprocess.query
 import org.oliverlittle.clusterprocess.worker_query
 import org.oliverlittle.clusterprocess.table_model
 import org.oliverlittle.clusterprocess.model.table._
+import org.oliverlittle.clusterprocess.model.table.sources.PartialDataSource
 import org.oliverlittle.clusterprocess.model.table.field._
 import org.oliverlittle.clusterprocess.connector.grpc.{ChannelManager}
 
@@ -11,6 +12,7 @@ import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
 
 import collection.mutable.{Buffer, ArrayBuffer}
 import scala.concurrent.Promise
+import scala.util.{Try, Success, Failure}
 
 trait GetPartitionProducerFactory:
     def createProducer(items : Seq[(PartialDataSource, worker_query.QueryPlanItem)]) : Behavior[GetPartitionProducer.ProducerEvent] 
@@ -68,10 +70,16 @@ class GetPartitionConsumer private (channel : ChannelManager, stub : worker_quer
                 computeWork(partitions, producers.tail)
             case HasWork(partition, request) => 
                 // Make the request to the worker node
-                val result = stub.processQueryPlanItem(request)
-                // Request more work from the producer
-                producers.head ! GetPartitionProducer.RequestWork(context.self)
-                computeWork(partition +: partitions, producers)
+                Try{stub.processQueryPlanItem(request)} match {
+                    case Success(_) =>
+                        // Request more work from the producer
+                        producers.head ! GetPartitionProducer.RequestWork(context.self)
+                        computeWork(partition +: partitions, producers)
+                    case Failure(e) =>
+                        counter ! GetPartitionCounter.Error(e)
+                        Behaviors.stopped
+                }
+                
         }
     }
 }
@@ -85,6 +93,7 @@ class BaseGetPartitionCounterFactory extends GetPartitionCounterFactory:
 object GetPartitionCounter:
     sealed trait CounterEvent
     case class Increment(channel : ChannelManager, partition : Seq[PartialDataSource]) extends CounterEvent
+    case class Error(e : Throwable) extends CounterEvent
 
     def apply(expectedResponses : Int, promise : Promise[Map[ChannelManager, Seq[PartialDataSource]]]) : Behavior[CounterEvent] = Behaviors.setup{context => 
         new GetPartitionCounter(expectedResponses, promise, context).start()
@@ -103,6 +112,9 @@ class GetPartitionCounter private (expectedResponses : Int, promise : Promise[Ma
                     promise.success(Map(channel -> partitions))
                     Behaviors.stopped
                 else getResponses(Map(channel -> partitions))
+            case Error(e) => 
+                promise.failure(e)
+                Behaviors.stopped
         }
     }
 
@@ -118,6 +130,9 @@ class GetPartitionCounter private (expectedResponses : Int, promise : Promise[Ma
                     Behaviors.stopped
                 else
                     getResponses(newMap)
+            case Error(e) => 
+                promise.failure(e)
+                Behaviors.stopped
         }
     }
 }

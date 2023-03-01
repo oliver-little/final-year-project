@@ -11,9 +11,24 @@ import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
 import akka.actor.typed.scaladsl.ActorContext
 
 import scala.collection.mutable.{Queue, ArrayBuffer}
-import scala.util.{Success, Failure}
+import scala.util.{Success, Failure, Try}
 import scala.concurrent.{Promise, Future, ExecutionContext}
 import akka.actor.typed.DispatcherSelector
+
+// Container actor to ensure clean shutdown when this item is completed
+object QueryPlanItemScheduler:
+    def apply(item : QueryPlanItem, workerHandler : WorkerHandler, onResult : ActorRef[QueryInstruction])  : Behavior[QueryInstruction] = Behaviors.setup{context => 
+        context.log.info("Starting item: " + item.getClass.getSimpleName)
+        item.execute(workerHandler, context.self)(using context)(using context.executionContext)
+        context.log.info("Finished setup, waiting for complete confirmation")
+        completed(onResult)
+    }
+
+    // Intercept the query instruction before forwarding it to stop everything we created in this Scheduler
+    def completed(onResult : ActorRef[QueryInstruction]) : Behavior[QueryInstruction] = Behaviors.receive{(context, message) => 
+        onResult ! message
+        Behaviors.stopped
+    }
 
 // Messages for Query Scheduler Actor System
 sealed trait QueryInstruction
@@ -25,7 +40,7 @@ case class InstructionError(exception : Throwable) extends QueryInstruction
 // High level objects representing query plan items
 sealed trait QueryPlanItem:
     /**
-      * Generate a set of Actors which will be spawned in order, in order to execute this instruction
+      * Execute an instruction
       *
       * @param workerHandler The list of workers
       * @param onResult An ActorRef to send the result (success or failure) to
@@ -42,29 +57,28 @@ sealed trait QueryPlanItem:
       */
     def usePartitions(partitions: Map[ChannelManager, Seq[PartialDataSource]]) : QueryPlanItem = this
 
+// Does nothing, just returns InstructionComplete
+case class IdentityQueryPlanItem() extends QueryPlanItem {
+    override def execute(workerHandler : WorkerHandler, onResult : ActorRef[QueryInstruction])(using context : ActorContext[QueryInstruction])(using ec : ExecutionContext) : Unit =
+        onResult ! InstructionComplete()
+}
+
 // Calculates a Table from a set of partial tables
 case class PrepareResult(table : Table) extends QueryPlanItem:
     override def execute(
         workerHandler : WorkerHandler, 
         onResult : ActorRef[QueryInstruction])
     (using context : ActorContext[QueryInstruction])
-    (using ec : ExecutionContext) = executeWithFactories(workerHandler, onResult)
-
-    def executeWithFactories(
-        workerHandler : WorkerHandler, 
-        onResult : ActorRef[QueryInstruction])
-    (using context : ActorContext[QueryInstruction])
-    (using ec : ExecutionContext)
-    (using consumerFactory : PrepareResultConsumerFactory = BasePrepareResultConsumerFactory())
-    (using counterFactory : PrepareResultCounterFactory = BasePrepareResultCounterFactory()) : Unit = {
+    (using ec : ExecutionContext) = 
         // Discover actual partitions here, then call usePartitions
-        throw new IllegalStateException("No partitions provided, cannot execute PrepareResult")
-    }
+        onResult ! InstructionError(new IllegalStateException("No partitions provided, cannot execute PrepareResult"))
 
     override def usePartitions(partitions: Map[ChannelManager, Seq[PartialDataSource]]): QueryPlanItem = PrepareResultWithPartitions(table, partitions)
 
 // Modified form of PrepareResult to execute differently using an existing set of partitions
-case class PrepareResultWithPartitions(table : Table, partitions : Map[ChannelManager, Seq[PartialDataSource]]) extends QueryPlanItem:
+case class PrepareResultWithPartitions(table : Table, partitions : Map[ChannelManager, Seq[PartialDataSource]])
+    (using consumerFactory : PrepareResultConsumerFactory = BasePrepareResultConsumerFactory()) 
+    (using counterFactory : PrepareResultCounterFactory = BasePrepareResultCounterFactory()) extends QueryPlanItem:
     lazy val queries = partitions.map((channel, dataSources) => 
             (channel, 
             dataSources.map(ds =>
@@ -82,15 +96,7 @@ case class PrepareResultWithPartitions(table : Table, partitions : Map[ChannelMa
         workerHandler : WorkerHandler, 
         onResult : ActorRef[QueryInstruction])
     (using context : ActorContext[QueryInstruction])
-    (using ec : ExecutionContext) = executeWithFactories(workerHandler, onResult)
-
-    def executeWithFactories(
-        workerHandler : WorkerHandler, 
-        onResult : ActorRef[QueryInstruction])
-    (using context : ActorContext[QueryInstruction])
-    (using ec : ExecutionContext) 
-    (using consumerFactory : PrepareResultConsumerFactory = BasePrepareResultConsumerFactory())
-    (using counterFactory : PrepareResultCounterFactory = BasePrepareResultCounterFactory()) : Unit = {
+    (using ec : ExecutionContext) = {
         val promise = Promise[Map[ChannelManager, Seq[PartialTable]]]()
         val counter = context.spawn(counterFactory.createCounter(partitionsCount, promise), "counter")
         promise.future.onComplete {
@@ -171,7 +177,10 @@ object GetPartitionExecutor {
         (using consumerFactory : GetPartitionConsumerFactory)
         (using counterFactory : GetPartitionCounterFactory) : Behavior[GetPartitionExecutorEvent] = Behaviors.setup { context =>
         
-        implicit val executionContext : ExecutionContext = context.system.dispatchers.lookup(DispatcherSelector.fromConfig("cluster-process-dispatcher"))    
+        implicit val executionContext : ExecutionContext = Try{context.system.dispatchers.lookup(DispatcherSelector.fromConfig("cluster-process-dispatcher"))} match {
+            case Success(dispatcher) => dispatcher
+            case Failure(e) => context.executionContext
+        }
 
         new GetPartitionExecutor(dataSource, workerHandler, onResult, context).start()  
     }
