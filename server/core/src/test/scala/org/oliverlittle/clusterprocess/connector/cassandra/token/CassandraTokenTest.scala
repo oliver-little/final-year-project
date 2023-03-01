@@ -1,6 +1,6 @@
 package org.oliverlittle.clusterprocess.connector.cassandra.token
 
-import org.oliverlittle.clusterprocess.data_source
+import org.oliverlittle.clusterprocess.table_model
 import org.oliverlittle.clusterprocess.UnitSpec
 
 import com.datastax.oss.driver.api.core.metadata.token._
@@ -33,7 +33,7 @@ class CassandraTokenRangeTest extends UnitSpec with MockitoSugar {
     }
 
     it should "convert to a protobuf correctly" in {
-        CassandraTokenRange(CassandraToken(0), CassandraToken(100)).protobuf should be (data_source.CassandraTokenRange(start=0, end=100))
+        CassandraTokenRange(CassandraToken(0), CassandraToken(100)).protobuf should be (table_model.CassandraTokenRange(start=0, end=100))
     }
 
     it should "convert to a CQL query string correctly" in {

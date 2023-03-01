@@ -48,6 +48,8 @@ sealed trait AggregateExpression:
       */
     def outputPartialTableFields(header : TableResultHeader) : Seq[TableField]
 
+    def outputFinalTableFields(header : TableResultHeader) : Seq[TableField] = outputTableFields(TableResultHeader(outputPartialTableFields(header)))
+
     /**
      * Partially resolves this aggregate expression, ready to be combined at the orchestrator or host worker.
      * 
@@ -60,6 +62,10 @@ sealed trait AggregateExpression:
      * Should output the same fields as outputTableFields
      */
     def assemble(header : TableResultHeader)(items : Iterable[Seq[Option[TableValue]]]) : Seq[Option[TableValue]]
+
+    def resolveToFinal(header : TableResultHeader)(items : Iterable[Seq[Option[TableValue]]]) : Seq[Option[TableValue]] = {
+        return assemble(TableResultHeader(outputPartialTableFields(header)))(Seq(resolve(header)(items)))
+    }
 
 case class Max(namedExpression : NamedFieldExpression) extends AggregateExpression:
     val protobufAggregateType = table_model.AggregateExpression.AggregateType.MAX

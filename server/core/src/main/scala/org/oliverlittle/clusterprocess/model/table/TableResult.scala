@@ -73,4 +73,6 @@ case class TableResultHeader(fields : Seq[TableField]) {
     val headerMap : Map[String, TableField] = fields.map(header => header.name -> header).toMap
     
     lazy val protobuf : table_model.TableResultHeader = table_model.TableResultHeader(fields = fields.map(_.protobuf))
+
+    def empty : EvaluatedTableResult = EvaluatedTableResult(this, Seq())
 }

@@ -5,10 +5,22 @@ import org.oliverlittle.clusterprocess.connector.PingLatency
 import com.datastax.oss.driver.api.core.CqlSession
 import com.datastax.oss.driver.api.core.metadata.schema.TableMetadata
 import com.datastax.oss.driver.api.core.auth.{AuthProvider, ProgrammaticPlainTextAuthProvider}
-import java.util.logging.Logger
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+
 import java.net.InetSocketAddress
 import scala.io.Source.fromFile
 import scala.util.Properties.{envOrElse, envOrNone}
+
+object CassandraConfig:
+    lazy val connector = CassandraConnector()
+
+    def apply() : CassandraConfig = ConfigHolder(connector)
+
+    case class ConfigHolder(connector : CassandraConnector) extends CassandraConfig
+
+trait CassandraConfig extends Selectable:
+    def connector : CassandraConnector
 
 object CassandraConnector:
     def getHost(port : Int) : String = {
@@ -35,7 +47,7 @@ case class CassandraConnector(
     passwordFile : Option[String] = envOrNone("CASSANDRA_PASSWORD_FILE"),
         ) {
 
-    private val logger = Logger.getLogger("CassandraConnector")
+    private val logger = LoggerFactory.getLogger("CassandraConnector")
 
     // Get username and password from file if they exist
     var username : Option[String] = usernameFile.flatMap(f => Some(fromFile(f).getLines.mkString))

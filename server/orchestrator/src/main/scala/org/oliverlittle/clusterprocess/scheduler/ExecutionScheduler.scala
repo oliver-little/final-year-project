@@ -1,85 +1,75 @@
 package org.oliverlittle.clusterprocess.scheduler
 
-import org.oliverlittle.clusterprocess.connector.grpc.ChannelManager
-import org.oliverlittle.clusterprocess.connector.cassandra.token._
-import org.oliverlittle.clusterprocess.model.table.{Table, TableResult, LazyTableResult}
 import org.oliverlittle.clusterprocess.worker_query
+import org.oliverlittle.clusterprocess.connector.grpc.{ChannelManager, WorkerHandler}
+import org.oliverlittle.clusterprocess.connector.cassandra.token._
+import org.oliverlittle.clusterprocess.model.table.{Table, TableResult, LazyTableResult, PartialTable}
+import org.oliverlittle.clusterprocess.query._
 
 import akka.actor.typed.scaladsl.{Behaviors, LoggerOps, ActorContext}
 import akka.actor.typed.{ActorRef, ActorSystem, Behavior, Terminated}
+import akka.actor.typed.DispatcherSelector
+import scala.concurrent.{Future, Promise, ExecutionContext}
 
 object WorkExecutionScheduler {
-    sealed trait AssemblerEvent
-    final case class SendResult(result : TableResult) extends AssemblerEvent
-
-    final case class ResultData(result : Option[TableResult])
-
-    def startFromData(channelTokenRangeMap : Seq[(Seq[ChannelManager], Seq[CassandraTokenRange])], table : Table, resultCallback : TableResult => Unit) : Unit = {
-        val dataSourceProtobuf = table.dataSource.getCassandraProtobuf.get
-        val tableProtobuf = table.protobuf
-
-        val parsedItems = channelTokenRangeMap.map((channels : Seq[ChannelManager], tokenRanges : Seq[CassandraTokenRange]) => 
-            (
-                channels.map(manager => worker_query.WorkerComputeServiceGrpc.blockingStub(manager.channel)), 
-                tokenRanges.map(tokenRange => worker_query.ComputePartialResultCassandraRequest(table=Some(tableProtobuf), dataSource=Some(dataSourceProtobuf), tokenRange=Some(tokenRange.protobuf)))
-            )
-        )
-
-        startExecution(parsedItems, table.transformations.last.assemblePartial, resultCallback : TableResult => Unit)
-    }
-
-    def startExecution(items : Seq[(Seq[worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub], Seq[worker_query.ComputePartialResultCassandraRequest])], assembler : Iterable[TableResult] => TableResult, resultCallback : TableResult => Unit) : Unit = {
-        val system = ActorSystem(WorkExecutionScheduler(items, assembler, resultCallback), "WorkExecutionScheduler")
+    def startExecution(queryPlan : Seq[QueryPlanItem], workerHandler : WorkerHandler) : Future[Option[Map[ChannelManager, Seq[PartialTable]]]] = {
+        val promise = Promise[Option[Map[ChannelManager, Seq[PartialTable]]]]()
+        val system = ActorSystem(WorkExecutionScheduler(queryPlan, workerHandler, promise), "WorkExecutionScheduler")
+        return promise.future
     }
 
     def apply(
-        items : Seq[(Seq[worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub], Seq[worker_query.ComputePartialResultCassandraRequest])], 
-        assembler : Iterable[TableResult] => TableResult, 
-        resultCallback : TableResult => Unit,
-        producerFactory : WorkProducerFactory = BaseWorkProducerFactory(), 
-        consumerFactory : WorkConsumerFactory = BaseWorkConsumerFactory()
-    ): Behavior[AssemblerEvent] = Behaviors.setup {context =>
-        // For each sequence of requests, create a producer (with a unique identifier)
-        val mappedProducers = items.zipWithIndex.map((pair, index) => pair._1 -> context.spawn(producerFactory.createProducer(pair._2), "producer" + index.toString))
-        val producers = mappedProducers.map(_._2)
-        // For each possible stub, and it's matched producer, create a consumer and give it a list of producers to consume from
-        val consumers = mappedProducers.zipWithIndex.map((pair, mainIndex) => pair._1.zipWithIndex.map((stub, index) => context.spawn(consumerFactory.createConsumer(stub, pair._2 +: producers.filter(_ == pair._2), context.self), "consumer" + mainIndex.toString + index.toString))).flatten
-        new WorkExecutionScheduler(items.map(_._2.size).sum, resultCallback, assembler, context).getFirstData()
-    }
+        queryPlan : Seq[QueryPlanItem], 
+        workerHandler : WorkerHandler,
+        promise : Promise[Option[Map[ChannelManager, Seq[PartialTable]]]]
+    ): Behavior[QueryInstruction] = Behaviors.setup{context => new WorkExecutionScheduler(workerHandler, promise, context).start(queryPlan)}
 }
 
-class WorkExecutionScheduler private (expectedResponses : Int, resultCallback : TableResult => Unit, assembler : Iterable[TableResult] => TableResult, context : ActorContext[WorkExecutionScheduler.AssemblerEvent]) {
+class WorkExecutionScheduler(workerHandler : WorkerHandler, promise : Promise[Option[Map[ChannelManager, Seq[PartialTable]]]], context : ActorContext[QueryInstruction]) {
     import WorkExecutionScheduler._
 
-    /**
-     * Handles receiving the first response from any consumer
-     */
-    private def getFirstData() : Behavior[WorkExecutionScheduler.AssemblerEvent] = Behaviors.receiveMessage {
-        case SendResult(newResult) => 
-            if expectedResponses == 1 then 
-                onFinished(newResult)
-            else assembleData(Seq(newResult), 1)
+    implicit val executionContext : ExecutionContext = context.system.dispatchers.lookup(DispatcherSelector.sameAsParent())
+
+    def start(queryPlan : Seq[QueryPlanItem]) : Behavior[QueryInstruction] = Behaviors.setup{context =>
+        context.log.info("Starting execution")
+        startItemScheduler(queryPlan.head, 0, workerHandler, context.self)
+        receiveComplete(queryPlan.tail, 1)
     }
 
-    /**
-     *  Handles receiving all subsequent responses from consumers until expectedResponses is reached
-     */
-    private def assembleData(currentData : Seq[TableResult], numResponses : Int) : Behavior[WorkExecutionScheduler.AssemblerEvent] = Behaviors.receiveMessage {
-        case SendResult(newResult) => 
-            if numResponses + 1 == expectedResponses then
-                onFinished(assembler(currentData :+ newResult))
-            else
-                context.log.info("Got " + (numResponses + 1).toString + " responses, need " + expectedResponses.toString + " responses")
-                assembleData(currentData :+ newResult, numResponses + 1)
+    def receiveComplete(queryPlan : Seq[QueryPlanItem], instructionCounter : Int) : Behavior[QueryInstruction] = Behaviors.receive { (context, message) =>
+        message match {
+            case InstructionError(e) => 
+                promise.failure(e)
+                context.system.terminate()
+                Behaviors.stopped
+
+            case InstructionComplete() if queryPlan.size == 0 => 
+                promise.success(None)
+                context.system.terminate()
+                Behaviors.stopped
+            case InstructionCompleteWithDataSourceOutput(partitions) if queryPlan.size == 0 =>
+                promise.success(None)
+                context.system.terminate()
+                Behaviors.stopped
+            case InstructionCompleteWithTableOutput(partitions) if queryPlan.size == 0 =>
+                promise.success(Some(partitions))
+                context.system.terminate()
+                Behaviors.stopped
+            
+            case InstructionComplete() => 
+                startItemScheduler(queryPlan.head, instructionCounter, workerHandler, context.self)
+                receiveComplete(queryPlan.tail, instructionCounter + 1)
+            case InstructionCompleteWithDataSourceOutput(partitions) =>
+                startItemScheduler(queryPlan.head.usePartitions(partitions), instructionCounter, workerHandler, context.self)
+                receiveComplete(queryPlan.tail, instructionCounter + 1)
+            case InstructionCompleteWithTableOutput(partitions) =>
+                startItemScheduler(queryPlan.head, instructionCounter, workerHandler, context.self)
+                receiveComplete(queryPlan.tail, instructionCounter + 1)
+        }
     }
 
-    /**
-     * Handles system shutdown - calls the callback, terminates the system, and stops this Actor 
-     */
-    private def onFinished(result : TableResult) : Behavior[WorkExecutionScheduler.AssemblerEvent] = {
-        context.log.info("Received all responses, calling callback function.")
-        resultCallback(result)
-        context.system.terminate()
-        Behaviors.stopped
-    }
+    def startItemScheduler(item : QueryPlanItem, index : Int, workerHandler : WorkerHandler, replyTo : ActorRef[QueryInstruction]) : ActorRef[QueryInstruction] = context.spawn(
+        QueryPlanItemScheduler(item, workerHandler, replyTo), 
+        "QueryPlanItemScheduler" + index.toString
+    )
 }

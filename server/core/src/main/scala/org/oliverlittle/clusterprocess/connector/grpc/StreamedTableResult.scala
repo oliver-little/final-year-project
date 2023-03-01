@@ -1,11 +1,15 @@
 package org.oliverlittle.clusterprocess.connector.grpc
 
 import org.oliverlittle.clusterprocess.table_model
-import org.oliverlittle.clusterprocess.model.table.TableResult
+import org.oliverlittle.clusterprocess.model.table._
+import org.oliverlittle.clusterprocess.model.table.field.TableValue
 
-import io.grpc.stub.ServerCallStreamObserver
+import io.grpc.stub.{StreamObserver, ServerCallStreamObserver}
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 
-import java.util.logging.Logger
+import collection.mutable.{Buffer, ArrayBuffer}
+import scala.concurrent.Promise
 
 object StreamedTableResult:
     def tableResultToIterator(tableResult : TableResult) : Iterator[table_model.StreamedTableResult] = {
@@ -15,8 +19,8 @@ object StreamedTableResult:
         return Iterator(header) ++ rows
     }
 
-class TableResultRunnable(responseObserver : ServerCallStreamObserver[table_model.StreamedTableResult], data : Iterator[table_model.StreamedTableResult]) extends Runnable {
-    private val logger = Logger.getLogger(classOf[TableResultRunnable].getName)
+case class TableResultRunnable(responseObserver : ServerCallStreamObserver[table_model.StreamedTableResult], data : Iterator[table_model.StreamedTableResult], completedPromise : Option[Promise[Boolean]] = None) extends Runnable {
+    private val logger = LoggerFactory.getLogger(classOf[TableResultRunnable].getName)
 
     var closed = false;
     def run(): Unit = {
@@ -28,6 +32,10 @@ class TableResultRunnable(responseObserver : ServerCallStreamObserver[table_mode
         if !data.hasNext then
             logger.info("Completed sending data")
             responseObserver.onCompleted
+            logger.info(completedPromise.isDefined.toString)
+            if completedPromise.isDefined then
+                logger.info("woihfoiewhfoiehfowiheoihfewoi")
+                completedPromise.get.success(true)
             closed = true;
     }
 }
@@ -41,7 +49,8 @@ class DelayedTableResultRunnable(responseObserver : ServerCallStreamObserver[tab
     var data : Option[Iterator[table_model.StreamedTableResult]] = None
     var closed = false;
 
-    private val logger = Logger.getLogger(classOf[DelayedTableResultRunnable].getName)
+    private val logger = LoggerFactory.getLogger(classOf[DelayedTableResultRunnable].getName)
+
     def setData(tableResult : TableResult) : Unit = {
         val header = table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Header(tableResult.header.protobuf))
         val rows = tableResult.rowsProtobuf.map(row => table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Row(row)))
@@ -49,6 +58,8 @@ class DelayedTableResultRunnable(responseObserver : ServerCallStreamObserver[tab
         data = Some(iterator)
         run()
     }
+
+    def setError(e : Throwable) : Unit = responseObserver.onError(e)
 
     def run(): Unit = {
         if closed then return;
@@ -65,3 +76,22 @@ class DelayedTableResultRunnable(responseObserver : ServerCallStreamObserver[tab
             closed = true;
     }
 }
+
+class StreamedTableResultCompiler(onComplete : Promise[Option[TableResult]]) extends StreamObserver[table_model.StreamedTableResult]:
+
+    var header : Option[TableResultHeader] = None
+    var rows : Buffer[Seq[Option[TableValue]]] = ArrayBuffer()
+
+    override def onNext(value: table_model.StreamedTableResult) : Unit = {
+        value.data.number match {
+            case 1 if header.isEmpty => header = Some(TableResultHeader.fromProtobuf(value.data.header.get))
+            case 2 => rows += value.data.row.get.values.map(TableValue.fromProtobuf(_))
+            case _ => throw new IllegalArgumentException("Unknown result value found, or header was defined twice.")
+        }
+    }
+
+    override def onError(t: Throwable) : Unit = onComplete.failure(t)
+
+    override def onCompleted(): Unit = 
+        if header.isEmpty then onComplete.success(None)
+        else onComplete.success(Some(EvaluatedTableResult(header.get, rows.toSeq)))

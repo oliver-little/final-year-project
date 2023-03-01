@@ -3,13 +3,11 @@ syntax = "proto3";
 option java_package = "org.oliverlittle.clusterprocess";
 
 import "table_model.proto";
-import "data_source.proto";
 
 service TableClientService {
     rpc ComputeTable(ComputeTableRequest) returns (stream StreamedTableResult);
 }
 
 message ComputeTableRequest {
-    DataSource data_source = 1;
-    Table table = 2; 
+    Table table = 1; 
 }

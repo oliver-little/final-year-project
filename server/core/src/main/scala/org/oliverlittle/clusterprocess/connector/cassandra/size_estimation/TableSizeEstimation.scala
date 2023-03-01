@@ -3,7 +3,7 @@ package org.oliverlittle.clusterprocess.connector.cassandra.size_estimation
 import org.oliverlittle.clusterprocess.connector.cassandra.token._
 
 import com.datastax.oss.driver.api.core.CqlSession
-import collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 object TableSizeEstimation {
     def estimateTableSize(session : CqlSession, keyspace : String, table : String) : TableSizeEstimation = {

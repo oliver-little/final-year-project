@@ -1,8 +1,8 @@
-package org.oliverlittle.clusterprocess.server
+package org.oliverlittle.clusterprocess.connector.grpc
 
 import org.oliverlittle.clusterprocess.worker_query
-import org.oliverlittle.clusterprocess.data_source
-import org.oliverlittle.clusterprocess.connector.grpc.ChannelManager
+import org.oliverlittle.clusterprocess.model.table.Table
+import org.oliverlittle.clusterprocess.connector.grpc.{ChannelManager, BaseChannelManager}
 import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
 import org.oliverlittle.clusterprocess.connector.cassandra.node.CassandraNode
 import org.oliverlittle.clusterprocess.connector.cassandra.token._
@@ -11,18 +11,19 @@ import org.oliverlittle.clusterprocess.connector.cassandra.size_estimation.Table
 import com.datastax.oss.driver.api.core.cql.ResultSet
 import com.datastax.oss.driver.api.core.metadata._
 import com.datastax.oss.driver.api.core.metadata.token._
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 
 import java.net.InetSocketAddress
-import java.util.logging.Logger
 import com.typesafe.config.ConfigFactory
 import scala.jdk.CollectionConverters._
 import scala.util.Try
+import scala.concurrent.{Future, ExecutionContext}
 
-class WorkerHandler(workerAddresses : Seq[(String, Int)]) {
-    private val logger = Logger.getLogger(classOf[WorkerHandler].getName)
+case class WorkerHandler(channels : Seq[ChannelManager]) {
+    private val logger = LoggerFactory.getLogger(classOf[WorkerHandler].getName)
     
-    // Setup channels and get nodes
-    val channels : Seq[ChannelManager] = workerAddresses.map((host, port) => ChannelManager(host, port))
+    val workerAddresses : Seq[(String, Int)]= channels.map(channel => (channel.host, channel.port))
 
     logger.info(f"Opened up channels with " + workerAddresses.length.toString + " workers.")
 
@@ -34,31 +35,43 @@ class WorkerHandler(workerAddresses : Seq[(String, Int)]) {
       *
       */
     private def getWorkerCassandraAddress(manager : ChannelManager) : InetSocketAddress = {
-        val result = worker_query.WorkerComputeServiceGrpc.blockingStub(manager.channel).getLocalCassandraNode(worker_query.GetLocalCassandraNodeRequest()).address
+        val result = manager.workerComputeServiceBlockingStub.getLocalCassandraNode(worker_query.GetLocalCassandraNodeRequest()).address
         return new InetSocketAddress(result.get.host, result.get.port)
     }
 
-    def distributeWorkToNodes(connector : CassandraConnector, keyspace : String, table : String) : Seq[(Seq[ChannelManager], Seq[CassandraTokenRange])] = {
+    lazy val chunkSize : Int = ConfigFactory.load.getString("clusterprocess.chunk.chunk_size_mb").toInt
+
+    /**
+      * Provides a mapping from ChannelManager to CassandraPartition
+      * Essentially this represents the ideal partition allocation based on data locality
+      *
+      * @param connector A CassandraConnector instance
+      * @param keyspace The keyspace of the table to use
+      * @param table The table name to use
+      * @return A Sequence of (Sequence[ChannelManager], Sequence[CassandraPartition]) pairs, representing ideal allocations
+      */
+    def distributeWorkToNodes(connector : CassandraConnector, keyspace : String, table : String) : Seq[(Seq[ChannelManager], Seq[CassandraPartition])] = {
         val session = connector.getSession
         val metadata = session.getMetadata
         val tokenMap = metadata.getTokenMap.get
         val sizeEstimator = TableSizeEstimation.estimateTableSize(session, keyspace, table)
         val channelMap = getChannelMapping(channels, metadata)
 
-        val chunkSize : Int = ConfigFactory.load.getString("clusterprocess.chunk.chunk_size_mb").toInt
-
         // For each node, split the token range to be small enough to fit the chunk size (or if the table is really small, just output the full tokenRange)
-        val channelAssignment = if sizeEstimator.estimatedTableSizeMB < chunkSize then channelMap.map((node, matchedChannels) => (matchedChannels, Seq(CassandraTokenRange.FullRing)))
-            else channelMap.map((node, matchedChannels) => 
+        val channelAssignment = channelMap.map((node, matchedChannels) => 
                 (matchedChannels, 
                 // Split the node's tokenRange as required
                 node.joinAndSplitForFullSize(sizeEstimator.estimatedTableSizeMB, chunkSize, tokenMap)
-                    // Unwrap the range if it crosses the ring boundary
-                    .flatMap(_.unwrap(tokenMap))
                 )
             )
         // Sense check
-        val fullRing = Try{channelAssignment.map(_._2).flatten.sorted.map(_.toTokenRange(tokenMap)).reduce(_ mergeWith _).isFullRing}.getOrElse(false)
+        val fullRing = Try{
+            channelAssignment.map(_._2) // Get partitions
+            .flatMap(_.flatMap(_.ranges)) // Get list of token ranges
+            .sorted // Sort in order
+            .map(_.toTokenRange(tokenMap)) // Convert to DataStax instances
+            .reduce(_ mergeWith _).isFullRing // Repeatedly reduce to one range
+        }.getOrElse(false) // Try to get the result out, or false if an error occurred
         logger.info("Ring is " + (if !fullRing then "not " else "") + "fully covered.")
 
         return channelAssignment
@@ -85,5 +98,12 @@ class WorkerHandler(workerAddresses : Seq[(String, Int)]) {
         channelMap.foreach((node, channels) => logger.info("Cassandra node: " + node.getAddressAsString + " has workers " + channels.toString))
 
         return channelMap
+    }
+
+    def getNumPartitionsForTable(table : Table)(using ec : ExecutionContext)  : Future[Int] = getTableStoreEstimatedSizeMB(table).map(size => Math.max(size.toDouble / chunkSize, 1).round.toInt)
+
+    def getTableStoreEstimatedSizeMB(table : Table)(using ec : ExecutionContext) : Future[Long] = {
+        val request = worker_query.GetEstimatedTableSizeRequest(Some(table.protobuf))
+        Future.sequence(channels.map(_.workerComputeServiceStub.getEstimatedTableSize(request))).map(result => result.map(_.estimatedSizeMb).sum)
     }
 }

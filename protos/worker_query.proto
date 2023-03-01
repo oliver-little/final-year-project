@@ -3,12 +3,15 @@ syntax = "proto3";
 option java_package = "org.oliverlittle.clusterprocess";
 
 import "table_model.proto";
-import "data_source.proto";
 
 service WorkerComputeService {
-    // Computes a partial result
-    rpc ComputePartialResultCassandra(ComputePartialResultCassandraRequest) returns (stream StreamedTableResult);
     rpc GetLocalCassandraNode(GetLocalCassandraNodeRequest) returns (GetLocalCassandraNodeResult);
+    rpc ProcessQueryPlanItem(QueryPlanItem) returns (ProcessQueryPlanItemResult);
+    rpc GetTableData(GetTableDataRequest) returns (stream StreamedTableResult);
+    rpc GetHashedPartitionData(GetHashedPartitionDataRequest) returns (stream StreamedTableResult);
+    rpc GetTableStoreData(GetTableStoreDataRequest) returns (TableStoreData);
+    rpc ModifyCache(ModifyCacheRequest) returns (TableStoreData);
+    rpc GetEstimatedTableSize(GetEstimatedTableSizeRequest) returns (GetEstimatedTableSizeResult);
 }
 
 message GetLocalCassandraNodeRequest {
@@ -19,8 +22,96 @@ message GetLocalCassandraNodeResult {
     InetSocketAddress address = 1;
 }
 
-message ComputePartialResultCassandraRequest {
+message ProcessQueryPlanItemResult {
+    bool success = 1;
+}
+
+message GetTableDataRequest {
     Table table = 1;
-    CassandraDataSource dataSource = 2;
-    CassandraTokenRange tokenRange = 3;
+}
+
+message GetHashedPartitionDataRequest {
+    Table table = 1;
+    uint32 totalPartitions = 2;
+    uint32 partitionNum = 3;
+}
+
+message GetTableStoreDataRequest {
+
+}
+
+message ModifyCacheRequest {
+    enum CacheOperation {
+        UNKNOWN_TYPE = 0;
+        PUSH = 1;
+        POP = 2;
+    }
+
+    CacheOperation cache_operation = 1;
+}
+
+message GetEstimatedTableSizeRequest {
+    Table table = 1;
+}
+
+message GetEstimatedTableSizeResult {
+    uint64 estimated_size_mb = 1;
+}
+
+// Query Plan Items
+message QueryPlanItem {
+    oneof item {
+        PrepareResult prepare_result = 1;
+        DeleteResult delete_result = 2;
+        PrepareHashes prepare_hashes = 3;
+        DeletePreparedHashes delete_prepared_hashes = 4;
+        GetPartition get_partition = 5;
+        DeletePartition delete_partition = 6;
+        Identity identity = 7;
+    }
+}
+
+message PrepareResult {
+    PartialTable table = 1;
+}
+
+message DeleteResult {
+    Table table = 1;
+}
+
+message PrepareHashes {
+    DataSource data_source = 1;
+    uint32 total_partitions = 2;
+}
+
+message DeletePreparedHashes {
+    DataSource data_source = 1;
+    uint32 total_partitions = 2;
+}
+
+message GetPartition {
+    PartialDataSource data_source = 1;
+    repeated InetSocketAddress other_worker_urls = 2;
+}
+
+message DeletePartition {
+    DataSource data_source = 1;
+}
+
+message Identity {
+    bool fail = 1;
+}
+
+// TableStore
+message TableStoreData {
+    message PartialTableList {
+        repeated PartialTable partial_tables = 1;
+    }
+
+    message PartialDataSourceList {
+        repeated PartialDataSource partial_data_sources = 1;
+    }
+
+    repeated PartialTableList tables = 1;
+    repeated PartialDataSourceList data_sources = 2;
 }
