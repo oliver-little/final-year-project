@@ -32,7 +32,7 @@ class WorkExecutionScheduler(workerHandler : WorkerHandler, promise : Promise[Op
 
     def start(queryPlan : Seq[QueryPlanItem]) : Behavior[QueryInstruction] = Behaviors.setup{context =>
         context.log.info("Starting execution")
-        startItemScheduler(queryPlan.head, 0, workerHandler, context)
+        startItemScheduler(queryPlan.head, 0, workerHandler, context.self)
         receiveComplete(queryPlan.tail, 1)
     }
 
@@ -57,19 +57,19 @@ class WorkExecutionScheduler(workerHandler : WorkerHandler, promise : Promise[Op
                 Behaviors.stopped
             
             case InstructionComplete() => 
-                startItemScheduler(queryPlan.head, instructionCounter, workerHandler, context)
+                startItemScheduler(queryPlan.head, instructionCounter, workerHandler, context.self)
                 receiveComplete(queryPlan.tail, instructionCounter + 1)
             case InstructionCompleteWithDataSourceOutput(partitions) =>
-                startItemScheduler(queryPlan.head.usePartitions(partitions), instructionCounter, workerHandler, context)
+                startItemScheduler(queryPlan.head.usePartitions(partitions), instructionCounter, workerHandler, context.self)
                 receiveComplete(queryPlan.tail, instructionCounter + 1)
             case InstructionCompleteWithTableOutput(partitions) =>
-                startItemScheduler(queryPlan.head, instructionCounter, workerHandler, context)
+                startItemScheduler(queryPlan.head, instructionCounter, workerHandler, context.self)
                 receiveComplete(queryPlan.tail, instructionCounter + 1)
         }
     }
 
-    def startItemScheduler(item : QueryPlanItem, index : Int, workerHandler : WorkerHandler, context : ActorContext[QueryInstruction]) : ActorRef[QueryInstruction] = context.spawn(
-        QueryPlanItemScheduler(item, workerHandler, context.self), 
+    def startItemScheduler(item : QueryPlanItem, index : Int, workerHandler : WorkerHandler, replyTo : ActorRef[QueryInstruction]) : ActorRef[QueryInstruction] = context.spawn(
+        QueryPlanItemScheduler(item, workerHandler, replyTo), 
         "QueryPlanItemScheduler" + index.toString
     )
 }

@@ -11,6 +11,7 @@ import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito._
 import org.scalatestplus.mockito.MockitoSugar
+import org.mockito.AdditionalAnswers
 
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
 import akka.actor.typed._
@@ -20,7 +21,6 @@ import akka.actor.typed.scaladsl.AskPattern._
 import org.scalatest.BeforeAndAfterAll
 
 import scala.concurrent.Future
-import org.mockito.AdditionalAnswers
 import io.grpc.StatusRuntimeException
 import org.scalatest.BeforeAndAfterEach
 
