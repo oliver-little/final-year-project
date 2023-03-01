@@ -72,10 +72,10 @@ class TableTest extends UnitSpec {
 
         val ds = MockDataSource()
         val tableOne = Table(ds, Seq(AggregateTransformation(Max(F("a")))))
-        tableOne.assemble(Seq(one, one)) should be (LazyTableResult(header, Seq(Seq(Some(IntValue(2))))))
+        tableOne.assembler.assemblePartial(Seq(one, one)) should be (LazyTableResult(header, Seq(Seq(Some(IntValue(2))))))
 
         val tableTwo = Table(ds, Seq(SelectTransformation(F("a") as "Max_a"), SelectTransformation(F("Max_a"))))
-        tableTwo.assemble(Seq(one, one)) should be (EvaluatedTableResult(header, rows ++ rows))
+        tableTwo.assembler.assemblePartial(Seq(one, one)) should be (EvaluatedTableResult(header, rows ++ rows))
     }
 }
 

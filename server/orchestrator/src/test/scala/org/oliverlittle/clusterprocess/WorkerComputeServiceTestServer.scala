@@ -48,4 +48,3 @@ class MockChannelManager(serverName : String) extends ChannelManager with Mockit
     override val workerComputeServiceBlockingStub = WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub(channel)
 
     override lazy val workerComputeServiceStub = WorkerComputeServiceGrpc.WorkerComputeServiceStub(channel)
-

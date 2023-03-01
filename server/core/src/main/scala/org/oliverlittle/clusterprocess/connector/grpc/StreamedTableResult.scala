@@ -19,7 +19,7 @@ object StreamedTableResult:
         return Iterator(header) ++ rows
     }
 
-class TableResultRunnable(responseObserver : ServerCallStreamObserver[table_model.StreamedTableResult], data : Iterator[table_model.StreamedTableResult]) extends Runnable {
+case class TableResultRunnable(responseObserver : ServerCallStreamObserver[table_model.StreamedTableResult], data : Iterator[table_model.StreamedTableResult], completedPromise : Option[Promise[Boolean]] = None) extends Runnable {
     private val logger = LoggerFactory.getLogger(classOf[TableResultRunnable].getName)
 
     var closed = false;
@@ -32,6 +32,10 @@ class TableResultRunnable(responseObserver : ServerCallStreamObserver[table_mode
         if !data.hasNext then
             logger.info("Completed sending data")
             responseObserver.onCompleted
+            logger.info(completedPromise.isDefined.toString)
+            if completedPromise.isDefined then
+                logger.info("woihfoiewhfoiehfowiheoihfewoi")
+                completedPromise.get.success(true)
             closed = true;
     }
 }

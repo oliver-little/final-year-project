@@ -7,18 +7,6 @@ import org.scalatestplus.mockito.MockitoSugar
 import io.grpc.ManagedChannel
 import io.grpc.inprocess.InProcessChannelBuilder
 
-class MockChannelManager(serverName : String) extends ChannelManager with MockitoSugar:
-    val host = "localhost"
-    val port = 50002
-
-    val channel = InProcessChannelBuilder.forName(serverName).directExecutor().build()
-
-    override def newInstance: ChannelManager = this
-
-    override val workerComputeServiceBlockingStub = worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceBlockingStub(channel)
-
-    override lazy val workerComputeServiceStub = worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceStub(channel)
-
 class MockitoChannelManager() extends ChannelManager with MockitoSugar:
     val host = "localhost"
     val port = 50002

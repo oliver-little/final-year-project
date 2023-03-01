@@ -72,7 +72,7 @@ class SelectTransformationTest extends UnitSpec {
             )
         )
 
-        SelectTransformation(F("name")).assemblePartial(inputs) should be (output)
+        SelectTransformation(F("name")).assembler.assemblePartial(inputs) should be (output)
     }
 }
 
@@ -148,7 +148,7 @@ class FilterTransformationTest extends UnitSpec {
             )
         )
 
-        FilterTransformation(filter).assemblePartial(inputs) should be (output)
+        FilterTransformation(filter).assembler.assemblePartial(inputs) should be (output)
     }
 }
 
@@ -227,6 +227,6 @@ class AggregateTransformationTest extends UnitSpec {
             )
         )
 
-        AggregateTransformation(Avg(F("name"))).assemblePartial(input) should be (output)
+        AggregateTransformation(Avg(F("name"))).assembler.assemblePartial(input) should be (output)
     }
 }
