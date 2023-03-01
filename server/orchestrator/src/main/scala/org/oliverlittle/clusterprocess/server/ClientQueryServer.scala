@@ -4,8 +4,8 @@ import org.oliverlittle.clusterprocess.worker_query
 import org.oliverlittle.clusterprocess.table_model
 import org.oliverlittle.clusterprocess.client_query
 import org.oliverlittle.clusterprocess.model.table.sources.DataSource
-import org.oliverlittle.clusterprocess.model.table.{Table, TableTransformation, TableResult}
-import org.oliverlittle.clusterprocess.scheduler.{WorkExecutionScheduler, ResultAssembler}
+import org.oliverlittle.clusterprocess.model.table._
+import org.oliverlittle.clusterprocess.scheduler.{WorkExecutionScheduler, ResultAssembler, CustomResultAssembler}
 import org.oliverlittle.clusterprocess.connector.grpc.{WorkerHandler, ChannelManager, BaseChannelManager, StreamedTableResult, DelayedTableResultRunnable}
 import org.oliverlittle.clusterprocess.connector.cassandra.CassandraConnector
 
@@ -46,7 +46,6 @@ object ClientQueryServer {
 }
 
 class ClientQueryServer(channels : Seq[ChannelManager])(using executionContext : ExecutionContext) {
-    private 
     private val server =  ServerBuilder.forPort(ClientQueryServer.port).addService(client_query.TableClientServiceGrpc.bindService(new ClientQueryServicer(new WorkerHandler(channels)), executionContext)).build.start
     ClientQueryServer.logger.info("gRPC Server started, listening on " + ClientQueryServer.port)
     

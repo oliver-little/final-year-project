@@ -25,15 +25,30 @@ class WorkerComputeServiceStub(object):
                 request_serializer=worker__query__pb2.QueryPlanItem.SerializeToString,
                 response_deserializer=worker__query__pb2.ProcessQueryPlanItemResult.FromString,
                 )
-        self.GetPartitionsForTable = channel.unary_stream(
-                '/WorkerComputeService/GetPartitionsForTable',
-                request_serializer=worker__query__pb2.GetPartitionsForTableRequest.SerializeToString,
+        self.GetTableData = channel.unary_stream(
+                '/WorkerComputeService/GetTableData',
+                request_serializer=worker__query__pb2.GetTableDataRequest.SerializeToString,
                 response_deserializer=table__model__pb2.StreamedTableResult.FromString,
                 )
         self.GetHashedPartitionData = channel.unary_stream(
                 '/WorkerComputeService/GetHashedPartitionData',
                 request_serializer=worker__query__pb2.GetHashedPartitionDataRequest.SerializeToString,
                 response_deserializer=table__model__pb2.StreamedTableResult.FromString,
+                )
+        self.GetTableStoreData = channel.unary_unary(
+                '/WorkerComputeService/GetTableStoreData',
+                request_serializer=worker__query__pb2.GetTableStoreDataRequest.SerializeToString,
+                response_deserializer=worker__query__pb2.TableStoreData.FromString,
+                )
+        self.ModifyCache = channel.unary_unary(
+                '/WorkerComputeService/ModifyCache',
+                request_serializer=worker__query__pb2.ModifyCacheRequest.SerializeToString,
+                response_deserializer=worker__query__pb2.TableStoreData.FromString,
+                )
+        self.GetEstimatedTableSize = channel.unary_unary(
+                '/WorkerComputeService/GetEstimatedTableSize',
+                request_serializer=worker__query__pb2.GetEstimatedTableSizeRequest.SerializeToString,
+                response_deserializer=worker__query__pb2.GetEstimatedTableSizeResult.FromString,
                 )
 
 
@@ -52,13 +67,31 @@ class WorkerComputeServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def GetPartitionsForTable(self, request, context):
+    def GetTableData(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def GetHashedPartitionData(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetTableStoreData(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ModifyCache(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetEstimatedTableSize(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -77,15 +110,30 @@ def add_WorkerComputeServiceServicer_to_server(servicer, server):
                     request_deserializer=worker__query__pb2.QueryPlanItem.FromString,
                     response_serializer=worker__query__pb2.ProcessQueryPlanItemResult.SerializeToString,
             ),
-            'GetPartitionsForTable': grpc.unary_stream_rpc_method_handler(
-                    servicer.GetPartitionsForTable,
-                    request_deserializer=worker__query__pb2.GetPartitionsForTableRequest.FromString,
+            'GetTableData': grpc.unary_stream_rpc_method_handler(
+                    servicer.GetTableData,
+                    request_deserializer=worker__query__pb2.GetTableDataRequest.FromString,
                     response_serializer=table__model__pb2.StreamedTableResult.SerializeToString,
             ),
             'GetHashedPartitionData': grpc.unary_stream_rpc_method_handler(
                     servicer.GetHashedPartitionData,
                     request_deserializer=worker__query__pb2.GetHashedPartitionDataRequest.FromString,
                     response_serializer=table__model__pb2.StreamedTableResult.SerializeToString,
+            ),
+            'GetTableStoreData': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetTableStoreData,
+                    request_deserializer=worker__query__pb2.GetTableStoreDataRequest.FromString,
+                    response_serializer=worker__query__pb2.TableStoreData.SerializeToString,
+            ),
+            'ModifyCache': grpc.unary_unary_rpc_method_handler(
+                    servicer.ModifyCache,
+                    request_deserializer=worker__query__pb2.ModifyCacheRequest.FromString,
+                    response_serializer=worker__query__pb2.TableStoreData.SerializeToString,
+            ),
+            'GetEstimatedTableSize': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetEstimatedTableSize,
+                    request_deserializer=worker__query__pb2.GetEstimatedTableSizeRequest.FromString,
+                    response_serializer=worker__query__pb2.GetEstimatedTableSizeResult.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -132,7 +180,7 @@ class WorkerComputeService(object):
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
-    def GetPartitionsForTable(request,
+    def GetTableData(request,
             target,
             options=(),
             channel_credentials=None,
@@ -142,8 +190,8 @@ class WorkerComputeService(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_stream(request, target, '/WorkerComputeService/GetPartitionsForTable',
-            worker__query__pb2.GetPartitionsForTableRequest.SerializeToString,
+        return grpc.experimental.unary_stream(request, target, '/WorkerComputeService/GetTableData',
+            worker__query__pb2.GetTableDataRequest.SerializeToString,
             table__model__pb2.StreamedTableResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
@@ -162,5 +210,56 @@ class WorkerComputeService(object):
         return grpc.experimental.unary_stream(request, target, '/WorkerComputeService/GetHashedPartitionData',
             worker__query__pb2.GetHashedPartitionDataRequest.SerializeToString,
             table__model__pb2.StreamedTableResult.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def GetTableStoreData(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/WorkerComputeService/GetTableStoreData',
+            worker__query__pb2.GetTableStoreDataRequest.SerializeToString,
+            worker__query__pb2.TableStoreData.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def ModifyCache(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/WorkerComputeService/ModifyCache',
+            worker__query__pb2.ModifyCacheRequest.SerializeToString,
+            worker__query__pb2.TableStoreData.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def GetEstimatedTableSize(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/WorkerComputeService/GetEstimatedTableSize',
+            worker__query__pb2.GetEstimatedTableSizeRequest.SerializeToString,
+            worker__query__pb2.GetEstimatedTableSizeResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

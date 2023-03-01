@@ -26,6 +26,7 @@ object PartialQueryPlanItem:
         case worker_query.QueryPlanItem.Item.DeletePreparedHashes(worker_query.DeletePreparedHashes(Some(dataSource), numPartitions, unknownFields)) => PartialDeletePreparedHashes(DependentDataSource.fromProtobuf(dataSource), numPartitions)
         case worker_query.QueryPlanItem.Item.GetPartition(worker_query.GetPartition(Some(dataSource), workerURLs, unknownFields)) => PartialGetPartition(PartialDataSource.fromProtobuf(dataSource), workerURLs.map(address => new InetSocketAddress(address.host, address.port)))
         case worker_query.QueryPlanItem.Item.DeletePartition(worker_query.DeletePartition(Some(dataSource), unknownFields)) => PartialDeletePartition(DataSource.fromProtobuf(dataSource))
+        case worker_query.QueryPlanItem.Item.Identity(worker_query.Identity(bool, unknownFields)) => PartialIdentity(bool)
         case x => throw new IllegalArgumentException("Invalid QueryPlanItem received: " + x.toString)
     }
 
@@ -96,3 +97,14 @@ case class PartialDeletePartition(dataSource : DataSource) extends PartialQueryP
         store ! TableStore.DeletePartition(dataSource)
         return Future.successful(worker_query.ProcessQueryPlanItemResult(true))
     }
+
+// For testing
+case class PartialIdentity(fail : Boolean) extends PartialQueryPlanItem:
+    val innerProtobuf : worker_query.QueryPlanItem.Item = worker_query.QueryPlanItem.Item.Identity(worker_query.Identity())
+
+    def execute(store: ActorRef[TableStore.TableStoreEvent])(using t : Timeout)(using system : ActorSystem[_])(using ec : ExecutionContext = system.executionContext) : Future[worker_query.ProcessQueryPlanItemResult] = 
+        if fail 
+        then Future.failed(new IllegalStateException("Test exception"))
+        else Future.successful(worker_query.ProcessQueryPlanItemResult(true))
+    
+    
