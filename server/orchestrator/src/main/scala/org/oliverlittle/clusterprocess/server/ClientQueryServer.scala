@@ -37,7 +37,7 @@ object ClientQueryServer {
         if !(numWorkers.isDefined && nodeName.isDefined && baseURL.isDefined) then logger.warn("Missing environment variables (NUM_WORKERS, WORKER_NODE_NAME, WORKER_SERVICE_URL) to initialise orchestrator, defaulting to localhost.")
 
         val workerAddresses : Seq[(String, Int)] = 
-            if numWorkers.isDefined then (0 to numWorkers.get.toInt).map(num => (nodeName.get + "-" + num.toString + "." + baseURL.get, workerPort))
+            if numWorkers.isDefined then (0 until numWorkers.get.toInt).map(num => (nodeName.get + "-" + num.toString + "." + baseURL.get, workerPort))
             else ConfigFactory.load.getStringList("clusterprocess.test.worker_urls").asScala.toSeq.map((_, workerPort))
         val channels = workerAddresses.map((host, port) => BaseChannelManager(host, port))
         val server = new ClientQueryServer(channels)(using ExecutionContext.global)
