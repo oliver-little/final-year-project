@@ -96,22 +96,22 @@ class FieldExpression():
     def __ge__(self, other) -> FieldComparison:
         return BinaryFieldComparison("GTE", self, other)
 
-    def contains(self, operand : Union[V, str, int, float, bool, datetime, NoneType]) -> FieldComparison:
+    def contains(self, operand : Union[V, str, int, float, bool, datetime]) -> FieldComparison:
         return BinaryFieldComparison("CONTAINS", self, operand)
 
-    def icontains(self, operand : Union[V, str, int, float, bool, datetime, NoneType]) -> FieldComparison:
+    def icontains(self, operand : Union[V, str, int, float, bool, datetime]) -> FieldComparison:
         return BinaryFieldComparison("ICONTAINS", self, operand)
 
-    def starts_with(self, operand : Union[V, str, int, float, bool, datetime, NoneType]) -> FieldComparison:
+    def starts_with(self, operand : Union[V, str, int, float, bool, datetime]) -> FieldComparison:
         return BinaryFieldComparison("STARTS_WITH", self, operand)
 
-    def istarts_with(self, operand : Union[V, str, int, float, bool, datetime, NoneType]) -> FieldComparison:
+    def istarts_with(self, operand : Union[V, str, int, float, bool, datetime]) -> FieldComparison:
         return BinaryFieldComparison("ISTARTS_WITH", self, operand)
 
-    def contains(self, operand : Union[V, str, int, float, bool, datetime, NoneType]) -> FieldComparison:
+    def contains(self, operand : Union[V, str, int, float, bool, datetime]) -> FieldComparison:
         return BinaryFieldComparison("ENDS_WITH", self, operand)
 
-    def icontains(self, operand : Union[V, str, int, float, bool, datetime, NoneType]) -> FieldComparison:
+    def icontains(self, operand : Union[V, str, int, float, bool, datetime]) -> FieldComparison:
         return BinaryFieldComparison("IENDS_WITH", self, operand)
 
     def is_null(self) -> FieldComparison:
@@ -148,7 +148,7 @@ class V(FieldExpression):
             value_field_name = "bool"
         elif value_type == datetime:
             value_field_name = "datetime"
-        elif value_type == NoneType:
+        elif value_type == type(None):
             value_field_name = "null"
             value_to_encode = True
         else:
