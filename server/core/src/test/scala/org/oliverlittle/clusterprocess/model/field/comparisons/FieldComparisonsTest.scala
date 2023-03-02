@@ -199,42 +199,41 @@ class OrderedFieldComparisonSpec extends UnitSpec {
         })
     }
 }
-/*
-class StringFieldComparisonSpec extends UnitSpec {
+
+class StringFieldComparisonTest extends UnitSpec {
     "A StringFieldComparison" should "calculate contains correctly" in {
-        StringFieldComparison(V("hello"), StringComparator.CONTAINS, V("ell")).resolve(Map()).evaluate(Map()) should be (true)
-        StringFieldComparison(V("hello"), StringComparator.CONTAINS, V("elL")).resolve(Map()).evaluate(Map()) should be (false)
-        StringFieldComparison(V("hello"), StringComparator.CONTAINS, V("elll")).resolve(Map()).evaluate(Map()) should be (false)
+        StringFieldComparison(V("hello"), StringComparator.CONTAINS, V("ell")).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (true)
+        StringFieldComparison(V("hello"), StringComparator.CONTAINS, V("elL")).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (false)
+        StringFieldComparison(V("hello"), StringComparator.CONTAINS, V("elll")).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (false)
     }
 
     it should "calculate case insensitive contains correctly" in {
-        StringFieldComparison(V("hello"), StringComparator.ICONTAINS, V("ell")).resolve(Map()).evaluate(Map()) should be (true)
-        StringFieldComparison(V("hello"), StringComparator.ICONTAINS, V("elL")).resolve(Map()).evaluate(Map()) should be (true)
-        StringFieldComparison(V("hello"), StringComparator.ICONTAINS, V("elll")).resolve(Map()).evaluate(Map()) should be (false)
+        StringFieldComparison(V("hello"), StringComparator.ICONTAINS, V("ell")).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (true)
+        StringFieldComparison(V("hello"), StringComparator.ICONTAINS, V("elL")).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (true)
+        StringFieldComparison(V("hello"), StringComparator.ICONTAINS, V("elll")).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (false)
     }
 
     it should "calculate starts with correctly" in {
-        StringFieldComparison(V("hello"), StringComparator.STARTS_WITH, V("hel")).resolve(Map()).evaluate(Map()) should be (true)
-        StringFieldComparison(V("hello"), StringComparator.STARTS_WITH, V("Hel")).resolve(Map()).evaluate(Map()) should be (false)
-        StringFieldComparison(V("hello"), StringComparator.STARTS_WITH, V("ell")).resolve(Map()).evaluate(Map()) should be (false)
+        StringFieldComparison(V("hello"), StringComparator.STARTS_WITH, V("hel")).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (true)
+        StringFieldComparison(V("hello"), StringComparator.STARTS_WITH, V("Hel")).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (false)
+        StringFieldComparison(V("hello"), StringComparator.STARTS_WITH, V("ell")).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (false)
     }
 
     it should "calculate case insensitive starts with correctly" in {
-        StringFieldComparison(V("hello"), StringComparator.ISTARTS_WITH, V("hel")).resolve(Map()).evaluate(Map()) should be (true)
-        StringFieldComparison(V("hello"), StringComparator.ISTARTS_WITH, V("Hel")).resolve(Map()).evaluate(Map()) should be (true)
-        StringFieldComparison(V("hello"), StringComparator.ISTARTS_WITH, V("ell")).resolve(Map()).evaluate(Map()) should be (false)
+        StringFieldComparison(V("hello"), StringComparator.ISTARTS_WITH, V("hel")).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (true)
+        StringFieldComparison(V("hello"), StringComparator.ISTARTS_WITH, V("Hel")).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (true)
+        StringFieldComparison(V("hello"), StringComparator.ISTARTS_WITH, V("ell")).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (false)
     }
 
     it should "calculate ends with correctly" in {
-        StringFieldComparison(V("hello"), StringComparator.ENDS_WITH, V("llo")).resolve(Map()).evaluate(Map()) should be (true)
-        StringFieldComparison(V("hello"), StringComparator.ENDS_WITH, V("Llo")).resolve(Map()).evaluate(Map()) should be (false)
-        StringFieldComparison(V("hello"), StringComparator.ENDS_WITH, V("lllo")).resolve(Map()).evaluate(Map()) should be (false)
+        StringFieldComparison(V("hello"), StringComparator.ENDS_WITH, V("llo")).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (true)
+        StringFieldComparison(V("hello"), StringComparator.ENDS_WITH, V("Llo")).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (false)
+        StringFieldComparison(V("hello"), StringComparator.ENDS_WITH, V("lllo")).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (false)
     }
 
     it should "calculate case insensitive ends with correctly" in {
-        StringFieldComparison(V("hello"), StringComparator.IENDS_WITH, V("llo")).resolve(Map()).evaluate(Map()) should be (true)
-        StringFieldComparison(V("hello"), StringComparator.IENDS_WITH, V("Llo")).resolve(Map()).evaluate(Map()) should be (true)
-        StringFieldComparison(V("hello"), StringComparator.IENDS_WITH, V("lllo")).resolve(Map()).evaluate(Map()) should be (false)
+        StringFieldComparison(V("hello"), StringComparator.IENDS_WITH, V("llo")).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (true)
+        StringFieldComparison(V("hello"), StringComparator.IENDS_WITH, V("Llo")).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (true)
+        StringFieldComparison(V("hello"), StringComparator.IENDS_WITH, V("lllo")).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (false)
     }
 }
-*/
