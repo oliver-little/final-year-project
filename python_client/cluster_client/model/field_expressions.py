@@ -1,11 +1,10 @@
 from __future__ import annotations
 from datetime import datetime
-from types import NoneType
 from typing import Any, Union
 
 import cluster_client.protobuf.table_model_pb2 as protobuf_model
 
-VALID_LITERAL_TYPES = {int, float, str, bool, datetime, NoneType}
+VALID_LITERAL_TYPES = {int, float, str, bool, datetime, type(None)}
 
 def try_convert_model_value(value) -> FieldExpression:
     """Helper function to check the type of a value and convert it to a model Value if not a FieldExpression"""
