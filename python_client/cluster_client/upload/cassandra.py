@@ -62,14 +62,13 @@ class CassandraUploadHandler():
         # Add a default converter for each column if we don't have one already, as the driver requires that they be in the correct type already
         for c_name, c_type in zip(column_names, column_types):
             if c_name not in row_converters:
-                match c_type:
-                    case "bigint":
-                        row_converters[c_name] = lambda x: int(x)
-                    case "double":
+                if c_type == "bigint":
+                    row_converters[c_name] = lambda x: int(x)
+                elif c_type == "double":
                         row_converters[c_name] = lambda x: float(x)
-                    case "boolean":
+                elif c_type == "boolean":
                         row_converters[c_name] = lambda x: True if x.lower() == "true" else False
-                    case "timestamp":
+                elif c_type == "timestamp":
                         row_converters[c_name] = lambda x: datetime.fromisoformat(x)
 
         if not self.connector.has_table(keyspace, table):
