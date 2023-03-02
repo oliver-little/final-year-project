@@ -29,23 +29,25 @@ given timeout : Timeout = 1.minute
 
 object WorkerQueryServer {
     private val logger = LoggerFactory.getLogger(classOf[WorkerQueryServer].getName)
-    private val port = 50052
+    private val defaultPort = 50052
 
-    def main(): Unit = {
+    def start(args : Array[String]): Unit = {
         val system : ActorSystem[TableStoreSystem.TableStoreSystemEvent] = TableStoreSystem.create()
         implicit val ec: ExecutionContext = system.executionContext
         implicit val scheduler = system.scheduler
         val tableStoreFuture : Future[ActorRef[TableStore.TableStoreEvent]] = system.ask(ref => TableStoreSystem.GetStore(ref))
 
         val tableStoreActor = Await.result(tableStoreFuture, 3.seconds)
-        val server = new WorkerQueryServer(ExecutionContext.global, tableStoreActor)(using system)
+        val usedPort = if args.size > 0 then args(0).toInt else defaultPort
+
+        val server = new WorkerQueryServer(ExecutionContext.global, tableStoreActor, usedPort)(using system)
         server.blockUntilShutdown()
     }
 }
 
-class WorkerQueryServer(executionContext: ExecutionContext, store : ActorRef[TableStore.TableStoreEvent])(using system : ActorSystem[_])(using ec : ExecutionContext = system.executionContext) {
-    private val server =  ServerBuilder.forPort(WorkerQueryServer.port).addService(worker_query.WorkerComputeServiceGrpc.bindService(new WorkerQueryServicer(store), executionContext)).build.start
-    WorkerQueryServer.logger.info("gRPC Server started, listening on " + WorkerQueryServer.port)
+class WorkerQueryServer(executionContext: ExecutionContext, store : ActorRef[TableStore.TableStoreEvent], port : Int)(using system : ActorSystem[_])(using ec : ExecutionContext = system.executionContext) {
+    private val server =  ServerBuilder.forPort(port).addService(worker_query.WorkerComputeServiceGrpc.bindService(new WorkerQueryServicer(store), executionContext)).build.start
+    WorkerQueryServer.logger.info("gRPC Server started, listening on " + port)
     
     sys.addShutdownHook({
         WorkerQueryServer.logger.info("*** Shutting down gRPC server since JVM is shutting down.")
