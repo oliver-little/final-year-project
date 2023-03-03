@@ -34,7 +34,7 @@ object ClientQueryServer {
         val baseURL = envOrNone("WORKER_SERVICE_URL")
         val workerPort = envOrElse("WORKER_PORT", "50052").toInt
 
-        if !(numWorkers.isDefined && nodeName.isDefined && baseURL.isDefined) then logger.warn("Missing environment variables (NUM_WORKERS, WORKER_NODE_NAME, WORKER_SERVICE_URL) to initialise orchestrator, defaulting to application.conf/cluster-process.test.worker-urls.")
+        if !(numWorkers.isDefined && nodeName.isDefined && baseURL.isDefined) then logger.warn("Missing environment variables (NUM_WORKERS, WORKER_NODE_NAME, WORKER_SERVICE_URL) to initialise orchestrator, defaulting to application.conf/cluster-process.test.worker-urls")
 
         val workerAddresses : Seq[(String, Int)] = 
             if numWorkers.isDefined then (0 until numWorkers.get.toInt).map(num => (nodeName.get + "-" + num.toString + "." + baseURL.get, workerPort))

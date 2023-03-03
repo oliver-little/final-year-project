@@ -67,15 +67,12 @@ object TableStore {
                 Behaviors.same
 
             case HashPartition(dataSource, numPartitions, replyTo) =>
-                val dependencies = dataSource.getDependencies
-                if !dependencies.forall(dependency => tableStoreData.tables contains dependency)
-                then 
-                    replyTo ! StatusReply.Error(new IllegalArgumentException("Dependency information for dataSource is missing."))
-                    Behaviors.same
-                else
-                    val newMap = tableStoreData.hashes ++ dependencies.map(dependency => (dependency, numPartitions) -> dataSource.hashPartitionedData(tableStoreData.tables(dependency).values.reduce(_ ++ _), numPartitions))
-                    replyTo ! StatusReply.ack()
-                    processResults(tableStoreData.copy(hashes=newMap), cache)
+                // It's possible that we don't have a hashed object for every dependency
+                // Therefore, we filter the dependency for ones we actually have data for
+                val dependencies = dataSource.getDependencies.filter(dependency => tableStoreData.tables contains dependency)
+                val newMap = tableStoreData.hashes ++ dependencies.map(dependency => (dependency, numPartitions) -> dataSource.hashPartitionedData(tableStoreData.tables(dependency).values.reduce(_ ++ _), numPartitions))
+                replyTo ! StatusReply.ack()
+                processResults(tableStoreData.copy(hashes=newMap), cache)
 
             case GetHash(table, totalPartitions, partitionNum, replyTo) =>
                 // Attempt to get the partition

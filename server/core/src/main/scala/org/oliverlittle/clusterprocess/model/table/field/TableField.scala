@@ -34,11 +34,18 @@ object TableField:
         case x => throw new IllegalArgumentException("Unknown enum type" + x.toString)
     }
 
-trait TableField extends ValueType:
+trait TableField extends ValueType with Equals:
     val name : String
     def rename(newName : String) : TableField
     val protobufDataType : table_model.DataType
     lazy val protobuf : table_model.TableResultHeader.Header = table_model.TableResultHeader.Header(fieldName = name, dataType = protobufDataType)
+
+    // We redefine equals on TableFields here to ensure that *any* TableField with the same name and classTag is the same field
+    override def canEqual(that: Any): Boolean = that.isInstanceOf[TableField]
+
+    override def equals(that: Any): Boolean = that match {
+        case that : TableField => that.canEqual(this) && name == that.name && valueTag.equals(that.valueTag)
+    }
 
 // Interface for a value from a field
 object TableValue:

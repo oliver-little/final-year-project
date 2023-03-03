@@ -65,15 +65,19 @@ case class CassandraDataSource(env: CassandraConfig {val connector : CassandraCo
     lazy val protobuf : table_model.DataSource = table_model.DataSource().withCassandra(table_model.CassandraDataSource(keyspace=keyspace, table=name))
     lazy val isValid = true
 
-    def getPartitions(workerHandler : WorkerHandler)(using ec : ExecutionContext) : Future[Seq[(Seq[ChannelManager], Seq[PartialDataSource])]] = Future.successful(
+    def getPartitions(workerHandler : WorkerHandler)(using ec : ExecutionContext) : Future[Seq[(Seq[ChannelManager], Seq[PartialDataSource])]] = {
             // Calculate the optimal allocations based on the workerHandler information
-            workerHandler.distributeWorkToNodes(env.connector, keyspace, name)
-            .map((channels, partitions) => 
-                (channels, 
-                // Convert the partitions into partial data sources
-                partitions.map(PartialCassandraDataSource(this, _)))
+            val mappings = workerHandler.distributeWorkToNodes(env.connector, keyspace, name)
+            logger.info("Generating " + mappings.map(_._2.size).sum + " partitions.")
+            
+            return Future.successful(
+                mappings.map {(channels, partitions) => 
+                    (channels, 
+                    // Convert the partitions into partial data sources
+                    partitions.map(PartialCassandraDataSource(this, _)))
+                }
             )
-        )
+        }
 
     def getQueryPlan : Seq[QueryPlanItem] = Seq(GetPartition(this))
     def getCleanupQueryPlan : Seq[QueryPlanItem] = Seq(DeletePartition(this))

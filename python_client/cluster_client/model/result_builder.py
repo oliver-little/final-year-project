@@ -28,7 +28,7 @@ class StreamedTableResultBuilder():
     # Converts data into a dictionary of pandas series objects
     def get_column_series(self):
         # Convert data to columnar format
-        columnar_data = [[] * len(self.header.fields)]
+        columnar_data = [[] for _ in range(len(self.header.fields))]
 
         for row in self.rows:
             for index, value in enumerate(row.values):

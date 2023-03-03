@@ -115,13 +115,18 @@ class PartialPrepareHashesTest extends StoreSpec {
         }
     }
 
-    it should "fail if an error occurs" in {
-        // In this case, we are testing that an error occurs if the state is wrong, and the dependency results as missing
+    it should "continue even if dependencies are missing" in {
+        // In this case, we are checking that the TableStore ignores any missing dependencies
         val ds = MockPartialDataSource()
         val partialTable = PartialTable(ds, Seq(SelectTransformation(F("a") as "b")))
         val item = PartialPrepareHashes(ds.parent, 2)
-        recoverToSucceededIf[IllegalArgumentException] {
-            item.execute(store)
+        item.execute(store)
+
+        // Get dependency that will be hashed
+        val dependency = ds.parent.getDependencies(0)
+
+        store.ask[TableStoreData](ref => TableStore.GetData(ref)) map { tableStoreData =>
+            tableStoreData.hashes.contains((dependency, 2)) should be (false)
         }
     }
 }

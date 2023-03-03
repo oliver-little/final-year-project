@@ -78,17 +78,24 @@ case class PartialDeletePreparedHashes(dataSource : DataSource, numPartitions : 
 case class PartialGetPartition(dataSource : PartialDataSource, workerURLs : Seq[InetSocketAddress]) extends PartialQueryPlanItem:
     val innerProtobuf : worker_query.QueryPlanItem.Item = worker_query.QueryPlanItem.Item.GetPartition(worker_query.GetPartition(Some(dataSource.protobuf), workerURLs.map(address => table_model.InetSocketAddress(address.getHostName, address.getPort))))
 
-    def execute(store: ActorRef[TableStore.TableStoreEvent])(using t : Timeout)(using system : ActorSystem[_])(using ec : ExecutionContext = system.executionContext) : Future[worker_query.ProcessQueryPlanItemResult] = 
+    def execute(store: ActorRef[TableStore.TableStoreEvent])(using t : Timeout)(using system : ActorSystem[_])(using ec : ExecutionContext = system.executionContext) : Future[worker_query.ProcessQueryPlanItemResult] = {
+        val channels = workerURLs.map(address => BaseChannelManager(address.getHostName, address.getPort)) // Also requires references to the other channels to be able to collate data
         dataSource.getPartialData( // Get the partial data from the data source
             store,  // Requires the TableStore reference
-            workerURLs.map(address => BaseChannelManager(address.getHostName, address.getPort)) // Also requires references to the other channels to be able to collate data
-        ).flatMap {
+            channels
+        ).flatMap {res => 
+            // Once we're finished with them, shutdown thecChannels
+            channels.map(_.channel.shutdown)
             // Once the partial data is ready, store the partition in the TableStore
-            result => store.ask[StatusReply[Done]](ref => TableStore.AddPartition(dataSource, result, ref)) 
-        }.flatMap {
-            case StatusReply.Success(_) => Future.successful(worker_query.ProcessQueryPlanItemResult(true))
-            case StatusReply.Error(e) => Future.failed(e)
+            store.ask[StatusReply[Done]](ref => TableStore.AddPartition(dataSource, res, ref)) 
+        }.flatMap {res =>
+            // Match on the result and return the correct future
+            res match {
+                case StatusReply.Success(_) => Future.successful(worker_query.ProcessQueryPlanItemResult(true))
+                case StatusReply.Error(e) => Future.failed(e)
+            }
         }
+    }
 
 case class PartialDeletePartition(dataSource : DataSource) extends PartialQueryPlanItem:
     val innerProtobuf : worker_query.QueryPlanItem.Item = worker_query.QueryPlanItem.Item.DeletePartition(worker_query.DeletePartition(Some(dataSource.protobuf)))

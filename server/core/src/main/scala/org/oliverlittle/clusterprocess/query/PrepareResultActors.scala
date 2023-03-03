@@ -27,8 +27,9 @@ object PrepareResultConsumer:
     final case class Error(e : Throwable) extends ConsumerEvent
 
     def apply(channel : ChannelManager, items : Seq[(PartialTable, worker_query.QueryPlanItem)], counter : ActorRef[PrepareResultCounter.CounterEvent]) : Behavior[ConsumerEvent] = Behaviors.setup{context => 
-        
-        new PrepareResultConsumer(channel, channel.workerComputeServiceStub, counter, context).start(Seq(), items)
+        if items.size == 0 
+        then Behaviors.stopped
+        else new PrepareResultConsumer(channel, channel.workerComputeServiceStub, counter, context).start(Seq(), items)
     }
 
 class PrepareResultConsumer private (channel : ChannelManager, stub : worker_query.WorkerComputeServiceGrpc.WorkerComputeServiceStub, counter : ActorRef[PrepareResultCounter.CounterEvent], context : ActorContext[ConsumerEvent]) {
