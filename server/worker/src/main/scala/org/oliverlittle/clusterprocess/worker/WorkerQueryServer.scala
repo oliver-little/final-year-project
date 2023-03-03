@@ -109,7 +109,6 @@ class WorkerQueryServicer(store : ActorRef[TableStore.TableStoreEvent])(using sy
             val runnable = responseObserverToDelayedRunnable(responseObserver)
 
             WorkerQueryServicer.logger.info("getHashedPartitionData")
-            WorkerQueryServicer.logger.info(table.toString)
 
             store.ask[Option[TableResult]](ref => TableStore.GetHash(table, request.totalPartitions, request.partitionNum, ref)).onComplete {
                 case Success(None) => runnable.setData(table.empty)
@@ -120,7 +119,6 @@ class WorkerQueryServicer(store : ActorRef[TableStore.TableStoreEvent])(using sy
 
         override def getTableStoreData(request : worker_query.GetTableStoreDataRequest) : Future[worker_query.TableStoreData] = 
             store.ask[TableStoreData](ref => TableStore.GetData(ref)) map {res =>
-                println(res)
                 res.protobuf
             }
 

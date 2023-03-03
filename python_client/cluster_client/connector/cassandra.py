@@ -6,7 +6,7 @@ from cassandra.auth import AuthProvider, PlainTextAuthProvider
 from cluster_client.config import NAME_REGEX
 
 class CassandraConnector():
-    def __init__(self, server_url : str = ["localhost"], port : int = None, username : str = None, password : str = None, auth_provider : AuthProvider = None) -> None:
+    def __init__(self, server_url : str = ["localhost"], port : int = 9042, username : str = None, password : str = None, auth_provider : AuthProvider = None) -> None:
         if isinstance(server_url, str):
             server_url = [server_url]
 

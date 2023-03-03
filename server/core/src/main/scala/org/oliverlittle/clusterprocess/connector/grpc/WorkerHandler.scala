@@ -55,6 +55,7 @@ case class WorkerHandler(channels : Seq[ChannelManager]) {
         val metadata = session.getMetadata
         val tokenMap = metadata.getTokenMap.get
         val sizeEstimator = TableSizeEstimation.estimateTableSize(session, keyspace, table)
+        logger.info("Estimated size of " + keyspace + "." + table + " is " + sizeEstimator.estimatedTableSizeMB.toString + "MB.")
         val channelMap = getChannelMapping(channels, metadata)
 
         // For each node, split the token range to be small enough to fit the chunk size (or if the table is really small, just output the full tokenRange)

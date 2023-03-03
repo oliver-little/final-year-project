@@ -11,6 +11,9 @@ import akka.actor.typed.{ActorRef, ActorSystem}
 import akka.actor.typed.scaladsl.AskPattern._
 import akka.util.Timeout
 
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+
 import scala.util.Try
 import scala.util.hashing.MurmurHash3
 import scala.collection.MapView
@@ -54,12 +57,16 @@ case class GroupByDataSource(source : Table, uniqueFields : Seq[NamedFieldExpres
 
 
 case class PartialGroupByDataSource(parent : GroupByDataSource, partitionNum : Int, totalPartitions : Int) extends PartialDataSource:
+    private val logger = LoggerFactory.getLogger("PartialGroupByDataSource")
+
     lazy val protobuf : table_model.PartialDataSource = table_model.PartialDataSource().withGroupBy(table_model.PartialGroupByDataSource(
         Some(parent.groupByProtobuf), 
         Some(table_model.PartitionInformation(partitionNum, totalPartitions))
     ))
 
     def getPartialData(store : ActorRef[TableStore.TableStoreEvent], workerChannels : Seq[ChannelManager])(using t : Timeout)(using system : ActorSystem[_])(using ec : ExecutionContext = system.executionContext) : Future[TableResult] = {
+        logger.info("Fetching data for GroupByDataSource partition " + partitionNum.toString + " of " + totalPartitions.toString)
+        
         // This version of this script only works for one dependent table, but should be relatively straightforward to loop over
         // all dependencies to get multiple out
         val promises : Seq[Future[Option[TableResult]]]= workerChannels.map(getHashedPartitionData(parent.source, _).future) // Get data from other workers

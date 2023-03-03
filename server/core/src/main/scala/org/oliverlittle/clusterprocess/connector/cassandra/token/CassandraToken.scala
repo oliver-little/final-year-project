@@ -38,7 +38,7 @@ object CassandraTokenRange {
 }
 
 case class CassandraTokenRange(start : CassandraToken, end : CassandraToken) extends Ordered[CassandraTokenRange] {
-	lazy val percentageOfFullRing : Double = (((BigDecimal(end.toLong) - BigDecimal(start.toLong)) % BigDecimal(CassandraToken.MAX_TOKEN)) / BigDecimal(CassandraToken.NUM_TOKENS)).toDouble
+	lazy val percentageOfFullRing : Double = (((BigDecimal(end.toLong) - BigDecimal(start.toLong)) % BigDecimal(CassandraToken.MAX_TOKEN)).abs / BigDecimal(CassandraToken.NUM_TOKENS)).toDouble
 	lazy val protobuf : table_model.CassandraTokenRange = table_model.CassandraTokenRange(start=start.toLong, end=end.toLong)
 	def toTokenRange(tokenMap : TokenMap) : TokenRange = tokenMap.newTokenRange(start.toToken(tokenMap), end.toToken(tokenMap))
 	
@@ -77,16 +77,19 @@ object CassandraPartition {
 	* @param tokenMap A TokenMap instance
 	* @return A seq of token ranges, joined if they were smaller than the chunk size and they intersected
 	*/
-	def joinForFullSize(tokenRange : Seq[CassandraTokenRange], fullSizeMB : Double, chunkSizeMB : Double, tokenMap : TokenMap) : Seq[CassandraPartition] = PartialFold.partialFold(
-		// Firstly, try to join any contiguous ranges, then convert to partitions and sort
+	def joinForFullSize(tokenRange : Seq[CassandraTokenRange], fullSizeMB : Double, chunkSizeMB : Double, tokenMap : TokenMap) : Seq[CassandraPartition] = 
 		PartialFold.partialFold(
-		tokenRange.toSeq.sorted,
-		l => l.nonEmpty && l.head.percentageOfFullRing * fullSizeMB < chunkSizeMB,
-		(list, item) => Try{list.head.mergeWith(tokenMap, item) :: list.tail}.getOrElse(item :: list)
-		).map(t => CassandraPartition(Seq(t))).sortBy(_.percentageOfFullRing),
-		// Join any partitions which are smaller than the chunk size into a larger partition
-		l => l.nonEmpty && l.head.percentageOfFullRing * fullSizeMB < chunkSizeMB,
-		(list, item) => (list.head ++ item) :: list.tail
+			// Firstly, try to join any contiguous ranges, then convert to partitions and sort
+			PartialFold.partialFold(
+				tokenRange.toSeq.sorted,
+				l => l.nonEmpty && l.head.percentageOfFullRing * fullSizeMB < chunkSizeMB,
+				(list, item) => Try{list.head.mergeWith(tokenMap, item) :: list.tail}.getOrElse(item :: list)
+			)
+			.map(t => CassandraPartition(Seq(t)))
+			.sortBy(_.percentageOfFullRing),
+			// Join any partitions which are smaller than the chunk size into a larger partition
+			l => l.nonEmpty && l.head.percentageOfFullRing * fullSizeMB < chunkSizeMB,
+			(list, item) => (list.head ++ item) :: list.tail
 	)
 	
 	def fromProtobuf(ranges : Seq[table_model.CassandraTokenRange]) : CassandraPartition = CassandraPartition(ranges.map(CassandraTokenRange.fromProtobuf(_)))

@@ -34,7 +34,7 @@ class Table():
         E.G: `table.filter(F("col1") < F("col2"))`
             or `table.filter((F("col1").contains("hello"))`"""
 
-        return Table(self.connector, self.data_source, self.transformations + [FilterTransformation(filters)])
+        return Table(self.connector, self.data_source, self.transformations + [FilterTransformation(filter)])
 
     def join(self, join_type : str, join_table_name : str) -> Table:
         """Creates a new table by joining this table to another by name

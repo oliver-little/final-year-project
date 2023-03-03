@@ -84,7 +84,7 @@ case class PartialGetPartition(dataSource : PartialDataSource, workerURLs : Seq[
             store,  // Requires the TableStore reference
             channels
         ).flatMap {res => 
-            // Once we're finished with them, shutdown thecChannels
+            // Once we're finished with them, shutdown the channels
             channels.map(_.channel.shutdown)
             // Once the partial data is ready, store the partition in the TableStore
             store.ask[StatusReply[Done]](ref => TableStore.AddPartition(dataSource, res, ref)) 
