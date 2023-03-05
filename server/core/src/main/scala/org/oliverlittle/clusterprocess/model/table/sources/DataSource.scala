@@ -70,7 +70,7 @@ object DependentDataSource:
 	} 
 
 trait DependentDataSource extends DataSource:
-	def hashPartitionedData(result : TableResult, numPartitions : Int) : MapView[Int, TableResult]
+	def hashPartitionedData(result : TableResult, numPartitions : Int) : Map[Int, TableResult]
 
 object PartialDataSource:
 	def fromProtobuf(dataSource : table_model.PartialDataSource) : PartialDataSource = dataSource.source match {

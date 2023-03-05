@@ -66,9 +66,9 @@ case class MockDataSource(randomiser : UUID = UUID.randomUUID()) extends Depende
 
     override lazy val getDependencies: Seq[Table] = Seq(Table(MockDataSource(), Seq()))
 
-    val partitionHash : MapView[Int, TableResult] = Map(0 -> EvaluatedTableResult(getHeaders, Seq(Seq(Some(IntValue(1))))), 1 -> empty).view
+    val partitionHash : Map[Int, TableResult] = Map(0 -> EvaluatedTableResult(getHeaders, Seq(Seq(Some(IntValue(1))))), 1 -> empty)
 
-    def hashPartitionedData(result: TableResult, numPartitions: Int): MapView[Int, TableResult] = partitionHash
+    def hashPartitionedData(result: TableResult, numPartitions: Int): Map[Int, TableResult] = partitionHash
 }
 
 case class MockPartialDataSource(parent : MockDataSource = MockDataSource(), randomiser : UUID = UUID.randomUUID()) extends PartialDataSource with MockitoSugar {
