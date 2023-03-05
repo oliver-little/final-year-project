@@ -7,11 +7,8 @@ import org.oliverlittle.clusterprocess.model.table.sources.PartialDataSource
 import scala.util.Properties.envOrElse
 import java.nio.file.Path
 import java.nio.file.Files
-import com.typesafe.config.ConfigFactory
 
 object StoredTableResult:
-    val memoryUsageThreshold : Double = ConfigFactory.load.getString("clusterprocess.chunk.memory_usage_threshold_percent").toDouble
-
     def getStoredTable(table : PartialTable, result : TableResult, memoryUsagePercentage : Double) : StoredTableResult[PartialTable] = 
         if memoryUsagePercentage < memoryUsageThreshold
         then InMemoryPartialTable(table, result)
@@ -36,7 +33,7 @@ object StoredTableResult:
             storedPB.store(result)
             storedPB
 
-trait StoredTableResult[T]:
+sealed trait StoredTableResult[T]:
     val source : T
     def get : TableResult
     def cleanup : Unit
@@ -60,28 +57,28 @@ case class InMemoryPartialTable(table : PartialTable, tableResult : TableResult)
         val storedPB = ProtobufTableResult(table)
         storedPB.store(tableResult)
         val newMap = tableStoreData.tables + (table.parent -> (tableStoreData.tables(table.parent) + (table -> storedPB)))
-        return tableStoreData.copy(tables=newMap)
+        return tableStoreData.copy(tables = newMap, leastRecentlyUsed = tableStoreData.leastRecentlyUsed.delete(this))
     }
 
 case class InMemoryPartialDataSource(partition : PartialDataSource, tableResult : TableResult) extends InMemoryTableResult[PartialDataSource]:
     val source = partition
-    def spillToDisk(tableStoreData: TableStoreData): TableStoreData = {
+    def spillToDisk(tableStoreData: TableStoreData) : TableStoreData = {
         val storedPB = ProtobufTableResult(partition)
         storedPB.store(tableResult)
         val newMap = tableStoreData.partitions + (partition.parent -> (tableStoreData.partitions(partition.parent) + (partition -> storedPB)))
-        return tableStoreData.copy(partitions=newMap)
+        return tableStoreData.copy(partitions = newMap, leastRecentlyUsed = tableStoreData.leastRecentlyUsed.delete(this))
     }
 
 
 // Source is the input (Table, Number of Partitions, Partition Number)
 case class InMemoryDependency(dependencyData : ((Table, Int), Int), tableResult : TableResult) extends InMemoryTableResult[((Table, Int), Int)]:
     val source = dependencyData
-    def spillToDisk(tableStoreData: TableStoreData): TableStoreData = {
+    def spillToDisk(tableStoreData: TableStoreData) : TableStoreData = {
         val storedPB = ProtobufTableResult(dependencyData)
         storedPB.store(tableResult)
         // Update this hash in the TableStore
         val newMap = tableStoreData.hashes + (dependencyData._1 -> (tableStoreData.hashes(dependencyData._1) + (dependencyData._2 -> storedPB)))
-        return tableStoreData.copy(hashes=newMap)
+        return tableStoreData.copy(hashes = newMap, leastRecentlyUsed = tableStoreData.leastRecentlyUsed.delete(this))
     }
 
 object ProtobufTableResult:

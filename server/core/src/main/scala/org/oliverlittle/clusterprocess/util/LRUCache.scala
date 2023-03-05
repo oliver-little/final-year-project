@@ -4,6 +4,8 @@ case class LRUCache[T](order : Seq[T] = Seq()):
     def add(e : T) : LRUCache[T] = 
         copy(order=e +: order)
 
+    def addAll(items : Seq[T]) : LRUCache[T] = copy(order=items ++ order)
+
     def access(e : T) : LRUCache[T] = 
         // Search the list until we find our element
         order.span(_ != e) match {
