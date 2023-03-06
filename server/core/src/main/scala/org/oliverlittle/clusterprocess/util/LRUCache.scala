@@ -18,8 +18,10 @@ case class LRUCache[T](order : Seq[T] = Seq()):
     def accessAll(items : Seq[T]) : LRUCache[T] = 
         deleteAll(items.toSet).addAll(items)
 
-    def delete(e : T) : LRUCache[T] = copy(order=order.filter(_ == e))
+    def delete(e : T) : LRUCache[T] = {
+        copy(order=order.filter(_ != e))
+    }
 
-    def deleteAll(items : Set[T]) : LRUCache[T] = copy(order=order.filter(e => items.contains(e)))
+    def deleteAll(items : Set[T]) : LRUCache[T] = copy(order=order.filter(e => !items.contains(e)))
 
     def getLeastRecentlyUsed : Option[T] = order.lastOption

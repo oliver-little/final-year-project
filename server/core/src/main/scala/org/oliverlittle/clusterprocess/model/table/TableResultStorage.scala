@@ -5,8 +5,9 @@ import org.oliverlittle.clusterprocess.model.table.field.TableValue
 import org.oliverlittle.clusterprocess.model.table.sources.PartialDataSource
 
 import scala.util.Properties.envOrElse
-import java.nio.file.Path
+import java.nio.file.{Path, Paths}
 import java.nio.file.Files
+import java.util.UUID
 
 sealed trait StoredTableResult[T]:
     val source : T
@@ -57,12 +58,16 @@ case class InMemoryDependency(dependencyData : ((Table, Int), Int), tableResult 
     }
 
 object ProtobufTableResult:
-    val storagePath = Path.of(envOrElse("SPILL_STORAGE_PATH", "temp/"))
+    // Generate a semi-random path
+    val storagePath = Path.of(envOrElse("SPILL_STORAGE_PATH", "temp/"), UUID.randomUUID.toString)
 
 case class ProtobufTableResult[T](source : T) extends StoredTableResult[T]:
-    val path = ProtobufTableResult.storagePath.resolve(source.getClass.getName + "/" + source.hashCode + ".table")
+    val path = ProtobufTableResult.storagePath.resolve(source.getClass.getName + "/" + source.hashCode + ".table").toAbsolutePath()
 
-    def store(tableResult : TableResult) : Unit ={
+    def store(tableResult : TableResult) : Unit = {
+        // Make the directory first if required
+        Files.createDirectories(path.getParent())
+        Files.createFile(path)
         val outputStream = Files.newOutputStream(path)
         try {
             tableResult.protobuf.writeTo(outputStream)

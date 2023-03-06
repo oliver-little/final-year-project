@@ -9,6 +9,9 @@ import akka.Done
 import akka.actor.typed.scaladsl.{Behaviors, LoggerOps}
 import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
 
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+
 import scala.collection.immutable.{HashMap}
 import scala.collection.{LinearSeq, MapView}
 import com.typesafe.config.ConfigFactory
@@ -39,7 +42,7 @@ object TableStore {
     def processResults(tableStoreData : TableStoreData) : Behavior[TableStoreEvent] = Behaviors.receive{ (context, message) =>
         message match {
             case AddResult(table, result, replyTo) =>
-                val newData = tableStoreData.updateResult(table, result)
+                val newData = tableStoreData.checkSpill.updateResult(table, result)
                 replyTo ! StatusReply.ack()
                 processResults(newData)
 
@@ -57,7 +60,7 @@ object TableStore {
                 processResults(newTableStoreData)
 
             case AddPartition(partition, result, replyTo) =>
-                val newData = tableStoreData.updatePartition(partition, result)
+                val newData = tableStoreData.checkSpill.updatePartition(partition, result)
                 replyTo ! StatusReply.ack()
                 processResults(newData)
 
@@ -70,7 +73,7 @@ object TableStore {
                 processResults(newTableStoreData)
 
             case HashPartition(dataSource, numPartitions, replyTo) =>
-                val newData = tableStoreData.updateHashes(dataSource, numPartitions)
+                val newData = tableStoreData.checkSpill.updateHashes(dataSource, numPartitions)
                 replyTo ! StatusReply.ack()
                 processResults(newData)
 
@@ -96,7 +99,8 @@ object TableStore {
 }
 
 object TableStoreData:
-    val memoryUsageThreshold : Double = ConfigFactory.load.getString("clusterprocess.chunk.memory_usage_threshold_percent").toDouble
+    private val logger = LoggerFactory.getLogger(classOf[TableStoreData].getName)
+    private val memoryUsageThreshold : Double = ConfigFactory.load.getString("clusterprocess.chunk.memory_usage_threshold_percent").toDouble
 
     def empty = TableStoreData(HashMap(), HashMap(), HashMap(), LRUCache())
 
@@ -139,7 +143,7 @@ case class TableStoreData(
                     // Replace the stored result with an in memory version again
                     val result = p.get
                     p.cleanup
-                    (Some(result), updateResult(table, result))
+                    (Some(result), updateResult(table, result).checkSpill)
             }
             case None => (None, checkSpill)
         }
@@ -153,7 +157,7 @@ case class TableStoreData(
                     // Replace the stored result with an in memory version again
                     val result = p.get
                     p.cleanup
-                    (Some(result), updatePartition(partition, result))
+                    (Some(result), updatePartition(partition, result).checkSpill)
             }
             case None => (None, checkSpill)
         }
@@ -167,7 +171,7 @@ case class TableStoreData(
                     // Replace the stored result with an in memory version again
                     val result = p.get
                     p.cleanup
-                    (Some(result), updateDependencyHash(((source, numPartitions), partitionNum), result))
+                    (Some(result), updateDependencyHash(((source, numPartitions), partitionNum), result).checkSpill)
             }
             case None => (None, checkSpill)
         }
@@ -186,26 +190,23 @@ case class TableStoreData(
                     // Replace the stored result with an in memory version again
                     val result = p.get
                     p.cleanup
-                    (items :+ result, tableStoreData.updateResult(partialTable, result))
+                    (items :+ result, tableStoreData.updateResult(partialTable, result).checkSpill)
                 }
         }
 
     def updateResult(table : PartialTable, result : TableResult) : TableStoreData = {
-        val currentStore = checkSpill
         val storedResult = InMemoryPartialTable(table, result)
         val newMap = tables + (table.parent -> (tables.getOrElse(table.parent, HashMap()) + (table -> storedResult)))
-        return currentStore.copy(tables=newMap, leastRecentlyUsed = leastRecentlyUsed.add(storedResult))
+        return copy(tables=newMap, leastRecentlyUsed = leastRecentlyUsed.add(storedResult))
     }
 
     def updatePartition(partition : PartialDataSource, result : TableResult) : TableStoreData = {
-        val currentStore = checkSpill
         val storedResult = InMemoryPartialDataSource(partition, result)
         val newMap = partitions + (partition.parent -> (partitions.getOrElse(partition.parent, HashMap()) + (partition -> storedResult)))
-        return currentStore.copy(partitions=newMap, leastRecentlyUsed = leastRecentlyUsed.add(storedResult))
+        return copy(partitions=newMap, leastRecentlyUsed = leastRecentlyUsed.add(storedResult))
     }
 
     def updateHashes(dataSource : DependentDataSource, numPartitions : Int) : TableStoreData = {
-        val currentStore = checkSpill
         // It's possible that we don't have a hashed object for every dependency
         // Therefore, we filter the dependency for ones we actually have data for
         val dependencies = dataSource.getDependencies.filter(dependency => tables contains dependency)
@@ -226,7 +227,7 @@ case class TableStoreData(
 
         val newLRU = leastRecentlyUsed.addAll(newDependencies.values.flatMap(_.values).toSeq)
 
-        return currentStore.copy(hashes = newMap, leastRecentlyUsed = newLRU)
+        return copy(hashes = newMap, leastRecentlyUsed = newLRU)
     }
 
     def updateDependencyHash(dependencyData : ((Table, Int), Int), tableResult : TableResult) : TableStoreData = {
@@ -237,28 +238,52 @@ case class TableStoreData(
     }
 
     def deleteResult(table : Table) : TableStoreData = {
-        tables(table).values.foreach(_.cleanup)
+        tables.get(table).map(_.values.foreach(_.cleanup))
         return copy(
             tables = tables - table, 
-            leastRecentlyUsed = leastRecentlyUsed.deleteAll(tables(table).values.collect{case e : InMemoryTableResult[_] => e}.toSet)
+            leastRecentlyUsed = 
+                tables
+                .get(table)
+                .map(partials =>
+                    leastRecentlyUsed.deleteAll(
+                        partials.values.collect{case e : InMemoryTableResult[_] => e}.toSet)
+                    )
+                .getOrElse(leastRecentlyUsed)
         )
     }
 
     def deletePartition(partition : DataSource) : TableStoreData = {
-        partitions(partition).values.foreach(_.cleanup)
+        partitions.get(partition).map(_.values.foreach(_.cleanup))
         return copy(
             partitions = partitions - partition,
-            leastRecentlyUsed = leastRecentlyUsed.deleteAll(partitions(partition).values.collect{case e : InMemoryTableResult[_] => e}.toSet)
+            leastRecentlyUsed = 
+                partitions
+                .get(partition)
+                .map(partials =>
+                    leastRecentlyUsed.deleteAll(
+                        partials.values.collect{case e : InMemoryTableResult[_] => e}.toSet)
+                    )
+                .getOrElse(leastRecentlyUsed)
         )
     }
 
     def deleteHashes(dataSource : DataSource, numPartitions : Int) : TableStoreData = {
         val hashKeys = dataSource.getDependencies.map(table => (table, numPartitions))
         // Cleanup all dependencies
-        hashKeys.foreach(hashes(_).values.foreach(_.cleanup))
+        hashKeys.foreach(hashes.get(_).map(_.values.foreach(_.cleanup)))
         return copy(
             hashes = hashes -- hashKeys,
-            leastRecentlyUsed = leastRecentlyUsed.deleteAll(hashKeys.map(hashes(_).values.collect{case e : InMemoryTableResult[_] => e}.toSet).reduce(_ union _))
+            leastRecentlyUsed = 
+                // Delete all in memory hashes 
+                leastRecentlyUsed.deleteAll(
+                    hashKeys.flatMap(
+                        hashes
+                        .get(_)
+                        .map(partials =>
+                                partials.values.collect{case e : InMemoryTableResult[_] => e}.toSet
+                            )   
+                    ).reduce(_ union _)
+                )
         )
     }
 
@@ -274,7 +299,12 @@ case class TableStoreData(
     /**
      * Spill only if required
      */
-    def checkSpill : TableStoreData = if MemoryUsage.getMemoryUsagePercentage(Runtime.getRuntime) > TableStoreData.memoryUsageThreshold then spill else this
+    def checkSpill : TableStoreData = 
+        if MemoryUsage.getMemoryUsagePercentage(Runtime.getRuntime) > TableStoreData.memoryUsageThreshold 
+        then 
+            TableStoreData.logger.info("Spilling to disk.")
+            spill 
+        else this
 
     /**
       * Perform a spill to disk on the most recently used item
@@ -285,6 +315,10 @@ case class TableStoreData(
         // Get the least recently used item
         leastRecentlyUsed.getLeastRecentlyUsed
         // Spill it to disk
-        .map(_.spillToDisk(this))
+        .map{lru =>
+            val tableStoreData = lru.spillToDisk(this)
+            Runtime.getRuntime.gc
+            tableStoreData
+        }
         // Fallback: no item is present (shouldn't happen), do nothing
         .getOrElse(this)

@@ -90,7 +90,7 @@ class ClientQueryServer(channels : Seq[ChannelManager])(using executionContext :
                     }.onComplete {queryPlanTry =>
                         ClientQueryServer.logger.info("Completed query, cleaning up")
                         // No matter what, pop from the cache to clean-up
-                        Future.sequence(workerHandler.channels.map(_.workerComputeServiceStub.clearCache(worker_query.ClearCacheResult())))
+                        Future.sequence(workerHandler.channels.map(_.workerComputeServiceStub.clearCache(worker_query.ClearCacheRequest())))
                         queryPlanTry match {
                             // Do nothing on success
                             case Success(_) => 
