@@ -8,31 +8,6 @@ import scala.util.Properties.envOrElse
 import java.nio.file.Path
 import java.nio.file.Files
 
-object StoredTableResult:
-    def getStoredTable(table : PartialTable, result : TableResult, memoryUsagePercentage : Double) : StoredTableResult[PartialTable] = 
-        if memoryUsagePercentage < memoryUsageThreshold
-        then InMemoryPartialTable(table, result)
-        else 
-            val storedPB = ProtobufTableResult(table)
-            storedPB.store(result)
-            storedPB
-    
-    def getStoredDataSource(dataSource : PartialDataSource, result : TableResult, memoryUsagePercentage : Double) : StoredTableResult[PartialDataSource] = 
-        if memoryUsagePercentage < memoryUsageThreshold
-        then InMemoryPartialDataSource(dataSource, result)
-        else
-            val storedPB = ProtobufTableResult(dataSource)
-            storedPB.store(result)
-            storedPB
-
-    def getStoredDependency(dependencyData : ((Table, Int), Int), result : TableResult, memoryUsagePercentage : Double) : StoredTableResult[((Table, Int), Int)] =
-        if memoryUsagePercentage < memoryUsageThreshold
-        then InMemoryDependency(dependencyData, result)
-        else
-            val storedPB = ProtobufTableResult(dependencyData)
-            storedPB.store(result)
-            storedPB
-
 sealed trait StoredTableResult[T]:
     val source : T
     def get : TableResult

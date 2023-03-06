@@ -122,17 +122,10 @@ class WorkerQueryServicer(store : ActorRef[TableStore.TableStoreEvent])(using sy
                 res.protobuf
             }
 
-        override def modifyCache(request : worker_query.ModifyCacheRequest) : Future[worker_query.TableStoreData] = request.cacheOperation match {
-            case worker_query.ModifyCacheRequest.CacheOperation.PUSH => 
-                WorkerQueryServicer.logger.info("Cache state stored")
-                store ! TableStore.PushCache()
-                store.ask[TableStoreData](ref => TableStore.GetData(ref)).map(_.protobuf)
-            case worker_query.ModifyCacheRequest.CacheOperation.POP =>
-                WorkerQueryServicer.logger.info("Cache popped")
-                store.ask[TableStoreData](ref => TableStore.PopCache(ref)).map {
-                    case data => data.protobuf
-                }
-            case _ => throw new IllegalArgumentException("Unknown cache operation provided")
+        override def clearCache(request : worker_query.ClearCacheRequest) : Future[worker_query.ClearCacheResult] = {
+            WorkerQueryServicer.logger.info("Cache cleared.")
+            store ! TableStore.Reset()
+            Future.successful(worker_query.ClearCacheResult(true))
         }
 
         override def getEstimatedTableSize(request : worker_query.GetEstimatedTableSizeRequest) : Future[worker_query.GetEstimatedTableSizeResult] = 

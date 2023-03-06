@@ -28,9 +28,6 @@ object TableStore {
     final case class HashPartition(dataSource : DependentDataSource, numPartitions : Int, replyTo : ActorRef[StatusReply[Done]]) extends TableStoreEvent
     final case class GetHash(table : Table, totalPartitions : Int, partitionNum : Int, replyTo : ActorRef[Option[TableResult]]) extends TableStoreEvent
     final case class DeleteHash(dataSource : DataSource, numPartitions : Int) extends TableStoreEvent
-    // Push/Pop cache stack
-    final case class PushCache() extends TableStoreEvent
-    final case class PopCache(replyTo : ActorRef[TableStoreData]) extends TableStoreEvent
     final case class GetData(replyTo : ActorRef[TableStoreData]) extends TableStoreEvent
     // Reset state
     final case class Reset() extends TableStoreEvent
@@ -39,59 +36,51 @@ object TableStore {
 
     def apply() : Behavior[TableStoreEvent] = empty
         
-    def processResults(tableStoreData : TableStoreData, cache : Seq[TableStoreData]) : Behavior[TableStoreEvent] = Behaviors.receive{ (context, message) =>
+    def processResults(tableStoreData : TableStoreData) : Behavior[TableStoreEvent] = Behaviors.receive{ (context, message) =>
         message match {
             case AddResult(table, result, replyTo) =>
                 val newData = tableStoreData.updateResult(table, result)
                 replyTo ! StatusReply.ack()
-                processResults(newData, cache)
+                processResults(newData)
 
             case DeleteResult(table) => 
-                processResults(tableStoreData.deleteResult(table), cache)
+                processResults(tableStoreData.deleteResult(table))
 
             case GetResult(table, replyTo) =>
-                replyTo ! tableStoreData.tables.get(table.parent).flatMap(_.get(table).map(_.get))
-                // Update LRU ordering
-                Behaviors.same
+                val (resultOption, newTableStoreData) = tableStoreData.getResult(table)
+                replyTo ! resultOption
+                processResults(newTableStoreData)
 
             case GetAllResults(table, replyTo) =>
-                replyTo ! tableStoreData.tables.get(table).map(_.values).getOrElse(Seq()).map(_.get).toSeq
-                // Update LRU ordering
-                Behaviors.same
+                val (resultSeq, newTableStoreData) = tableStoreData.getAllResults(table)
+                replyTo ! resultSeq
+                processResults(newTableStoreData)
 
             case AddPartition(partition, result, replyTo) =>
                 val newData = tableStoreData.updatePartition(partition, result)
                 replyTo ! StatusReply.ack()
-                processResults(newData, cache)
+                processResults(newData)
 
             case DeletePartition(partition) =>
-                processResults(tableStoreData.deletePartition(partition), cache)
+                processResults(tableStoreData.deletePartition(partition))
 
             case GetPartition(partition, replyTo) => 
-                replyTo ! tableStoreData.partitions.get(partition.parent).flatMap(_.get(partition).map(_.get))
-                Behaviors.same
+                val (resultOption, newTableStoreData) = tableStoreData.getPartition(partition)
+                replyTo ! resultOption
+                processResults(newTableStoreData)
 
             case HashPartition(dataSource, numPartitions, replyTo) =>
                 val newData = tableStoreData.updateHashes(dataSource, numPartitions)
                 replyTo ! StatusReply.ack()
-                processResults(newData, cache)
+                processResults(newData)
 
             case GetHash(table, totalPartitions, partitionNum, replyTo) =>
-                // Attempt to get the partition
-                replyTo ! tableStoreData.hashes.get((table, totalPartitions)).flatMap(_.get(partitionNum).map(_.get))
-                Behaviors.same
+                val (resultOption, newTableStoreData) = tableStoreData.getHash(table, totalPartitions, partitionNum)
+                replyTo ! resultOption
+                processResults(newTableStoreData)
 
             case DeleteHash(dataSource, numPartitions) =>
-                processResults(tableStoreData.deleteHashes(dataSource, numPartitions), cache)
-
-            // Cache operations
-            case PushCache() =>
-                processResults(tableStoreData, tableStoreData +: cache)
-
-            case PopCache(replyTo) =>
-                val head = cache.headOption.getOrElse(TableStoreData.empty)
-                replyTo ! head
-                processResults(head, cache.drop(1))
+                processResults(tableStoreData.deleteHashes(dataSource, numPartitions))
 
             case GetData(replyTo) =>
                 replyTo ! tableStoreData
@@ -103,7 +92,7 @@ object TableStore {
         }
     }
 
-    def empty : Behavior[TableStoreEvent] = processResults(TableStoreData.empty, LinearSeq().toSeq)
+    def empty : Behavior[TableStoreEvent] = processResults(TableStoreData.empty)
 }
 
 object TableStoreData:
@@ -111,6 +100,17 @@ object TableStoreData:
 
     def empty = TableStoreData(HashMap(), HashMap(), HashMap(), LRUCache())
 
+/**
+  * Immutable implementation of a TableStore
+  * NOTE: operations are not always entirely side-effect free due to storage on disk.
+  * If an operation is called on an instance of this object, do NOT use the previous object again
+  * as it is possible that the data it references no longer exists on disk
+  *
+  * @param tables A mapping from Table -> PartialTable -> StoredTableResult
+  * @param partitions A mapping from DataSource -> PartialDataSource -> StoredTableResult
+  * @param hashes A mapping from (Table Dependency, Number of Partitions) -> Partition Number -> StoredTableResult
+  * @param leastRecentlyUsed An instance of a least-recently-used list
+  */
 case class TableStoreData(
     tables : Map[Table, Map[PartialTable, StoredTableResult[PartialTable]]], 
     partitions : Map[DataSource, Map[PartialDataSource, StoredTableResult[PartialDataSource]]], 
@@ -128,24 +128,67 @@ case class TableStoreData(
         ).toSeq
     )
 
-    def getResult(table : PartialTable) : (Option[TableResult], TableStoreData) = 
+    def access(e : InMemoryTableResult[_]) : TableStoreData = copy(leastRecentlyUsed = leastRecentlyUsed.access(e))
+
+    def getResult(table : PartialTable) : (Option[TableResult], TableStoreData) =
         // Get the StoredTableResult, then match on its type
         tables.get(table.parent).flatMap(_.get(table)) match {
             case Some(t) => t match {
-                case i : InMemoryTableResult[_] => (Some(i.get), this)
+                case i : InMemoryTableResult[_] => (Some(i.get), access(i).checkSpill)
                 case p : ProtobufTableResult[_] =>
                     // Replace the stored result with an in memory version again
                     val result = p.get
                     p.cleanup
                     (Some(result), updateResult(table, result))
             }
-            case None => (None, this)
+            case None => (None, checkSpill)
         }
 
-    /*def getAllResults(table : Table) : (Seq[TableResult], TableStoreData) = 
-        tables.get(table).fold((Seq(), this)) { (items, tableStoreData) =>
+    def getPartition(partition : PartialDataSource) : (Option[TableResult], TableStoreData) =
+        // Get the StoredTableResult, then match on its type
+        partitions.get(partition.parent).flatMap(_.get(partition)) match {
+            case Some(t) => t match {
+                case i : InMemoryTableResult[_] => (Some(i.get), access(i).checkSpill)
+                case p : ProtobufTableResult[_] =>
+                    // Replace the stored result with an in memory version again
+                    val result = p.get
+                    p.cleanup
+                    (Some(result), updatePartition(partition, result))
+            }
+            case None => (None, checkSpill)
+        }
 
-        }*/
+    def getHash(source : Table, numPartitions : Int, partitionNum : Int) : (Option[TableResult], TableStoreData) =
+        // Get the StoredTableResult, then match on its type
+        hashes.get((source, numPartitions)).flatMap(_.get(partitionNum)) match {
+            case Some(t) => t match {
+                case i : InMemoryTableResult[_] => (Some(i.get), access(i).checkSpill)
+                case p : ProtobufTableResult[_] =>
+                    // Replace the stored result with an in memory version again
+                    val result = p.get
+                    p.cleanup
+                    (Some(result), updateDependencyHash(((source, numPartitions), partitionNum), result))
+            }
+            case None => (None, checkSpill)
+        }
+
+    def getAllResults(table : Table) : (Seq[TableResult], TableStoreData) =
+        // Get all the partialTables for this table, then fold starting from an empty set of results
+        tables(table).foldLeft((Seq() : Seq[TableResult], checkSpill)){(inputData, storedDataPair) =>
+            // Unpack the intermediate fold value
+            val (items, tableStoreData) = inputData
+            // Unpack the PartialTable -> StoredTableResult mapping
+            val (partialTable, storedResult) = storedDataPair
+            // Match on the stored table result, and read it into memory if required
+            storedResult match {
+                case i : InMemoryTableResult[_] => (items :+ i.get, tableStoreData.access(i).checkSpill)
+                case p : ProtobufTableResult[_] =>
+                    // Replace the stored result with an in memory version again
+                    val result = p.get
+                    p.cleanup
+                    (items :+ result, tableStoreData.updateResult(partialTable, result))
+                }
+        }
 
     def updateResult(table : PartialTable, result : TableResult) : TableStoreData = {
         val currentStore = checkSpill
@@ -184,6 +227,13 @@ case class TableStoreData(
         val newLRU = leastRecentlyUsed.addAll(newDependencies.values.flatMap(_.values).toSeq)
 
         return currentStore.copy(hashes = newMap, leastRecentlyUsed = newLRU)
+    }
+
+    def updateDependencyHash(dependencyData : ((Table, Int), Int), tableResult : TableResult) : TableStoreData = {
+        val currentStore = checkSpill
+        val storedResult = InMemoryDependency(dependencyData, tableResult)
+        val newMap = hashes + (dependencyData._1 -> (hashes(dependencyData._1) + (dependencyData._2 -> storedResult)))
+        return copy(hashes = newMap, leastRecentlyUsed = leastRecentlyUsed.add(storedResult))
     }
 
     def deleteResult(table : Table) : TableStoreData = {
