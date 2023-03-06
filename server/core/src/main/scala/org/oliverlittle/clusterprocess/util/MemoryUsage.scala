@@ -4,6 +4,13 @@ package org.oliverlittle.clusterprocess.util
 object MemoryUsage:
     def getMemoryUsagePercentage(runtime : Runtime) : Double = MemoryUsage.getUsedMemory(runtime) / runtime.maxMemory
 
-    def getTotalFreeMemory(runtime : Runtime) : Double = runtime.maxMemory - MemoryUsage.getUsedMemory(runtime)
+    def getMemoryUsageAboveThreshold(runtime : Runtime, threshold : Double) : Long = {
+        val usedPercentage = getMemoryUsagePercentage(runtime)
+        if usedPercentage > threshold
+        then ((usedPercentage - threshold) * runtime.maxMemory).toLong
+        else 0
+    }
+
+    def getTotalFreeMemory(runtime : Runtime) : Long = runtime.maxMemory - MemoryUsage.getUsedMemory(runtime).toLong
 
     def getUsedMemory(runtime : Runtime) : Double = runtime.totalMemory - runtime.freeMemory

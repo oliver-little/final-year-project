@@ -3,6 +3,7 @@ package org.oliverlittle.clusterprocess.model.table
 import org.oliverlittle.clusterprocess.worker_query
 import org.oliverlittle.clusterprocess.model.table.sources.{DataSource, PartialDataSource, DependentDataSource}
 import org.oliverlittle.clusterprocess.util.{MemoryUsage, LRUCache}
+import org.oliverlittle.clusterprocess.dependency.SizeEstimator
 
 import akka.pattern.StatusReply
 import akka.Done
@@ -299,26 +300,39 @@ case class TableStoreData(
     /**
      * Spill only if required
      */
-    def checkSpill : TableStoreData = 
-        if MemoryUsage.getMemoryUsagePercentage(Runtime.getRuntime) > TableStoreData.memoryUsageThreshold 
+    def checkSpill : TableStoreData = {
+        val memoryToFree = MemoryUsage.getMemoryUsageAboveThreshold(Runtime.getRuntime, TableStoreData.memoryUsageThreshold)
+        if memoryToFree > 0
         then 
-            TableStoreData.logger.info("Spilling to disk.")
-            spill 
+            // Spill memoryToFree bytes to disk
+            val tableStoreData = spill(memoryToFree)
+            // Force gc
+            System.gc
+            // Return the new TableStoreData
+            tableStoreData
         else this
+    }
 
     /**
-      * Perform a spill to disk on the most recently used item
-      *
+      * Perform a spill to disk on the most recently used item until a set amount is freed
+      * 
+      * @param memoryToFree The amount of bytes to attempt to free
       * @return
       */
-    def spill : TableStoreData = 
-        // Get the least recently used item
-        leastRecentlyUsed.getLeastRecentlyUsed
-        // Spill it to disk
-        .map{lru =>
-            val tableStoreData = lru.spillToDisk(this)
-            Runtime.getRuntime.gc
-            tableStoreData
+    def spill(memoryToFree : Long) : TableStoreData = {
+        var freedSize : Long = 0
+        var count = 0
+        var tableStoreData = this
+        var lruOption = tableStoreData.leastRecentlyUsed.getLeastRecentlyUsed
+        while (freedSize < memoryToFree && !lruOption.isEmpty) {
+            count += 1
+            val lru = lruOption.get
+            freedSize += SizeEstimator.estimate(lru.get)
+            tableStoreData = lru.spillToDisk(tableStoreData)
+            lruOption = tableStoreData.leastRecentlyUsed.getLeastRecentlyUsed
         }
-        // Fallback: no item is present (shouldn't happen), do nothing
-        .getOrElse(this)
+
+        TableStoreData.logger.info("Moved " + count.toString + " items and " + freedSize.toString + " bytes.")
+
+        return tableStoreData
+    }

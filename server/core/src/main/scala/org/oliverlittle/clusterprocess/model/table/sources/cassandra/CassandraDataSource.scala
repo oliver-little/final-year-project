@@ -114,7 +114,6 @@ case class PartialCassandraDataSource(parent : CassandraDataSource, tokenRanges 
       * @return An iterator of rows, each row being a map from field name to a table value
       */
     def getPartialData(store : ActorRef[TableStore.TableStoreEvent], workerChannels : Seq[ChannelManager])(using t : Timeout)(using system : ActorSystem[_])(using ec : ExecutionContext = system.executionContext) : Future[TableResult] = {
-        println(tokenRanges)
         val session = parent.env.connector.getSession
         val results = getDataQueries.map(session.execute(_).asScala.map(row => parent.fields.map(_.getTableValue(row)))).reduce(_ ++ _)
         Future.successful(LazyTableResult(getHeaders, results))
