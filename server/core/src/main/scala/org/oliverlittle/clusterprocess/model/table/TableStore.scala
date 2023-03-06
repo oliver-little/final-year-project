@@ -266,8 +266,9 @@ case class TableStoreData(
       * Cleanup entire TableStoreData - this deletes *everything* including data stored on disk
       */
     def cleanup : Unit = {
-        // Everything that's in least recently used will be in memory, so call cleanup on those
-        leastRecentlyUsed.order.foreach(_.cleanup)
+        tables.values.foreach(_.values.map(_.cleanup))
+        partitions.values.foreach(_.values.map(_.cleanup))
+        hashes.values.foreach(_.values.map(_.cleanup))
     }
 
     /**
