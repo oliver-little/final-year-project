@@ -1,7 +1,6 @@
 package org.oliverlittle.clusterprocess.model.table
 
 import org.oliverlittle.clusterprocess.UnitSpec
-import org.oliverlittle.clusterprocess.model.table.{PartialTable, Table}
 import org.oliverlittle.clusterprocess.model.table.sources.{PartialDataSource, MockDataSource, MockPartialDataSource}
 
 import org.mockito.ArgumentCaptor
