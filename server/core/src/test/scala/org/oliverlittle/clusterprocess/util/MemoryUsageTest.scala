@@ -13,7 +13,7 @@ class MemoryUsageTest extends UnitSpec with MockitoSugar {
         when(runtimeMock.maxMemory).thenReturn(200L)
         when(runtimeMock.totalMemory).thenReturn(100L)
         when(runtimeMock.freeMemory).thenReturn(40L)
-        MemoryUsage.getUsedMemory(runtimeMock) should be (60d +- 0.01)
+        MemoryUsage.getUsedMemory(runtimeMock) should be (60)
     }
 
     it should "calculate the total amount of free memory" in {

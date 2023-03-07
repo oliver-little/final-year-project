@@ -2,6 +2,7 @@ package org.oliverlittle.clusterprocess.model.table
 
 import org.oliverlittle.clusterprocess.UnitSpec
 import org.oliverlittle.clusterprocess.model.table.sources.{PartialDataSource, MockDataSource, MockPartialDataSource}
+import org.oliverlittle.clusterprocess.util.LRUCache
 
 import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.any
@@ -227,20 +228,52 @@ class TableStoreTest extends UnitSpec {
     }
 }
 
-class TableStoreDataTest extends UnitSpec {
+class TableStoreDataTest extends UnitSpec with MockitoSugar {
     "A TableStoreData" should "call the cleanup operation on all stored data" in {
-        fail()
+        val table = PartialTable(MockPartialDataSource())
+        val stored = mock[InMemoryPartialTable]
+        val originalTableStoreData = TableStoreData(Map(table.parent -> Map(table -> stored)), Map(), Map(), LRUCache[InMemoryTableResult[_]](Seq(stored)))
+        originalTableStoreData.cleanup
+        verify(stored, times(1)).cleanup
     }
 
     it should "spill to disk if the memory usage is over the threshold" in {
-        fail()
+        val runtimeMock = mock[Runtime]
+        when(runtimeMock.maxMemory).thenReturn(200L)
+        when(runtimeMock.totalMemory).thenReturn(180L)
+        when(runtimeMock.freeMemory).thenReturn(30L)
+
+        val table = PartialTable(MockPartialDataSource())
+        val inMemory = InMemoryPartialTable(table, table.parent.empty)
+        val originalTableStoreData = TableStoreData(Map(table.parent -> Map(table -> inMemory)), Map(), Map(), LRUCache[InMemoryTableResult[_]](Seq(inMemory)))
+        val newTableStoreData = originalTableStoreData.checkSpill(using runtimeMock)
+        val res = newTableStoreData.tables(table.parent)(table)
+        try {
+            res shouldBe a [ProtobufTableResult[PartialTable]]
+            res.get should be (table.parent.empty)
+        }
+        finally {
+            res.cleanup
+        }
     }
 
     it should "return the same instance of TableStoreData if no spilling is required" in {
-        fail()
-    }
+        val runtimeMock = mock[Runtime]
+        when(runtimeMock.maxMemory).thenReturn(200L)
+        when(runtimeMock.totalMemory).thenReturn(180L)
+        when(runtimeMock.freeMemory).thenReturn(100L)
 
-    it should "spill items until the estimated amount of memory is freed according to size estimator function" in {
-        fail()
+        val table = PartialTable(MockPartialDataSource())
+        val inMemory = InMemoryPartialTable(table, table.parent.empty)
+        val originalTableStoreData = TableStoreData(Map(table.parent -> Map(table -> inMemory)), Map(), Map(), LRUCache[InMemoryTableResult[_]](Seq(inMemory)))
+        val newTableStoreData = originalTableStoreData.checkSpill(using runtimeMock)
+        val res = newTableStoreData.tables(table.parent)(table)
+        try {
+            res shouldBe a [InMemoryTableResult[PartialTable]]
+            res.get should be (table.parent.empty)
+        }
+        finally {
+            res.cleanup
+        }
     }
 }
