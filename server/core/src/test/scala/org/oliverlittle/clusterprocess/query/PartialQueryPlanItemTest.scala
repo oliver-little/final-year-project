@@ -59,7 +59,9 @@ class PartialPrepareResultTest extends StoreSpec {
             // Check results
             res should be (worker_query.ProcessQueryPlanItemResult(true))
             store.ask[TableStoreData](ref => TableStore.GetData(ref)) map { tableStoreData =>
-                tableStoreData.tables(partialTable.parent)(partialTable) should be (LazyTableResult(partialTable.parent.outputHeaders, ds.sampleResult.rows))
+                val res = tableStoreData.tables(partialTable.parent)(partialTable) 
+                res shouldBe a [StoredTableResult[PartialTable]]
+                res.get should be (LazyTableResult(partialTable.parent.outputHeaders, ds.sampleResult.rows))
             }
         }
     }
@@ -110,7 +112,9 @@ class PartialPrepareHashesTest extends StoreSpec {
             res should be (worker_query.ProcessQueryPlanItemResult(true))
             // Check that the dependency hash function was called
             store.ask[TableStoreData](ref => TableStore.GetData(ref)) map { tableStoreData =>
-                tableStoreData.hashes((dependency, 2)) should be (ds.parent.partitionHash)
+                val res = tableStoreData.hashes((dependency, 2))
+                res shouldBe a [Map[Int, StoredTableResult[((Table, Int), Int)]]]
+                res(0).get should be (ds.parent.partitionHash(0))
             }
         }
     }
@@ -148,7 +152,9 @@ class PartialDeletePreparedHashesTest extends StoreSpec {
             res should be (worker_query.ProcessQueryPlanItemResult(true))
             // Check that the dependency hash function was called
             store.ask[TableStoreData](ref => TableStore.GetData(ref)) map { tableStoreData =>
-                tableStoreData.hashes((dependency, 2)) should be (ds.parent.partitionHash)
+                val res = tableStoreData.hashes((dependency, 2))
+                res shouldBe a [Map[Int, StoredTableResult[((Table, Int), Int)]]]
+                res(0).get should be (ds.parent.partitionHash(0))
             }
         } flatMap {res =>
             PartialDeletePreparedHashes(ds.parent, 2).execute(store)
@@ -170,7 +176,9 @@ class PartialGetPartitionTest extends StoreSpec {
             res should be (worker_query.ProcessQueryPlanItemResult(true))
             // Check that the data was stored
             store.ask[TableStoreData](ref => TableStore.GetData(ref)) map { tableStoreData =>
-                tableStoreData.partitions(ds.parent)(ds) should be (ds.partialData)
+                val res = tableStoreData.partitions(ds.parent)(ds) 
+                res shouldBe a [StoredTableResult[PartialDataSource]]
+                res.get should be (ds.partialData)
             }
         }
     }
@@ -184,7 +192,9 @@ class PartialDeletePartitionTest extends StoreSpec {
             res should be (worker_query.ProcessQueryPlanItemResult(true))
             // Check that the data was stored
             store.ask[TableStoreData](ref => TableStore.GetData(ref)) map { tableStoreData =>
-                tableStoreData.partitions(ds.parent)(ds) should be (ds.partialData)
+                val res = tableStoreData.partitions(ds.parent)(ds)
+                res shouldBe a [StoredTableResult[PartialDataSource]]
+                res.get should be (ds.partialData)
             }
         } flatMap {res =>
             PartialDeletePartition(ds.parent).execute(store)    

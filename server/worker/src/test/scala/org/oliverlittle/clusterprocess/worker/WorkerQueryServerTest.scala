@@ -94,14 +94,8 @@ class WorkerQueryServerTest extends AsyncUnitSpec with MockitoSugar with BeforeA
         result should be (worker_query.TableStoreData(Seq(), Seq()))
     }
 
-    it should "apply cache push requests" in {
-        val result = blockingStub.modifyCache(worker_query.ModifyCacheRequest(worker_query.ModifyCacheRequest.CacheOperation.PUSH))
-        result should be (worker_query.TableStoreData(Seq(), Seq()))
+    it should "apply cache reset requests" in {
+        val result = blockingStub.clearCache(worker_query.ClearCacheRequest())
+        result should be (worker_query.ClearCacheResult(true))
     }
-
-    it should "apply cache pop requests" in {
-        val result = blockingStub.modifyCache(worker_query.ModifyCacheRequest(worker_query.ModifyCacheRequest.CacheOperation.POP))
-        result should be (worker_query.TableStoreData(Seq(), Seq()))
-    }
-
 }

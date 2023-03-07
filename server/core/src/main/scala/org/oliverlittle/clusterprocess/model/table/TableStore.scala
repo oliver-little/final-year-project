@@ -179,21 +179,23 @@ case class TableStoreData(
 
     def getAllResults(table : Table) : (Seq[TableResult], TableStoreData) =
         // Get all the partialTables for this table, then fold starting from an empty set of results
-        tables(table).foldLeft((Seq() : Seq[TableResult], checkSpill)){(inputData, storedDataPair) =>
-            // Unpack the intermediate fold value
-            val (items, tableStoreData) = inputData
-            // Unpack the PartialTable -> StoredTableResult mapping
-            val (partialTable, storedResult) = storedDataPair
-            // Match on the stored table result, and read it into memory if required
-            storedResult match {
-                case i : InMemoryTableResult[_] => (items :+ i.get, tableStoreData.access(i).checkSpill)
-                case p : ProtobufTableResult[_] =>
-                    // Replace the stored result with an in memory version again
-                    val result = p.get
-                    p.cleanup
-                    (items :+ result, tableStoreData.updateResult(partialTable, result).checkSpill)
-                }
-        }
+        tables.get(table).map(
+            _.foldLeft((Seq() : Seq[TableResult], checkSpill)){(inputData, storedDataPair) =>
+                // Unpack the intermediate fold value
+                val (items, tableStoreData) = inputData
+                // Unpack the PartialTable -> StoredTableResult mapping
+                val (partialTable, storedResult) = storedDataPair
+                // Match on the stored table result, and read it into memory if required
+                storedResult match {
+                    case i : InMemoryTableResult[_] => (items :+ i.get, tableStoreData.access(i).checkSpill)
+                    case p : ProtobufTableResult[_] =>
+                        // Replace the stored result with an in memory version again
+                        val result = p.get
+                        p.cleanup
+                        (items :+ result, tableStoreData.updateResult(partialTable, result).checkSpill)
+                    }
+            }
+        ).getOrElse((Seq(), this)) // Handle the case where the table does not exist
 
     def updateResult(table : PartialTable, result : TableResult) : TableStoreData = {
         val storedResult = InMemoryPartialTable(table, result)

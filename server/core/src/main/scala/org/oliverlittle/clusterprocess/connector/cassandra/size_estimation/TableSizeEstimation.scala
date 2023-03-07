@@ -11,7 +11,7 @@ object TableSizeEstimation {
     /**
       * Multiplier to account for the fact that data loaded into the system has a large overhead compared to Cassandra's size estimates
       */
-    private val memoryOverheadMultiplier : Double = ConfigFactory.load.getString("clusterprocess.cassandra.memory_overhead_multiplier").toDouble
+    val memoryOverheadMultiplier : Double = ConfigFactory.load.getString("clusterprocess.cassandra.memory_overhead_multiplier").toDouble
 
     def estimateTableSize(session : CqlSession, keyspace : String, table : String) : TableSizeEstimation = {
         val res = session.execute("SELECT keyspace_name, table_name, range_start, range_end, mean_partition_size, partitions_count FROM system.size_estimates WHERE keyspace_name=? AND table_name=?", keyspace, table)

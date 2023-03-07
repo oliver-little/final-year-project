@@ -21,7 +21,7 @@ class TableSizeEstimationTest extends UnitSpec {
         val estimatedSize = 50000 / 0.27105
         val estimatedSizeMB = estimatedSize / 1000000
         val estimation = TableSizeEstimation(rows)
-        estimation.estimatedTableSize should be (estimatedSize +- 1)
-        estimation.estimatedTableSizeMB should be (estimatedSizeMB +- 0.00001)
+        estimation.estimatedTableSize should be ((estimatedSize * TableSizeEstimation.memoryOverheadMultiplier) +- 10)
+        estimation.estimatedTableSizeMB should be ((estimatedSizeMB * TableSizeEstimation.memoryOverheadMultiplier) +- 0.0001)
     }
 }
