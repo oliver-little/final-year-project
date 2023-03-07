@@ -79,46 +79,31 @@ class ClientQueryServer(channels : Seq[ChannelManager])(using executionContext :
                     val runnable = DelayedTableResultRunnable(serverCallStreamObserver)
                     serverCallStreamObserver.setOnReadyHandler(runnable)
 
-                    // Attempt to make a cache store
-                    Future.sequence(
-                        workerHandler.channels.map(_.workerComputeServiceStub.modifyCache(worker_query.ModifyCacheRequest(worker_query.ModifyCacheRequest.CacheOperation.PUSH)))
-                    ).onComplete {
-                        // Cache store successful
-                        case Success(_) =>
-                            // Start execution, and add hook to send the data when finished
-                            WorkExecutionScheduler.startExecution(calculateQueryPlan, workerHandler).flatMap { _ =>
-                                    ClientQueryServer.logger.info("Result ready from workers, pulling data")
-                                    table.assembler match {
-                                        case d : DefaultAssembler => ResultAssembler.startExecution(table, workerHandler.channels, serverCallStreamObserver)   
-                                        case a => CustomResultAssembler.startExecution(table, table.assembler, workerHandler.channels, serverCallStreamObserver)
-                                    }
-                                           
-                            }.onComplete {queryPlanTry =>
-                                ClientQueryServer.logger.info("Completed query, cleaning up")
-                                // No matter what, pop from the cache to clean-up
-                                Future.sequence(workerHandler.channels.map(_.workerComputeServiceStub.modifyCache(worker_query.ModifyCacheRequest(worker_query.ModifyCacheRequest.CacheOperation.POP))))
-                                queryPlanTry match {
-                                    // Do nothing on success
-                                    case Success(_) => 
-                                    // Report the error on failure
-                                    case Failure(e) => 
-                                        // Build a status exception for unknown error
-                                        val status = Status.newBuilder
-                                            .setCode(Code.UNKNOWN.getNumber)
-                                            .setMessage(e.getMessage)
-                                            .build()
-                                        responseObserver.onError(StatusProto.toStatusRuntimeException(status))  
-                                } 
+                    // Start execution, and add hook to send the data when finished
+                    WorkExecutionScheduler.startExecution(calculateQueryPlan, workerHandler).flatMap { _ =>
+                            ClientQueryServer.logger.info("Result ready from workers, pulling data")
+                            table.assembler match {
+                                case d : DefaultAssembler => ResultAssembler.startExecution(table, workerHandler.channels, serverCallStreamObserver)   
+                                case a => CustomResultAssembler.startExecution(table, table.assembler, workerHandler.channels, serverCallStreamObserver)
                             }
-                        // Cache store failed
-                        case Failure(e) =>
-                            // Build a status exception for unknown error
-                            val status = Status.newBuilder
-                                .setCode(Code.UNKNOWN.getNumber)
-                                .setMessage(e.getMessage)
-                                .build()
-                            responseObserver.onError(StatusProto.toStatusRuntimeException(status))  
-                    }
+                                    
+                    }.onComplete {queryPlanTry =>
+                        ClientQueryServer.logger.info("Completed query, cleaning up")
+                        // No matter what, pop from the cache to clean-up
+                        Future.sequence(workerHandler.channels.map(_.workerComputeServiceStub.clearCache(worker_query.ClearCacheRequest())))
+                        queryPlanTry match {
+                            // Do nothing on success
+                            case Success(_) => 
+                            // Report the error on failure
+                            case Failure(e) => 
+                                // Build a status exception for unknown error
+                                val status = Status.newBuilder
+                                    .setCode(Code.UNKNOWN.getNumber)
+                                    .setMessage(e.getMessage)
+                                    .build()
+                                responseObserver.onError(StatusProto.toStatusRuntimeException(status))  
+                        } 
+                    } 
 
                 // Table creation failed
                 case Failure(e) => 

@@ -10,7 +10,7 @@ service WorkerComputeService {
     rpc GetTableData(GetTableDataRequest) returns (stream StreamedTableResult);
     rpc GetHashedPartitionData(GetHashedPartitionDataRequest) returns (stream StreamedTableResult);
     rpc GetTableStoreData(GetTableStoreDataRequest) returns (TableStoreData);
-    rpc ModifyCache(ModifyCacheRequest) returns (TableStoreData);
+    rpc ClearCache(ClearCacheRequest) returns (ClearCacheResult);
     rpc GetEstimatedTableSize(GetEstimatedTableSizeRequest) returns (GetEstimatedTableSizeResult);
 }
 
@@ -40,14 +40,12 @@ message GetTableStoreDataRequest {
 
 }
 
-message ModifyCacheRequest {
-    enum CacheOperation {
-        UNKNOWN_TYPE = 0;
-        PUSH = 1;
-        POP = 2;
-    }
+message ClearCacheRequest {
 
-    CacheOperation cache_operation = 1;
+}
+
+message ClearCacheResult {
+    bool success = 1;
 }
 
 message GetEstimatedTableSizeRequest {

@@ -1,8 +1,8 @@
 package org.oliverlittle.clusterprocess.model.table
 
 import org.oliverlittle.clusterprocess.UnitSpec
-import org.oliverlittle.clusterprocess.model.table.{PartialTable, Table}
-import org.oliverlittle.clusterprocess.model.table.sources.{MockDataSource, MockPartialDataSource}
+import org.oliverlittle.clusterprocess.model.table.sources.{PartialDataSource, MockDataSource, MockPartialDataSource}
+import org.oliverlittle.clusterprocess.util.LRUCache
 
 import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.any
@@ -26,7 +26,9 @@ class TableStoreTest extends UnitSpec {
         val dataInbox = TestInbox[TableStoreData]()
         testKit.run(TableStore.GetData(dataInbox.ref))
         val data = dataInbox.receiveMessage()
-        data.tables(table.parent)(table) should be (table.parent.empty)
+        val res = data.tables(table.parent)(table) 
+        res shouldBe a [StoredTableResult[PartialTable]]
+        res.get should be (table.parent.empty)
     }
 
     it should "remove all instances of a Table" in {
@@ -39,7 +41,10 @@ class TableStoreTest extends UnitSpec {
         
         val dataInbox = TestInbox[TableStoreData]()
         testKit.run(TableStore.GetData(dataInbox.ref))
-        dataInbox.receiveMessage().tables(table.parent)(table) should be (table.parent.empty)
+        val data = dataInbox.receiveMessage()
+        val res = data.tables(table.parent)(table) 
+        res shouldBe a [StoredTableResult[PartialTable]]
+        res.get should be (table.parent.empty)
 
         testKit.run(TableStore.DeleteResult(table.parent))
 
@@ -92,7 +97,9 @@ class TableStoreTest extends UnitSpec {
 
         val dataInbox = TestInbox[TableStoreData]()
         testKit.run(TableStore.GetData(dataInbox.ref))
-        dataInbox.receiveMessage().partitions(dataSource.parent)(dataSource) should be (dataSource.parent.empty)
+        val res = dataInbox.receiveMessage().partitions(dataSource.parent)(dataSource) 
+        res shouldBe a [StoredTableResult[PartialDataSource]]
+        res.get should be (dataSource.parent.empty)
     }
 
     it should "remove all partitions for a DataSource" in {
@@ -104,7 +111,9 @@ class TableStoreTest extends UnitSpec {
 
         val dataInbox = TestInbox[TableStoreData]()
         testKit.run(TableStore.GetData(dataInbox.ref))
-        dataInbox.receiveMessage().partitions(dataSource.parent) should be (Map(dataSource -> dataSource.parent.empty))
+        val res = dataInbox.receiveMessage().partitions(dataSource.parent) 
+        res.size should be (1)
+        res(dataSource).get should be (dataSource.parent.empty)
 
         testKit.run(TableStore.DeletePartition(dataSource.parent))
 
@@ -143,7 +152,7 @@ class TableStoreTest extends UnitSpec {
 
         val dataInbox = TestInbox[TableStoreData]()
         testKit.run(TableStore.GetData(dataInbox.ref))
-        dataInbox.receiveMessage().hashes((partialTable.parent, 2)).toMap should be (dataSource.parent.partitionHash.toMap)
+        dataInbox.receiveMessage().hashes((partialTable.parent, 2)).view.mapValues(_.get).toMap should be (dataSource.parent.partitionHash.toMap)
     }
 
     it should "get the hashed dependency" in {
@@ -182,47 +191,12 @@ class TableStoreTest extends UnitSpec {
 
         val dataInbox = TestInbox[TableStoreData]()
         testKit.run(TableStore.GetData(dataInbox.ref))
-        dataInbox.receiveMessage().hashes((partialTable.parent, 2)).toMap should be (dataSource.parent.partitionHash.toMap)
+        dataInbox.receiveMessage().hashes((partialTable.parent, 2)).view.mapValues(_.get).toMap should be (dataSource.parent.partitionHash.toMap)
 
         testKit.run(TableStore.DeleteHash(dataSource.parent, 2))
 
         testKit.run(TableStore.GetData(dataInbox.ref))
         dataInbox.receiveMessage().hashes.contains((partialTable.parent, 2)) should be (false)
-    }
-
-    it should "push a copy of the TableStoreData to the cache stack, and replace the TableStoreData when popped" in {
-        // Setup
-        val testKit = BehaviorTestKit(TableStore())
-        val resultInbox = TestInbox[StatusReply[Done]]()
-        val table = PartialTable(MockPartialDataSource(), Seq())
-        testKit.run(TableStore.AddResult(table, table.parent.empty, resultInbox.ref))
-        resultInbox.expectMessage(StatusReply.ack())
-
-        testKit.run(TableStore.PushCache())
-        testKit.run(TableStore.DeleteResult(table.parent))
-        
-        val dataInbox = TestInbox[TableStoreData]()
-        testKit.run(TableStore.GetData(dataInbox.ref))
-        dataInbox.receiveMessage().tables.contains(table.parent) should be (false)
-
-        testKit.run(TableStore.PopCache(dataInbox.ref))
-        dataInbox.receiveMessage().tables(table.parent)(table) should be (table.parent.empty)
-    }
-
-    it should "clear the TableStoreData if there are no cache elements" in {
-         // Setup
-        val testKit = BehaviorTestKit(TableStore())
-        val resultInbox = TestInbox[StatusReply[Done]]()
-        val table = PartialTable(MockPartialDataSource(), Seq())
-        testKit.run(TableStore.AddResult(table, table.parent.empty, resultInbox.ref))
-        resultInbox.expectMessage(StatusReply.ack())
-        
-        val dataInbox = TestInbox[TableStoreData]()
-        testKit.run(TableStore.GetData(dataInbox.ref))
-        dataInbox.receiveMessage().tables(table.parent)(table) should be (table.parent.empty)
-
-        testKit.run(TableStore.PopCache(dataInbox.ref))
-        dataInbox.receiveMessage().tables.contains(table.parent) should be (false)
     }
 
     it should "get the TableStoreData" in {
@@ -243,11 +217,63 @@ class TableStoreTest extends UnitSpec {
         
         val dataInbox = TestInbox[TableStoreData]()
         testKit.run(TableStore.GetData(dataInbox.ref))
-        dataInbox.receiveMessage().tables(table.parent)(table) should be (table.parent.empty)
+        val res = dataInbox.receiveMessage().tables(table.parent)(table) 
+        res shouldBe a [StoredTableResult[PartialTable]]
+        res.get should be (table.parent.empty)
 
         testKit.run(TableStore.Reset())
 
         testKit.run(TableStore.GetData(dataInbox.ref))
         dataInbox.receiveMessage() should be (TableStoreData.empty)
+    }
+}
+
+class TableStoreDataTest extends UnitSpec with MockitoSugar {
+    "A TableStoreData" should "call the cleanup operation on all stored data" in {
+        val table = PartialTable(MockPartialDataSource())
+        val stored = mock[InMemoryPartialTable]
+        val originalTableStoreData = TableStoreData(Map(table.parent -> Map(table -> stored)), Map(), Map(), LRUCache[InMemoryTableResult[_]](Seq(stored)))
+        originalTableStoreData.cleanup
+        verify(stored, times(1)).cleanup
+    }
+
+    it should "spill to disk if the memory usage is over the threshold" in {
+        val runtimeMock = mock[Runtime]
+        when(runtimeMock.maxMemory).thenReturn(200L)
+        when(runtimeMock.totalMemory).thenReturn(180L)
+        when(runtimeMock.freeMemory).thenReturn(30L)
+
+        val table = PartialTable(MockPartialDataSource())
+        val inMemory = InMemoryPartialTable(table, table.parent.empty)
+        val originalTableStoreData = TableStoreData(Map(table.parent -> Map(table -> inMemory)), Map(), Map(), LRUCache[InMemoryTableResult[_]](Seq(inMemory)))
+        val newTableStoreData = originalTableStoreData.checkSpill(using runtimeMock)
+        val res = newTableStoreData.tables(table.parent)(table)
+        try {
+            res shouldBe a [ProtobufTableResult[PartialTable]]
+            res.get should be (table.parent.empty)
+        }
+        finally {
+            res.cleanup
+        }
+    }
+
+    it should "return the same instance of TableStoreData if no spilling is required" in {
+        val runtimeMock = mock[Runtime]
+        when(runtimeMock.maxMemory).thenReturn(200L)
+        when(runtimeMock.totalMemory).thenReturn(180L)
+        when(runtimeMock.freeMemory).thenReturn(100L)
+
+        val table = PartialTable(MockPartialDataSource())
+        val inMemory = InMemoryPartialTable(table, table.parent.empty)
+        val originalTableStoreData = TableStoreData(Map(table.parent -> Map(table -> inMemory)), Map(), Map(), LRUCache[InMemoryTableResult[_]](Seq(inMemory)))
+        val newTableStoreData = originalTableStoreData.checkSpill(using runtimeMock)
+        val res = newTableStoreData.tables(table.parent)(table)
+        try {
+            res shouldBe a [InMemoryTableResult[PartialTable]]
+            res.get should be (table.parent.empty)
+        }
+        finally {
+            res.cleanup
+        }
     }
 }

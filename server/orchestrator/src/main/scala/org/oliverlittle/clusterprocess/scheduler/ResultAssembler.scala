@@ -41,7 +41,13 @@ class ResultAssembler(expectedResponses : Int, output : ServerCallStreamObserver
     def getFirstHeader(numCompletes : Int, rows : Seq[table_model.StreamedTableResult]) : Behavior[ResultEvent] = Behaviors.receive { (context, message) =>
         message match {
             // Match header
-            case Data(table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Header(v), unknownFields)) if expectedResponses == 1 => receiveData(numCompletes)
+            case Data(table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Header(v), unknownFields)) if expectedResponses == 1 =>
+                // Send a header
+                output.onNext(table_model.StreamedTableResult().withHeader(v))
+                // Send all rows we already had
+                rows.foreach(row => output.onNext(row))
+                // Wait for the rest of the rows
+                receiveData(numCompletes)
             case Data(table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Header(v), unknownFields)) => getHeaders(v, 1, numCompletes, rows)
             // Match row
             case Data(v) => getFirstHeader(numCompletes, rows :+ v)

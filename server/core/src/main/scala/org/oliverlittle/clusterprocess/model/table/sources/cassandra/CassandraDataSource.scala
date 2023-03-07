@@ -119,8 +119,6 @@ case class PartialCassandraDataSource(parent : CassandraDataSource, tokenRanges 
         Future.successful(LazyTableResult(getHeaders, results))
     }
 
-
-
 // Fields
 trait CassandraField extends TableField:
     val fieldType : String
