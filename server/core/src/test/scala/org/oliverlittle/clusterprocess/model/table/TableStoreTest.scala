@@ -227,3 +227,21 @@ class TableStoreTest extends UnitSpec {
         dataInbox.receiveMessage() should be (TableStoreData.empty)
     }
 }
+
+class TableStoreDataTest extends UnitSpec {
+    "A TableStoreData" should "call the cleanup operation on all stored data" in {
+        fail()
+    }
+
+    it should "spill to disk if the memory usage is over the threshold" in {
+        fail()
+    }
+
+    it should "return the same instance of TableStoreData if no spilling is required" in {
+        fail()
+    }
+
+    it should "spill items until the estimated amount of memory is freed according to size estimator function" in {
+        fail()
+    }
+}

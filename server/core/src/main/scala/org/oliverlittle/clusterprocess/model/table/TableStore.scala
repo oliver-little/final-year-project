@@ -302,8 +302,8 @@ case class TableStoreData(
     /**
      * Spill only if required
      */
-    def checkSpill : TableStoreData = {
-        val memoryToFree = MemoryUsage.getMemoryUsageAboveThreshold(Runtime.getRuntime, TableStoreData.memoryUsageThreshold)
+    def checkSpill(using runtime : Runtime = Runtime.getRuntime) : TableStoreData = {
+        val memoryToFree = MemoryUsage.getMemoryUsageAboveThreshold(runtime, TableStoreData.memoryUsageThreshold)
         if memoryToFree > 0
         then 
             // Spill memoryToFree bytes to disk
