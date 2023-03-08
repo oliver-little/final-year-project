@@ -78,13 +78,13 @@ class WorkerQueryServicer(store : ActorRef[TableStore.TableStoreEvent])(using sy
             WorkerQueryServicer.logger.info("processQueryPlanItem - " + queryPlanItem.getClass.getSimpleName)
             val res = queryPlanItem.execute(store).recoverWith {
                 case e : Throwable => 
+                    WorkerQueryServicer.logger.error("processQueryPlanItem failed with: " + e.toString)
                     val status = Status.newBuilder
                         .setCode(Code.UNKNOWN.getNumber)
                         .setMessage(e.getMessage)
                         .build()
                     Future.failed(StatusProto.toStatusRuntimeException(status))
             }
-            WorkerQueryServicer.logger.info("processQueryPlanItem - done")
             return res
         }
 
