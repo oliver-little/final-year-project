@@ -96,6 +96,7 @@ class ClientQueryServer(channels : Seq[ChannelManager])(using executionContext :
                             case Success(_) => 
                             // Report the error on failure
                             case Failure(e) => 
+                                ClientQueryServer.logger.info("ComputeTable table evaluation failed:", e)
                                 // Build a status exception for unknown error
                                 val status = Status.newBuilder
                                     .setCode(Code.UNKNOWN.getNumber)
@@ -107,6 +108,7 @@ class ClientQueryServer(channels : Seq[ChannelManager])(using executionContext :
 
                 // Table creation failed
                 case Failure(e) => 
+                    ClientQueryServer.logger.info("ComputeTable table generation failed:", e)
                     // Build a status exception for Illegal Argument
                     val status = Status.newBuilder
                         .setCode(Code.INVALID_ARGUMENT.getNumber)
