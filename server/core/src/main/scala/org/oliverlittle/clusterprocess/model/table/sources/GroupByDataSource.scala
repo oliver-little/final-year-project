@@ -36,7 +36,7 @@ case class GroupByDataSource(source : Table, uniqueFields : Seq[NamedFieldExpres
             // Get the numbers of groups by the number of channels
             val numGroups = workerHandler.channels.size
             val groupedPartials = partials.groupBy(_.partitionNum % numGroups)
-            val mappings = workerHandler.channels.zipWithIndex.map((channel, index) => (Seq(channel), groupedPartials(index)))
+            val mappings = workerHandler.channels.zipWithIndex.map((channel, index) => (Seq(channel), groupedPartials.getOrElse(index, Seq())))
             mappings
         }
     

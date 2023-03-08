@@ -101,6 +101,18 @@ class GroupByDataSourceTest extends AsyncUnitSpec with MockitoSugar {
         }
     }
 
+    it should "get partitions when there are less partitions than the number of workers" in {
+        val mockWorkerHandler = mock[WorkerHandler]
+        val channels = (1 to 3).map(_ => MockitoChannelManager())
+        when(mockWorkerHandler.channels).thenReturn(channels)
+        when(mockWorkerHandler.getNumPartitionsForTable(any[Table]())(using any[ExecutionContext]())).thenReturn(Future.successful(1))
+        testDataSource.getPartitions(mockWorkerHandler)(using ExecutionContext.global).map {partitions =>
+            partitions.map(_._1).flatten should be (channels)
+            partitions.map(_._2) should have length (3)
+            partitions.map(_._2).flatten should have length (1)
+        }
+    }
+
     it should "hash the data based on the unique column" in {
         val result = EvaluatedTableResult(TableResultHeader(Seq(BaseStringField("key"), BaseIntField("value"))), Seq(
             Seq(Some(StringValue("a")), Some(IntValue(1))),
