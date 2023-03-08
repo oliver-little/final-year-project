@@ -282,7 +282,7 @@ class GetPartitionExecutor private (
         val mappedProducers = queries.zipWithIndex.map((pair, index) => (pair._1, context.spawn(producerFactory.createProducer(pair._2), "producer" + index.toString)))
         val producers = mappedProducers.map(_._2)
         // Input: Pair._1 is the list of channels, Pair._2 is the corresponding producer
-        val consumers = mappedProducers.zipWithIndex.map((pair, index) => pair._1.zipWithIndex.map((c, subIndex) => context.spawn(consumerFactory.createConsumer(c, Seq(pair._2) ++ producers.filter(_ == pair._2), counter), "consumer" + index.toString + subIndex.toString))).flatten
+        val consumers = mappedProducers.zipWithIndex.map((pair, index) => pair._1.zipWithIndex.map((c, subIndex) => context.spawn(consumerFactory.createConsumer(c, Seq(pair._2) ++ producers.filter(_ != pair._2), counter), "consumer" + index.toString + subIndex.toString))).flatten
 
         return promise.future
     }
