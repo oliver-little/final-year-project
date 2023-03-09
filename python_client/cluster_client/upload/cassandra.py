@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Dict, Callable, Any
+from typing import List, Dict, Callable, Any, Iterator
 from datetime import datetime
 import csv
 import re
@@ -51,6 +51,10 @@ class CassandraUploadHandler():
         self.connector = connector
         self.logger = logging.getLogger("cluster_client")
 
+    def drop_table(self, keyspace : str, table : str) -> CassandraUploadHandler:
+        self.connector.get_session().execute(f"DROP TABLE IF EXISTS {keyspace}.{table}")
+        return self
+
     def create_from_csv(self, file_name : str, keyspace : str, table : str, partition_keys : List[str], primary_keys : List[str] = [], column_names : List[str] = None, column_types : List[str] = None, row_converters : Dict[str, Callable] = {}, start_row : int = 1, delimiter : str = ",", quotechar : str = '"', row_delimiter : str ="\n") -> None:
         if column_types is None:
             if column_names is None:
@@ -74,6 +78,10 @@ class CassandraUploadHandler():
         if not self.connector.has_table(keyspace, table):
             self.create_table(keyspace, table, column_names, column_types, partition_keys, primary_keys)
         self.insert_from_csv(file_name, keyspace, table, column_names, row_converters, start_row, delimiter, quotechar, row_delimiter)
+
+    def create_from_iterator(self, row_iterator : Iterator, keyspace : str, table : str, column_names : List[str], column_types : List[str], partition_keys : List[str], primary_keys : List[str] = []):
+        self.create_table(keyspace, table, column_names, column_types, partition_keys, primary_keys)
+        self.insert_from_iterator(keyspace, table, column_names, row_iterator)
 
     def create_table(self, keyspace : str, table : str, column_names : List[str], column_types : List[str], partition_keys : List[str], primary_keys : List[str]) -> None:
         self.connector.create_keyspace(keyspace)
@@ -115,7 +123,7 @@ class CassandraUploadHandler():
         self.connector.get_session().execute(query_string)
 
     def insert_from_csv(self, file_name : str, keyspace : str, table : str, column_names : List[str] = None, row_converters : Dict[str, Callable] = {}, start_row : int = 1, delimiter = ",", quotechar = '"', row_delimiter="\n") -> None:  
-        """Performs a multithreaded insert into the database"""
+        """Performs a multithreaded insert into the database from a csv file"""
 
         # If we don't have column names, detect them from the first row after start_row
         if column_names is None:
@@ -132,10 +140,31 @@ class CassandraUploadHandler():
                     raise ValueError("csv file has no content")
             # Increment start_row, because we inferred the column names from the first row
             start_row += 1
-            
+        
+        generator = self.parse_csv_generator(file_name, column_names, row_converters, start_row, delimiter, quotechar, row_delimiter)
+        self.insert_from_iterator(keyspace, table, column_names, generator)
+        
+
+    def parse_csv_generator(self, file_name : str, column_names : List[str] = None, row_converters : Dict[str, Callable] = {}, start_row : int = 1, delimiter = ",", quotechar = '"', row_delimiter="\n"):
         # Generate row_converter mapping
         row_converter_indices = {column_names.index(k) : v for k, v in row_converters.items()}
+        self.logger.debug("Starting file read")
+        count = 0
+        with open(file_name, "r", newline=row_delimiter) as file:
+            reader = csv.reader(file, delimiter=delimiter, quotechar=quotechar)
 
+            # Skip start_row rows
+            for _ in range(start_row - 1):
+                next(reader)
+
+            # Read all rows into the read queue
+            for row in reader:
+                yield apply_row_converters(row, row_converter_indices)
+                count += 1
+        self.logger.debug(f"Finished file read, read {count} items")
+
+    def insert_from_iterator(self, keyspace : str, table : str, column_names : List[str], row_iterator : Iterator):
+        """Performs a multithreaded insert into the database from a csv file"""
         column_string = ", ".join(column_names)
         value_string = ", ".join(["?"] * len(column_names))
 
@@ -162,31 +191,19 @@ class CassandraUploadHandler():
                 self.logger.debug(f"Created insert process {writer.pid}")
             self.logger.debug("Created insert processes")
 
-            # Read the entire file
-            self.logger.debug("Starting file read")
-            count = 0
-            with open(file_name, "r", newline=row_delimiter) as file:
-                reader = csv.reader(file, delimiter=delimiter, quotechar=quotechar)
+            # Read the entire iterator 
+            for row in row_iterator:
+                queue.put(row)
+                
+                # Check if any failures have occurred, and quit early if that has happened
+                if insert_failure_event.is_set():
+                    request_stop_event.set()
+                    exception = insert_failure_queue.get()
+                    raise ValueError(f"Upload failed: {exception}")
 
-                # Skip start_row rows
-                for _ in range(start_row - 1):
-                    next(reader)
-
-                # Read all rows into the read queue
-                for row in reader:
-                    row = apply_row_converters(row, row_converter_indices)
-                    queue.put(row)
-                    count += 1
-
-                    # Check if any failures have occurred, and quit early if that has happened
-                    if insert_failure_event.is_set():
-                        request_stop_event.set()
-                        exception = insert_failure_queue.get()
-                        raise ValueError(f"Upload failed: {exception}")
-
-                # Set the event when reading has finished
-                finished_reading_event.set()
-            self.logger.debug(f"Finished file read, read {count} items")
+            # Set the event when reading has finished
+            finished_reading_event.set()
+            
     
             # Poll the failure status until the queue is empty (would just do a join here, but we need to track if a failure occurs)
             while any(writer.is_alive() for writer in writers):

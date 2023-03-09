@@ -127,6 +127,33 @@ def generate_amortisation_schedule(amount, interest_rate, duration, origination_
 
     return amortisation_schedule
 
+def loan_origination_metadata():
+    """Returns metadata for the loan origination generator: (column names, column types)"""
+    return (["loan_id", "amount", "interest_rate", "duration", "origination_date"], ["bigint", "double", "double", "bigint", "timestamp"])
+
+def loan_origination_generator(count : int):
+    """Returns an iterator that generates `count` existing loans
+    Each value returns a list of `loan_id, amount, interest_rate, duration, origination_date`"""
+    for loan_id in range(count):
+        amount, interest_rate, duration, origination_date = generate_origination(START_ORIGINATION_DATE, END_ORIGINATION_DATE)
+        yield (loan_id, amount, interest_rate, duration, origination_date)
+
+def loan_amortisation_metadata():
+    """Returns metadata for the loan amortisation generator: (column names, column types)"""
+    return (["date", "principal_repayment", "interest_repayment", "total_repayment", "principal_repaid", "interest_repaid", "total_repaid", "loan_id"], ["timestamp", "double", "double", "double", "double", "double", "double", "bigint"])
+
+def loan_amortisation_generator(count : int):
+    """Returns an iterator that generates `count` existing loans
+    Each value returns a row `date, principal_repayment, interest_repayment, total_repayment, principal_repaid, interest_repaid, total_repaid, Loan_ID`"""
+    for loan_id in range(count):
+        amount, interest_rate, duration, origination_date = generate_origination(START_EXISTING_DATE, END_EXISTING_DATE)
+        schedule = generate_amortisation_schedule(amount, interest_rate, duration, origination_date)
+        schedule = schedule[(schedule["date"] > START_DATA_DATE) & (schedule["date"] < END_DATA_DATE)]
+        schedule["Loan_ID"] = loan_id
+        for value in schedule.values:
+            yield value
+
+
 if __name__ == "__main__":
     amortisation_data = []
     origination_data = []
