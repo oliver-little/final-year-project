@@ -103,13 +103,16 @@ final case class FilterTransformation(filter : FieldComparison) extends TableTra
 
 	lazy val protobuf = table_model.TableTransformation().withFilter(filter.protobuf)
 
+object AggregateTransformation:
+	def fromProtobuf(aggregate : table_model.Aggregate) : AggregateTransformation = AggregateTransformation(aggregate.aggregateFields.map(AggregateExpression.fromProtobuf(_))*)
+
 final case class AggregateTransformation(aggregateColumns : AggregateExpression*) extends TableTransformation:
 	class AggregateAssembler extends Assembler:
 		def assemblePartial(data: Iterable[TableResult]): TableResult = {
 			// Sense check: do the headers of all partial results match.
 			if !data.forall(_.header == data.head.header) then throw new IllegalArgumentException("Headers of all results do not match.")
 			return LazyTableResult(
-				outputHeaders(data.head.header),
+				partialToFinalHeaders(data.head.header),
 				// Lots of data pivoting going on here:
 				// Assemble takes a header (we pick the first as we know they're all the same now)
 				// We also have to give it a list of rows, but we already have a list of tables, so we append all the tables together.
@@ -130,36 +133,13 @@ final case class AggregateTransformation(aggregateColumns : AggregateExpression*
 		Seq(aggregateColumns.map(_.resolve(data.header)(data.rows)).flatten)
 	)
 
-	def outputHeaders(inputHeaders : TableResultHeader) : TableResultHeader = TableResultHeader(aggregateColumns.flatMap(_.outputTableFields(inputHeaders)))
+	def outputHeaders(inputHeaders : TableResultHeader) : TableResultHeader = TableResultHeader(aggregateColumns.flatMap(_.outputFinalTableFields(inputHeaders)))
+
+	def partialToFinalHeaders(inputHeaders : TableResultHeader) : TableResultHeader = TableResultHeader(aggregateColumns.flatMap(_.outputTableFields(inputHeaders)))
 
 	def outputPartialHeaders(inputHeaders: TableResultHeader): TableResultHeader = TableResultHeader(aggregateColumns.flatMap(_.outputPartialTableFields(inputHeaders)))
 
 	lazy val protobuf = table_model.TableTransformation().withAggregate(table_model.Aggregate(aggregateColumns.map(_.protobuf)))
-
-// Calculates a Murmur3Hash on the previous result
-final case class HashTransformation(uniqueColumns : FieldExpression*):
-	def isValid(header : TableResultHeader) : Boolean = Try{uniqueColumns.map(_.resolve(header))}.isSuccess
-
-	def evaluate(data : TableResult) : TableResult = {
-		val resolved = uniqueColumns.map(_.resolve(data.header))
-
-		return LazyTableResult(
-			outputPartialHeaders(data.header),
-			data.rows.map(row => 
-				row :+ 
-				Some(IntValue(MurmurHash3.unorderedHash(
-					// Evaluate each column
-					resolved.map(_.evaluate(row))
-				)))
-			)
-		)
-	}
-
-	def assemblePartial(data: Iterable[TableResult]): TableResult = data.reduce(_ ++ _)
-
-	def outputHeaders(inputHeaders : TableResultHeader) : TableResultHeader = TableResultHeader(inputHeaders.fields :+ BaseIntField("UniqueHash"))
-
-	def outputPartialHeaders(inputHeaders: TableResultHeader): TableResultHeader = outputHeaders(inputHeaders)
 
 abstract final case class OrderByTransformation(orderByColumns : (FieldExpression, table_model.OrderBy.OrderByType)) extends TableTransformation
 

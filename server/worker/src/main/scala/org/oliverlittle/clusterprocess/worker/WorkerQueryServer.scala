@@ -96,9 +96,9 @@ class WorkerQueryServicer(store : ActorRef[TableStore.TableStoreEvent])(using sy
             WorkerQueryServicer.logger.info("getTableData")
             WorkerQueryServicer.logger.info(table.toString)
 
-            store.ask[Seq[TableResult]](ref => TableStore.GetAllResults(table, ref)).onComplete {
-                case Success(Seq()) => runnable.setData(table.empty)
-                case Success(results) => runnable.setData(results.reduce(_ ++ _))
+            store.ask[Iterator[TableResult]](ref => TableStore.GetResultIterator(table, ref)).onComplete {
+                case Success(i) if i.isEmpty => runnable.setData(table.empty)
+                case Success(i) => runnable.setData(i)
                 case Failure(e) => runnable.setError(e)
             }
         }
@@ -131,9 +131,10 @@ class WorkerQueryServicer(store : ActorRef[TableStore.TableStoreEvent])(using sy
         override def getEstimatedTableSize(request : worker_query.GetEstimatedTableSizeRequest) : Future[worker_query.GetEstimatedTableSizeResult] = 
             val table = Table.fromProtobuf(request.table.get)
 
-            store.ask[Seq[TableResult]](ref => TableStore.GetAllResults(table, ref)).map {
-                case Seq() => worker_query.GetEstimatedTableSizeResult(estimatedSizeMb = 0)
-                case results => worker_query.GetEstimatedTableSizeResult(estimatedSizeMb = (SizeEstimator.estimate(results).toDouble / 1000000).round)
+            WorkerQueryServicer.logger.info("getEstimatedTableSize")
+
+            store.ask[Long](ref => TableStore.GetTableSize(table, ref)).map { res =>
+                worker_query.GetEstimatedTableSizeResult(estimatedSizeMb = res)
             }.recover { _ =>
                 worker_query.GetEstimatedTableSizeResult(estimatedSizeMb = 0)
             }

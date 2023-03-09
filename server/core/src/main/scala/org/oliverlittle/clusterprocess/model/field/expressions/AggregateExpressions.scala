@@ -48,6 +48,9 @@ sealed trait AggregateExpression:
       */
     def outputPartialTableFields(header : TableResultHeader) : Seq[TableField]
 
+    /**
+     * Shortcut for calculating the output table fields directly from the inputs, skipping the partial stage
+     */
     def outputFinalTableFields(header : TableResultHeader) : Seq[TableField] = outputTableFields(TableResultHeader(outputPartialTableFields(header)))
 
     /**

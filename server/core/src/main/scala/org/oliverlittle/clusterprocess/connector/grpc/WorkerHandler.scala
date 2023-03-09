@@ -19,6 +19,8 @@ import com.typesafe.config.ConfigFactory
 import scala.jdk.CollectionConverters._
 import scala.util.Try
 import scala.concurrent.{Future, ExecutionContext}
+import java.math.MathContext
+import scala.math.BigDecimal.RoundingMode
 
 case class WorkerHandler(channels : Seq[ChannelManager]) {
     private val logger = LoggerFactory.getLogger(classOf[WorkerHandler].getName)

@@ -23,7 +23,7 @@ case class Table(dataSource : DataSource, transformations : Seq[TableTransformat
 
     // Finally, check if the table is valid - this will throw an error in some cases, but will also return false in others
     // Throw our own error if the table is not valid
-    if !isValid then throw new IllegalArgumentException("Table cannot be computed - not valid.")
+    if !isValid(true) then throw new IllegalArgumentException("Table cannot be computed - not valid.")
 
     def addTransformation(transformation : TableTransformation) : Table = Table(dataSource, transformations :+ transformation)
 
@@ -49,19 +49,20 @@ case class Table(dataSource : DataSource, transformations : Seq[TableTransformat
     /**
       * Returns whether this table can be evaluated with the provided data source and transformations
       */
-    def isValid : Boolean = {
+    def isValid(finalStep : Boolean) : Boolean = {
         // Check data source is valid
         if !dataSource.isValid then return false
         
-        // Check for aggregate transformations anywhere except the last element (as these will not be handled correctly)
-        // This is a temporary solution until Aggregates are converted to a DataSource
-        if transformations.size > 0 && transformations.init.collect { case a : AggregateTransformation => a }.size > 0 then return false
-
         // Check all transformations are valid - this could possibly just be a forall check
         val itemHeaderPairs = transformations.iterator.zip(headerList)
         val validStages = itemHeaderPairs.takeWhile((item, header) => item.isValid(header))
         return validStages.size == transformations.size
     }
+
+    /**
+     * Default usage of isValid - assumes finalStep is true
+     */
+    def isValid : Boolean = isValid(true)
 
     val assembler : Assembler = transformations.lastOption.map(_.assembler).getOrElse(DefaultAssembler())
 

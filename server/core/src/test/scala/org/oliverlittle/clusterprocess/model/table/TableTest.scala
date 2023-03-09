@@ -6,6 +6,7 @@ import org.oliverlittle.clusterprocess.model.table.sources.{MockDataSource, Mock
 import org.oliverlittle.clusterprocess.model.table.field._
 import org.oliverlittle.clusterprocess.model.field.expressions.{F, V}
 import org.oliverlittle.clusterprocess.model.field.expressions.Max
+import org.oliverlittle.clusterprocess.model.table.sources.GroupByDataSource
 
 class TableTest extends UnitSpec {
     "A table" should "add a transformation correctly" in {
@@ -39,6 +40,13 @@ class TableTest extends UnitSpec {
         table.isValid should be (true)
     }
 
+    it should "be valid if there is an AggregateTransformation only in the last transformation" in {
+        val ds = MockDataSource()
+        val table = Table(ds, Seq(AggregateTransformation(Max(F("a")))))
+
+        table.isValid should be (true)
+    }
+
     it should "be invalid and throw an exception if any dependency is invalid" in {
         val ds = MockDataSource()
         assertThrows[IllegalArgumentException] {
@@ -63,19 +71,6 @@ class TableTest extends UnitSpec {
         assertThrows[IllegalArgumentException] {
             table.withPartialDataSource(partialDS) should be (PartialTable(partialDS, Seq(SelectTransformation(V(1) as "Col1"))))
         }
-    }
-
-    it should "assemble partial results based on the final transformation's assembler" in {
-        val header = TableResultHeader(Seq(BaseIntField("Max_a")))
-        val rows = Seq(Seq(Some(IntValue(1))), Seq(Some(IntValue(2))))
-        val one = EvaluatedTableResult(header, rows)
-
-        val ds = MockDataSource()
-        val tableOne = Table(ds, Seq(AggregateTransformation(Max(F("a")))))
-        tableOne.assembler.assemblePartial(Seq(one, one)) should be (LazyTableResult(header, Seq(Seq(Some(IntValue(2))))))
-
-        val tableTwo = Table(ds, Seq(SelectTransformation(F("a") as "Max_a"), SelectTransformation(F("Max_a"))))
-        tableTwo.assembler.assemblePartial(Seq(one, one)) should be (EvaluatedTableResult(header, rows ++ rows))
     }
 }
 

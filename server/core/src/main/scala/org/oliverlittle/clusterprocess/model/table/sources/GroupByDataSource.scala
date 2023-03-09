@@ -23,10 +23,12 @@ object GroupByDataSource:
     def fromProtobuf(dataSource : table_model.GroupByDataSource) = GroupByDataSource(Table.fromProtobuf(dataSource.table.get), dataSource.uniqueFields.map(NamedFieldExpression.fromProtobuf(_)), dataSource.aggregateFields.map(AggregateExpression.fromProtobuf(_)))
 
 case class GroupByDataSource(source : Table, uniqueFields : Seq[NamedFieldExpression], aggregates : Seq[AggregateExpression]) extends DependentDataSource:
+    private val logger = LoggerFactory.getLogger(classOf[GroupByDataSource].getName) 
+    
     // Same as in DataSource definition
     lazy val getHeaders : TableResultHeader = TableResultHeader(uniqueFields.map(_.outputTableField(source.outputHeaders)) ++ aggregates.flatMap(_.outputFinalTableFields(source.outputHeaders)))
     override val getDependencies: Seq[Table] = Seq(source)
-    lazy val isValid = source.isValid && Try{uniqueFields.map(_.resolve(source.outputHeaders))}.isSuccess && Try{aggregates.map(_.outputPartialTableFields(source.outputHeaders))}.isSuccess
+    lazy val isValid = source.isValid(false) && Try{uniqueFields.map(_.resolve(source.outputHeaders))}.isSuccess && Try{aggregates.map(_.outputPartialTableFields(source.outputHeaders))}.isSuccess
 
     def getPartitions(workerHandler : WorkerHandler)(using ec : ExecutionContext) : Future[Seq[(Seq[ChannelManager], Seq[PartialDataSource])]] = 
         // Get the number of partitions
@@ -37,6 +39,7 @@ case class GroupByDataSource(source : Table, uniqueFields : Seq[NamedFieldExpres
             val numGroups = workerHandler.channels.size
             val groupedPartials = partials.groupBy(_.partitionNum % numGroups)
             val mappings = workerHandler.channels.zipWithIndex.map((channel, index) => (Seq(channel), groupedPartials.getOrElse(index, Seq())))
+            logger.info("Generating " + mappings.map(_._2.size).sum + " partitions.")
             mappings
         }
     

@@ -68,7 +68,7 @@ class TableStoreTest extends UnitSpec {
         dataInbox.receiveMessage() should be (None)
     }
 
-    it should "get all results for a Table" in {
+    it should "get a result iterator for a table" in {
         // Setup
         val testKit = BehaviorTestKit(TableStore())
         val resultInbox = TestInbox[StatusReply[Done]]()
@@ -80,12 +80,12 @@ class TableStoreTest extends UnitSpec {
         testKit.run(TableStore.AddResult(tableTwo, tableTwo.parent.empty, resultInbox.ref))
         resultInbox.expectMessage(StatusReply.ack())
         
-        val dataInbox = TestInbox[Seq[TableResult]]()
-        testKit.run(TableStore.GetAllResults(table.parent, dataInbox.ref))
+        val dataInbox = TestInbox[Iterator[TableResult]]()
+        testKit.run(TableStore.GetResultIterator(table.parent, dataInbox.ref))
         dataInbox.receiveMessage().toSet should be (Set(table.parent.empty, tableTwo.parent.empty))
 
-        testKit.run(TableStore.GetAllResults(Table(MockDataSource(), Seq()), dataInbox.ref))
-        dataInbox.receiveMessage() should be (Seq())
+        testKit.run(TableStore.GetResultIterator(Table(MockDataSource(), Seq()), dataInbox.ref))
+        dataInbox.receiveMessage().toSeq should be (Seq())
     }
 
     it should "add a result for a PartialDataSource" in {

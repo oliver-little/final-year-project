@@ -168,8 +168,13 @@ class AggregateTransformationTest extends UnitSpec {
         AggregateTransformation(Avg(F("name"))).outputPartialHeaders(header) should be (TableResultHeader(Seq(BaseIntField("AvgSum_name"), BaseIntField("AvgCount_name"))))
     }
 
-    it should "output correct final headers" in {
+    it should "output correct final headers from partial headers" in {
         val header = TableResultHeader(Seq(BaseIntField("AvgSum_name"), BaseIntField("AvgCount_name")))
+        AggregateTransformation(Avg(F("name"))).partialToFinalHeaders(header) should be (TableResultHeader(Seq(BaseDoubleField("Avg_name"))))
+    }
+
+    it should "output correct final headers from initial headers" in {
+        val header = TableResultHeader(Seq(BaseIntField("name")))
         AggregateTransformation(Avg(F("name"))).outputHeaders(header) should be (TableResultHeader(Seq(BaseDoubleField("Avg_name"))))
     }
 

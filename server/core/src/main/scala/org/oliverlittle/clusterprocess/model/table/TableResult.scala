@@ -56,7 +56,7 @@ case class EvaluatedTableResult(header : TableResultHeader, rows : Seq[Seq[Optio
     override def ++(that: TableResult): TableResult = {
         if header != that.header then throw new IllegalArgumentException("TableResult headers do not match:" + header.toString + " and " + that.header.toString)
 
-        return copy(rows = rows ++ that.rows)
+        return LazyTableResult(header, rows ++ that.rows)
     }
 
     def getCell(row : Int, col : Int) : Option[TableValue] = rows.lift(row).flatMap(_.lift(col)).flatten

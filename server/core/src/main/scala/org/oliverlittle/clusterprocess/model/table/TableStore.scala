@@ -23,7 +23,9 @@ object TableStore {
     final case class AddResult(table : PartialTable, result : TableResult, replyTo : ActorRef[StatusReply[Done]]) extends TableStoreEvent
     final case class DeleteResult(table : Table) extends TableStoreEvent
     final case class GetResult(table : PartialTable, replyTo : ActorRef[Option[TableResult]]) extends TableStoreEvent
-    final case class GetAllResults(table : Table, replyTo : ActorRef[Seq[TableResult]]) extends TableStoreEvent
+    // Note: DO NOT read this entire iterator into memory, you will probably crash the worker if the table is even slightly large
+    final case class GetResultIterator(table : Table, replyTo : ActorRef[Iterator[TableResult]]) extends TableStoreEvent
+    final case class GetTableSize(table : Table, replyTo : ActorRef[Long]) extends TableStoreEvent
     // Requests for computed partitions (PartialDataSource)
     final case class AddPartition(partition : PartialDataSource, result : TableResult, replyTo : ActorRef[StatusReply[Done]]) extends TableStoreEvent
     final case class DeletePartition(dataSource : DataSource) extends TableStoreEvent
@@ -55,10 +57,15 @@ object TableStore {
                 replyTo ! resultOption
                 processResults(newTableStoreData)
 
-            case GetAllResults(table, replyTo) =>
-                val (resultSeq, newTableStoreData) = tableStoreData.getAllResults(table)
-                replyTo ! resultSeq
-                processResults(newTableStoreData)
+            case GetResultIterator(table, replyTo) =>
+                val resultIterator = tableStoreData.getResultIterator(table)
+                replyTo ! resultIterator
+                processResults(tableStoreData.checkSpill)
+
+            case GetTableSize(table, replyTo) => 
+                val sizeEstimate = tableStoreData.getTableSize(table)
+                replyTo ! sizeEstimate
+                Behaviors.same
 
             case AddPartition(partition, result, replyTo) =>
                 val newData = tableStoreData.checkSpill.updatePartition(partition, result)
@@ -177,25 +184,19 @@ case class TableStoreData(
             case None => (None, checkSpill)
         }
 
-    def getAllResults(table : Table) : (Seq[TableResult], TableStoreData) =
-        // Get all the partialTables for this table, then fold starting from an empty set of results
-        tables.get(table).map(
-            _.foldLeft((Seq() : Seq[TableResult], checkSpill)){(inputData, storedDataPair) =>
-                // Unpack the intermediate fold value
-                val (items, tableStoreData) = inputData
-                // Unpack the PartialTable -> StoredTableResult mapping
-                val (partialTable, storedResult) = storedDataPair
-                // Match on the stored table result, and read it into memory if required
-                storedResult match {
-                    case i : InMemoryTableResult[_] => (items :+ i.get, tableStoreData.access(i).checkSpill)
-                    case p : ProtobufTableResult[_] =>
-                        // Replace the stored result with an in memory version again
-                        val result = p.get
-                        p.cleanup
-                        (items :+ result, tableStoreData.updateResult(partialTable, result).checkSpill)
-                    }
-            }
-        ).getOrElse((Seq(), this)) // Handle the case where the table does not exist
+    // Gets an iterator of the results of this TableStoreData which can only be read ONCE
+    // Note: this may cause file reads without caching them into memory - use getResult to change the TableStoreData state
+    def getResultIterator(table : Table) : Iterator[TableResult] =
+        tables.get(table) match {
+            case Some(value) => value.iterator.map(_._2.get)
+            case None => Iterator.empty
+        }
+
+    def getTableSize(table : Table) : Long = 
+        tables.get(table) match {
+            case Some(value) => value.map(_._2.estimatedSizeMb).sum
+            case None => 0
+        }
 
     def updateResult(table : PartialTable, result : TableResult) : TableStoreData = {
         val storedResult = InMemoryPartialTable(table, result)
@@ -214,27 +215,49 @@ case class TableStoreData(
         // Therefore, we filter the dependency for ones we actually have data for
         val dependencies = dataSource.getDependencies.filter(dependency => tables contains dependency)
 
-        val newDependencies = 
-            // For each dependency
-            dependencies.map(dependency => 
-                // Get the first mapping
-                (dependency, numPartitions) -> 
-                // Calculate the partitions for that mapping
-                dataSource.hashPartitionedData(tables(dependency).values.map(_.get).reduce(_ ++ _), numPartitions)
-                    // Convert each partition into a stored table result
-                    .map((partitionNum, tableResult) => partitionNum -> InMemoryDependency(((dependency, numPartitions), partitionNum), tableResult))
+        // First, get a mapping from (Table, Int) -> Int -> Seq[StoredTableResult]
+
+        /* This call is a bit crazy, but in short:
+         *  - We iterate over every dependency (table) the data source has
+         *  - For each of those dependencies, we iterate over all PartialTables this TableStore has
+         *  - For each of those PartialTables, we hash the result (using the original data source)
+         *  - Using the hashed result, we then either place it into memory, or store it on disk (based on the current utilisation)
+         *  - This results in a sequence of mappings: (Dependency (Table), numPartitions) -> partitionNum -> StoredTableResult
+         */
+        val dependenciesList = dependencies.map {dependency =>
+            // Iterate over all results in the dependency
+            tables(dependency).values.map {storedResult =>
+                // Hash each result, and store the mapping
+                dataSource.hashPartitionedData(storedResult.get, numPartitions).map((partitionNum, result) => 
+                    ((dependency, numPartitions), partitionNum) -> StoredTableResult.getDependency(((dependency, numPartitions), partitionNum), result, TableStoreData.memoryUsageThreshold)
+                ).toMap
+            }
+        }.flatten
+
+        /*
+         * Next, we have to merge all of the partial mappings to produce *one* StoredTableResult for each ((dependency, numPartitions), partitionNum) lookup
+         *  - This is done using two GroupBys, because our maps are nested
+         */
+        val newDependencies = dependenciesList
+            .flatten // Flatten to get all pairs of ((Table, numPartitions), partitionNum) -> StoredTableResult
+            .groupBy(pair => pair._1._1) // GroupBy (Table, numPartitions)
+            .view.mapValues(data => // Iterate over the grouped results
+                data.groupBy(pair => pair._1._2) // GroupBy again on partitionNum
+                .view.mapValues(values => // Iterate over the grouped results
+                    StoredTableResult.combineDependencies(values.map(pair => pair._2), TableStoreData.memoryUsageThreshold) // Combine the StoredTableResult for this value
+                ).toMap
             ).toMap
 
         // Update the hashes in place
         val newMap = hashes ++ newDependencies
 
-        val newLRU = leastRecentlyUsed.addAll(newDependencies.values.flatMap(_.values).toSeq)
+        // Find all of the new values that were stored in memory and add them to the LRU cache
+        val newLRU = leastRecentlyUsed.addAll(newDependencies.values.flatMap(_.values.collect{case e : InMemoryTableResult[_] => e}).toSeq)
 
         return copy(hashes = newMap, leastRecentlyUsed = newLRU)
     }
 
     def updateDependencyHash(dependencyData : ((Table, Int), Int), tableResult : TableResult) : TableStoreData = {
-        val currentStore = checkSpill
         val storedResult = InMemoryDependency(dependencyData, tableResult)
         val newMap = hashes + (dependencyData._1 -> (hashes(dependencyData._1) + (dependencyData._2 -> storedResult)))
         return copy(hashes = newMap, leastRecentlyUsed = leastRecentlyUsed.add(storedResult))
@@ -306,12 +329,8 @@ case class TableStoreData(
         val memoryToFree = MemoryUsage.getMemoryUsageAboveThreshold(runtime, TableStoreData.memoryUsageThreshold)
         if memoryToFree > 0
         then 
-            // Spill memoryToFree bytes to disk
-            val tableStoreData = spill(memoryToFree)
-            // Force gc
-            System.gc
-            // Return the new TableStoreData
-            tableStoreData
+            // Spill memoryToFree bytes to disk, and return the new TableStoreData
+            spill(memoryToFree)
         else this
     }
 
@@ -333,6 +352,9 @@ case class TableStoreData(
             tableStoreData = lru.spillToDisk(tableStoreData)
             lruOption = tableStoreData.leastRecentlyUsed.getLeastRecentlyUsed
         }
+
+        // Force gc
+        System.gc
 
         TableStoreData.logger.info("Moved " + count.toString + " items and " + freedSize.toString + " bytes.")
 

@@ -51,10 +51,31 @@ class DelayedTableResultRunnable(responseObserver : ServerCallStreamObserver[tab
 
     private val logger = LoggerFactory.getLogger(classOf[DelayedTableResultRunnable].getName)
 
+    /**
+      * Starts execution with a TableResult
+      *
+      * @param tableResult
+      */
     def setData(tableResult : TableResult) : Unit = {
         val header = table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Header(tableResult.header.protobuf))
         val rows = tableResult.rowsProtobuf.map(row => table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Row(row)))
         val iterator = Iterator(header) ++ rows
+        data = Some(iterator)
+        run()
+    }
+
+    /**
+      * Starts execution with an iterator of TableResults that are known to be the same type
+      *
+      * @param results
+      */
+    def setData(results : Iterator[TableResult]) : Unit = {
+        val tableResult = results.next
+        val header = table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Header(tableResult.header.protobuf))
+        val rows = tableResult.rowsProtobuf.map(row => table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Row(row)))
+
+        // Create an iterator from the header of the first item, the rows of the first item, and the rows of the rest of the items
+        val iterator = Iterator(header) ++ rows ++ results.flatMap(_.rowsProtobuf.map(row => table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Row(row))))
         data = Some(iterator)
         run()
     }

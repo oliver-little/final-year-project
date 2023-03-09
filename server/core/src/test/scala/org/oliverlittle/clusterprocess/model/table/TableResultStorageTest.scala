@@ -50,14 +50,15 @@ class ProtobufTableResultTest extends UnitSpec {
     "A ProtobufTableResult" should "resolve the correct path from the environment variable, and the source" in {
         // This is slightly randomised, so get the storagePath
         val storagePath = ProtobufTableResult.storagePath
-        ProtobufTableResult(1).path should be (storagePath.resolve("java.lang.Integer/" + 1.hashCode + ".table").toAbsolutePath())
+        val storedPB = ProtobufTableResult(1)
+        storedPB.path should be (storagePath.resolve("java.lang.Integer/" + 1.hashCode + storedPB.uuid + ".table").toAbsolutePath())
     }
 
     it should "store a TableResult at the path location" in {
         val table = Table(MockDataSource())
         val storagePath = ProtobufTableResult.storagePath
-        val path = storagePath.resolve("java.lang.Integer/" + 1.hashCode + ".table").toAbsolutePath()
         val storedPB = ProtobufTableResult(1)
+        val path = storagePath.resolve("java.lang.Integer/" + 1.hashCode + storedPB.uuid + ".table").toAbsolutePath()
         storedPB.store(table.empty)
         Files.exists(path) should be (true)
         storedPB.cleanup
@@ -66,8 +67,8 @@ class ProtobufTableResultTest extends UnitSpec {
     it should "retrieve a TableResult from the path location" in {
         val table = Table(MockDataSource())
         val storagePath = ProtobufTableResult.storagePath
-        val path = storagePath.resolve("java.lang.Integer/" + 1.hashCode + ".table").toAbsolutePath()
         val storedPB = ProtobufTableResult(1)
+        val path = storagePath.resolve("java.lang.Integer/" + 1.hashCode + storedPB.uuid + ".table").toAbsolutePath()
         storedPB.store(table.empty)
         Files.exists(path) should be (true)
         storedPB.get should be (table.empty)
@@ -77,8 +78,8 @@ class ProtobufTableResultTest extends UnitSpec {
     it should "delete a stored file on cleanup" in {
         val table = Table(MockDataSource())
         val storagePath = ProtobufTableResult.storagePath
-        val path = storagePath.resolve("java.lang.Integer/" + 1.hashCode + ".table").toAbsolutePath()
         val storedPB = ProtobufTableResult(1)
+        val path = storagePath.resolve("java.lang.Integer/" + 1.hashCode + storedPB.uuid + ".table").toAbsolutePath()
         storedPB.store(table.empty)
         Files.exists(path) should be (true)
         storedPB.cleanup
