@@ -35,8 +35,7 @@ def select_with_operations(cursor, table):
             pass
     return inner
 
-def select_tests():
-    ranges = [1000, 10000, 100000, 1000000]
+def select_tests(ranges):
     times = 5
     for range in ranges:
         table = f"[dbo].[origination_data-{range}]"
@@ -56,8 +55,7 @@ def filter_complex(cursor, table):
             pass
     return inner
 
-def filter_tests():
-    ranges = [1000, 10000, 100000, 1000000, 10000000]
+def filter_tests(ranges):
     times = 5
     for range in ranges:
         table = f"[dbo].[origination_data-{range}]"
@@ -77,8 +75,7 @@ def group_by_with_aggregate(cursor, table):
             pass
     return inner
 
-def group_by_tests():
-    ranges = [1000, 10000, 100000, 1000000, 10000000]
+def group_by_tests(ranges):
     times = 5
     for range in ranges:
         table = f"[dbo].[origination_data-{range}]"
