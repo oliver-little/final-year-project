@@ -10,15 +10,15 @@ generator = loan_origination_generator(20000000)
 
 
 def execute(callable, times):
-    times = []
+    results = []
     for x in range(times):
         t0 = time.time()
         callable()
         t1 = time.time()
         diff = t1 - t0
-        times.append(diff)
+        results.append(diff)
         print(f'{t1 - t0:.5f} seconds')
-    print(f"All times: {times}")
+    print(f"All times: {results}")
 
 
 def select_simple(cursor, table):
