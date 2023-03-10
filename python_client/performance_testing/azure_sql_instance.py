@@ -25,16 +25,14 @@ def execute(callable, times):
 
 def select_simple(cursor, table):
     def inner():
-        cursor.execute(f"SELECT * FROM {table}")
-        rows = cursor.fetchall()
-        return rows
+        for row in cursor.execute(f"SELECT * FROM {table}"):
+            pass
     return inner
 
 def select_with_operations(cursor, table):
     def inner():
-        cursor.execute(f"SELECT Loan_ID + 1 as Loan_ID_Inc, interest_rate + 1 as Interest_rate_Inc, power(duration, 2) as Duration_Pow, substring(cast(origination_date as nvarchar(300)), 0, 11) as origination_date_str FROM {table}")
-        rows = cursor.fetchall()
-        return rows
+        for row in cursor.execute(f"SELECT Loan_ID + 1 as Loan_ID_Inc, interest_rate + 1 as Interest_rate_Inc, power(duration, 2) as Duration_Pow, substring(cast(origination_date as nvarchar(300)), 0, 11) as origination_date_str FROM {table}"):
+            pass
     return inner
 
 def select_tests():
@@ -48,16 +46,14 @@ def select_tests():
 
 def filter_simple(cursor, table):
     def inner():
-        cursor.execute(f"SELECT * FROM {table} WHERE duration = 30")
-        rows = cursor.fetchall()
-        return rows
+        for row in cursor.execute(f"SELECT * FROM {table} WHERE duration = 30"):
+            pass
     return inner
 
 def filter_complex(cursor, table):
     def inner():
-        cursor.execute(f"SELECT * FROM {table} WHERE (duration = 30 and amount > 500000) or loan_id = 1")
-        rows = cursor.fetchall()
-        return rows
+        for row in cursor.execute(f"SELECT * FROM {table} WHERE (duration = 30 and amount > 500000) or loan_id = 1"):
+            pass
     return inner
 
 def filter_tests():
@@ -71,16 +67,14 @@ def filter_tests():
 
 def group_by_simple(cursor, table):
     def inner():
-        cursor.execute(f"SELECT duration FROM {table} GROUP BY duration")
-        rows = cursor.fetchall()
-        return rows
+        for row in cursor.execute(f"SELECT duration FROM {table} GROUP BY duration"):
+            pass
     return inner
 
 def group_by_with_aggregate(cursor, table):
     def inner():
-        cursor.execute(f"SELECT duration, MAX(origination_date) as Max_origination_date, AVG(interest_rate) as Avg_interest_rate, Min(amount) as Min_amount FROM {table} GROUP BY duration")
-        rows = cursor.fetchall()
-        return rows
+        for row in cursor.execute(f"SELECT duration, MAX(origination_date) as Max_origination_date, AVG(interest_rate) as Avg_interest_rate, Min(amount) as Min_amount FROM {table} GROUP BY duration"):
+            pass
     return inner
 
 def group_by_tests():
