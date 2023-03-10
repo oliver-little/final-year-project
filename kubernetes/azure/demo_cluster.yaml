@@ -15,7 +15,7 @@ spec:
             storage: 5Gi
     config:
       jvmOptions:
-        heapSize: 512M
+        heapSize: 1.5Gi
     networking:
       hostNetwork: true
     datacenters:
