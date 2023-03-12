@@ -14,3 +14,5 @@ object MemoryUsage:
     def getTotalFreeMemory(runtime : Runtime) : Long = runtime.maxMemory - MemoryUsage.getUsedMemory(runtime).toLong
 
     def getUsedMemory(runtime : Runtime) : Long = runtime.totalMemory - runtime.freeMemory
+
+    def getMaxMemory(runtime : Runtime) : Long = runtime.maxMemory

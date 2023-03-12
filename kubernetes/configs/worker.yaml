@@ -25,6 +25,8 @@ spec:
         - name: cassandra
           mountPath: "/etc/cassandra"
           readOnly: true
+        - name: ephemeral
+          mountPath: "/tmp"
         env:
         - name: CASSANDRA_DATACENTER
           value: "dc1"
@@ -38,11 +40,15 @@ spec:
           value: "3"
         - name: CASSANDRA_NODE_NAME
           value: "demo-dc1-default-sts"
+        - name: SPILL_STORAGE_PATH  
+          value: "/tmp"
       volumes:
         - name: cassandra
           secret:
             secretName: demo-superuser
             optional: false
+        - name: ephemeral
+          emptyDir: {}
       affinity:
         podAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:

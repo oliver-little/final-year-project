@@ -7,6 +7,7 @@ import org.oliverlittle.clusterprocess.model.table.{Table, TableTransformation, 
 import org.oliverlittle.clusterprocess.connector.grpc.{StreamedTableResult, TableResultRunnable, DelayedTableResultRunnable}
 import org.oliverlittle.clusterprocess.connector.cassandra.{CassandraConfig, CassandraConnector}
 import org.oliverlittle.clusterprocess.dependency.SizeEstimator
+import org.oliverlittle.clusterprocess.util.MemoryUsage
 
 import io.grpc.{ServerBuilder}
 import io.grpc.stub.{ServerCallStreamObserver, StreamObserver}
@@ -48,6 +49,7 @@ object WorkerQueryServer {
 class WorkerQueryServer(executionContext: ExecutionContext, store : ActorRef[TableStore.TableStoreEvent], port : Int)(using system : ActorSystem[_])(using ec : ExecutionContext = system.executionContext) {
     private val server =  ServerBuilder.forPort(port).addService(worker_query.WorkerComputeServiceGrpc.bindService(new WorkerQueryServicer(store), executionContext)).build.start
     WorkerQueryServer.logger.info("gRPC Server started, listening on " + port)
+    WorkerQueryServer.logger.info("Allocated " + (MemoryUsage.getMaxMemory(Runtime.getRuntime).toDouble / 1000000).round.toString +  "MB of memory.")
     
     sys.addShutdownHook({
         WorkerQueryServer.logger.info("*** Shutting down gRPC server since JVM is shutting down.")

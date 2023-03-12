@@ -341,6 +341,7 @@ case class TableStoreData(
       * @return
       */
     def spill(memoryToFree : Long) : TableStoreData = {
+        TableStoreData.logger.info("Starting spill.")
         var freedSize : Long = 0
         var count = 0
         var tableStoreData = this
