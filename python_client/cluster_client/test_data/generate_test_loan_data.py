@@ -7,6 +7,7 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from scipy.stats import halfnorm
 from tqdm import tqdm
+import csv
 
 # Questions for Kirill:
 # What sort of random effects do we see on loans data?/where should I be introducting randomness / error
@@ -136,7 +137,7 @@ def loan_origination_generator(count : int):
     Each value returns a list of `loan_id, amount, interest_rate, duration, origination_date`"""
     for loan_id in range(count):
         amount, interest_rate, duration, origination_date = generate_origination(START_ORIGINATION_DATE, END_ORIGINATION_DATE)
-        yield (loan_id, amount, interest_rate, duration, origination_date)
+        yield [loan_id, amount, interest_rate, duration, origination_date]
 
 def loan_amortisation_metadata():
     """Returns metadata for the loan amortisation generator: (column names, column types)"""
@@ -160,31 +161,10 @@ if __name__ == "__main__":
 
     # Generate existing loans
     print("Generating existing loans:")
-
-    for loan_id in tqdm(range(NUM_EXISTING_LOANS)):
-        amount, interest_rate, duration, origination_date = generate_origination(START_EXISTING_DATE, END_EXISTING_DATE)
-        schedule = generate_amortisation_schedule(amount, interest_rate, duration, origination_date)
-        schedule = schedule[(schedule["date"] > START_DATA_DATE) & (schedule["date"] < END_DATA_DATE)]
-        schedule["Loan_ID"] = loan_id
-        origination_data.append([loan_id, amount, interest_rate, duration, origination_date.strftime("%Y-%m-%d")])
-        amortisation_data.append(schedule)
-
-    print("Generating new originations:")
-
-    # Generate originations
-    for loan_id in tqdm(range(NUM_EXISTING_LOANS, NUM_EXISTING_LOANS + NUM_ORIGINATIONS)):
-        amount, interest_rate, duration, origination_date = generate_origination(START_ORIGINATION_DATE, END_ORIGINATION_DATE)
-        schedule = generate_amortisation_schedule(amount, interest_rate, duration, origination_date)
-        schedule = schedule[(schedule["date"] > START_DATA_DATE) & (schedule["date"] < END_DATA_DATE)]
-        schedule["Loan_ID"] = loan_id
-        origination_data.append([loan_id, amount, interest_rate, duration, origination_date.strftime("%Y-%m-%d")])
-        amortisation_data.append(schedule)
-
-
-    print("Outputting data.")
-
-    origination_data = pd.DataFrame(data=origination_data, columns=["Loan_ID", "Origination_Amount", "Interest_Rate", "Duration", "Origination_Date"])
-    origination_data.to_csv("Origination_data.csv", index=False)
-
-    full_data = pd.concat(amortisation_data)
-    full_data.to_csv("Loan_data.csv", index=False)
+    amounts = [1000, 10000, 100000, 1000000, 10000000, 100000000]
+    for amount in amounts:
+        with open(f"origination_data-{amount}.csv", "w") as file:
+            writer = csv.writer(file)
+            writer.writerow(["Loan_ID", "amount", "interest_rate", "duration", "origination_date"])
+            for row in tqdm(loan_origination_generator(amount)):
+                writer.writerow(row)

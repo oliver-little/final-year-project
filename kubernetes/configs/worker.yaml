@@ -21,6 +21,13 @@ spec:
         ports:
         - containerPort: 50052
           name: worker
+        resources:
+          requests:
+            cpu: 1
+            memory: 4Gi
+          limits:
+            cpu: 1.5
+            memory: 6Gi
         volumeMounts:
         - name: cassandra
           mountPath: "/etc/cassandra"
