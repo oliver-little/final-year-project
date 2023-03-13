@@ -101,7 +101,9 @@ class WorkerQueryServicer(store : ActorRef[TableStore.TableStoreEvent])(using sy
             store.ask[Iterator[TableResult]](ref => TableStore.GetResultIterator(table, ref)).onComplete {
                 case Success(i) if i.isEmpty => runnable.setData(table.empty)
                 case Success(i) => runnable.setData(i)
-                case Failure(e) => runnable.setError(e)
+                case Failure(e) => 
+                    WorkerQueryServicer.logger.error("getTableData failed:", e)
+                    runnable.setError(e)
             }
         }
 
@@ -115,7 +117,9 @@ class WorkerQueryServicer(store : ActorRef[TableStore.TableStoreEvent])(using sy
             store.ask[Option[TableResult]](ref => TableStore.GetHash(table, request.totalPartitions, request.partitionNum, ref)).onComplete {
                 case Success(None) => runnable.setData(table.empty)
                 case Success(Some(t)) => runnable.setData(t)
-                case Failure(e) => runnable.setError(e)
+                case Failure(e) => 
+                    WorkerQueryServicer.logger.error("getHashedPartitionData failed:", e)
+                    runnable.setError(e)
             }
         }
 
