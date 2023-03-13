@@ -21,6 +21,10 @@ class FieldOperationsTest extends UnitSpec {
         FieldOperations.AddDouble(V(1.01d), V(1.01d)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(DoubleValue(2.02d)))
     }
 
+    it should "divide doubles" in {
+        FieldOperations.Div(V(6d), V(2d)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(DoubleValue(3d)))
+    }
+
     it should "calculate exponents" in {
         FieldOperations.Pow(V(10d), V(2d)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(DoubleValue(100d)))
     }
@@ -41,6 +45,23 @@ class FieldOperationsTest extends UnitSpec {
         FieldOperations.Add(V("a"), V("b")).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(StringValue("ab")))
         FieldOperations.Add(V(1), V(2)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(IntValue(3)))
         FieldOperations.Add(V(1.01d), V(1.01d)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(DoubleValue(2.02d)))
+    }
+
+    it should "calculate polymorphic multiplications" in {
+        FieldOperations.Mul(V(2), V(2)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(IntValue(4)))
+        FieldOperations.Mul(V(2.5d), V(3d)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(DoubleValue(7.5d)))
+    }
+
+    it should "calculate polymorphic subtractions" in {
+        FieldOperations.Sub(V(2), V(2)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(IntValue(0)))
+        FieldOperations.Sub(V(2.5d), V(3d)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(DoubleValue(-0.5d)))
+    }
+
+    it should "calculate polymorphic modulo" in {
+        FieldOperations.Mod(V(4), V(3)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(IntValue(1)))
+        FieldOperations.Mod(V(4.5d), V(3.5d)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(DoubleValue(1d)))
+        FieldOperations.Mod(V(4), V(2.5d)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(DoubleValue(1.5d)))
+        FieldOperations.Mod(V(4.5d), V(3)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(DoubleValue(1.5d)))
     }
 }
 

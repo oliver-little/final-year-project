@@ -19,8 +19,13 @@ object FieldOperations:
 	def SubDouble(l : FieldExpression, r : FieldExpression) : FunctionCall = BinaryFunction[Double, Double, Double]("SubDouble", (left, right) => left - right, l, r)
 	def Div(l : FieldExpression, r : FieldExpression) : FunctionCall = BinaryFunction[Double, Double, Double]("Div", (left, right) => left / right, l, r)
 	def Pow(l : FieldExpression, r : FieldExpression) : FunctionCall = BinaryFunction[Double, Double, Double]("Pow", (value, exp) => pow(value, exp), l, r)
+	def ModLong(l : FieldExpression, r : FieldExpression) : FunctionCall = BinaryFunction[Long, Long, Long]("ModLong", (left, right) => left % right, l, r)
+	def ModDouble(l : FieldExpression, r : FieldExpression) : FunctionCall = BinaryFunction[Double, Double, Double]("ModDouble", (left, right) => left % right, l, r)
+	def ModLongDouble(l : FieldExpression, r : FieldExpression) : FunctionCall = BinaryFunction[Long, Double, Double]("ModLongDouble", (left, right) => left % right, l, r)
+	def ModDoubleLong(l : FieldExpression, r : FieldExpression) : FunctionCall = BinaryFunction[Double, Long, Double]("ModDoubleLong", (left, right) => left % right, l, r)
 
 	// Polymorphic Arithmetic
+	def Mod(l : FieldExpression, r : FieldExpression) : FunctionCall = PolyMod(l, r)
 	def Add(l : FieldExpression, r : FieldExpression) : FunctionCall = PolyAdd(l, r)
 	def Mul(l : FieldExpression, r : FieldExpression) : FunctionCall = PolyMul(l, r)
 	def Sub(l : FieldExpression, r : FieldExpression) : FunctionCall = PolySub(l, r)
@@ -42,6 +47,7 @@ object FieldOperations:
 	*/
 final case class PolyAdd(left : FieldExpression, right : FieldExpression) extends FunctionCall:
 	val functionName = "Add" 
+	val arguments = Seq(left, right)
 
 	def isWellTyped(header : TableResultHeader) : Boolean = (left.doesReturnType[String](header) && right.doesReturnType[String](header)) || (left.doesReturnType[Long](header) && right.doesReturnType[Long](header)) || (left.doesReturnType[Double](header) && right.doesReturnType[Double](header))
 
@@ -64,20 +70,20 @@ final case class PolyAdd(left : FieldExpression, right : FieldExpression) extend
 		* @return Concat for String types, Integer addition for Long types, and Double addition for Double types
 		*/
 	def resolve(header : TableResultHeader) : ResolvedFieldExpression = {
-			if (left.doesReturnType[String](header) && right.doesReturnType[String](header)) {
-					return FieldOperations.Concat(left, right).resolve(header)
-			}
-			else if (left.doesReturnType[Long](header) && right.doesReturnType[Long](header)) {
-					return FieldOperations.AddInt(left, right).resolve(header)
-			}
-			else if (left.doesReturnType[Double](header) && right.doesReturnType[Double](header)) {
-					return FieldOperations.AddDouble(left, right).resolve(header)
-			} 
-			else {
-					throw new IllegalArgumentException("Parameter FieldExpressions must return type (String, String), (Long, Long) or (Double, Double). (Are you missing a cast?)")
-			}
+		if (left.doesReturnType[String](header) && right.doesReturnType[String](header)) {
+			return FieldOperations.Concat(left, right).resolve(header)
+		}
+		else if (left.doesReturnType[Long](header) && right.doesReturnType[Long](header)) {
+			return FieldOperations.AddInt(left, right).resolve(header)
+		}
+		else if (left.doesReturnType[Double](header) && right.doesReturnType[Double](header)) {
+			return FieldOperations.AddDouble(left, right).resolve(header)
+		} 
+		else {
+			throw new IllegalArgumentException("Parameter FieldExpressions must return type (String, String), (Long, Long) or (Double, Double). (Are you missing a cast?)")
+		}
 	}
-	val arguments = Seq(left, right)
+	
 
 /**
 	* 'Polymorphic' version of mul, taking two parameters of the same type, then resolving them to an int or double multiplication depending on their types at runtime
@@ -87,6 +93,7 @@ final case class PolyAdd(left : FieldExpression, right : FieldExpression) extend
 	*/
 final case class PolyMul(left : FieldExpression, right : FieldExpression) extends FunctionCall:
 	val functionName = "Mul"
+	val arguments = Seq(left, right)
 
 	def isWellTyped(header : TableResultHeader) : Boolean = (left.doesReturnType[Long](header) && right.doesReturnType[Long](header)) || (left.doesReturnType[Double](header) && right.doesReturnType[Double](header))
 
@@ -107,26 +114,27 @@ final case class PolyMul(left : FieldExpression, right : FieldExpression) extend
 		* @return Concat for String types, Integer addition for Long types, and Double addition for Double types
 		*/
 	def resolve(header : TableResultHeader) : ResolvedFieldExpression = {
-			if (left.doesReturnType[Long](header) && right.doesReturnType[Long](header)) {
-					return FieldOperations.MulInt(left, right).resolve(header)
-			}
-			else if (left.doesReturnType[Double](header) && right.doesReturnType[Double](header)) {
-					return FieldOperations.MulDouble(left, right).resolve(header)
-			} 
-			else {
-					throw new IllegalArgumentException("Parameter FieldExpressions must return type (Long, Long) or (Double, Double). (Are you missing a cast?)")
-			}
+		if (left.doesReturnType[Long](header) && right.doesReturnType[Long](header)) {
+			return FieldOperations.MulInt(left, right).resolve(header)
+		}
+		else if (left.doesReturnType[Double](header) && right.doesReturnType[Double](header)) {
+			return FieldOperations.MulDouble(left, right).resolve(header)
+		} 
+		else {
+			throw new IllegalArgumentException("Parameter FieldExpressions must return type (Long, Long) or (Double, Double). (Are you missing a cast?)")
+		}
 	}
-	val arguments = Seq(left, right)
+	
 
 /**
-	* 'Polymorphic' version of mul, taking two parameters of the same type, then resolving them to an int or double multiplication depending on their types at runtime
+	* 'Polymorphic' version of sub, taking two parameters of the same type, then resolving them to an int or double subtraction depending on their types at runtime
 	*
-	* @param left Left argument for the mul function
-	* @param right Right argument for the mul function
+	* @param left Left argument for the sub function
+	* @param right Right argument for the sub function
 	*/
 final case class PolySub(left : FieldExpression, right : FieldExpression) extends FunctionCall: 	
 	val functionName = "Sub"
+	val arguments = Seq(left, right)
 
 	def isWellTyped(header : TableResultHeader) : Boolean = (left.doesReturnType[Long](header) && right.doesReturnType[Long](header)) || (left.doesReturnType[Double](header) && right.doesReturnType[Double](header))
 
@@ -147,17 +155,62 @@ final case class PolySub(left : FieldExpression, right : FieldExpression) extend
 		* @return Concat for String types, Integer addition for Long types, and Double addition for Double types
 		*/
 	def resolve(header : TableResultHeader) : ResolvedFieldExpression = {
-			if (left.doesReturnType[Long](header) && right.doesReturnType[Long](header)) {
-					return FieldOperations.SubInt(left, right).resolve(header)
-			}
-			else if (left.doesReturnType[Double](header) && right.doesReturnType[Double](header)) {
-					return FieldOperations.SubDouble(left, right).resolve(header)
-			} 
-			else {
-					throw new IllegalArgumentException("Parameter FieldExpressions must return type (Long, Long) or (Double, Double). (Are you missing a cast?)")
-			}
+		if (left.doesReturnType[Long](header) && right.doesReturnType[Long](header)) {
+			return FieldOperations.SubInt(left, right).resolve(header)
+		}
+		else if (left.doesReturnType[Double](header) && right.doesReturnType[Double](header)) {
+			return FieldOperations.SubDouble(left, right).resolve(header)
+		} 
+		else {
+			throw new IllegalArgumentException("Parameter FieldExpressions must return type (Long, Long) or (Double, Double). (Are you missing a cast?)")
+		}
 	}
+
+/**
+	* 'Polymorphic' version of mod, taking two parameters of the same type, then resolving them to an int or double subtraction depending on their types at runtime
+	*
+	* @param left Left argument for the sub function
+	* @param right Right argument for the sub function
+	*/
+final case class PolyMod(left : FieldExpression, right : FieldExpression) extends FunctionCall: 	
+	val functionName = "Sub"
 	val arguments = Seq(left, right)
+
+	def isWellTyped(header : TableResultHeader) : Boolean = (left.doesReturnType[Long](header) && right.doesReturnType[Long](header)) || (left.doesReturnType[Double](header) && right.doesReturnType[Double](header))
+
+
+	def doesReturnType[EvalType](header : TableResultHeader)(using evalTag: ClassTag[EvalType]) : Boolean = {
+		if evalTag.equals(classTag[Long]) && left.doesReturnType[Long](header) && right.doesReturnType[Long](header) then
+			return true
+		else if evalTag.equals(classTag[Double]) && (left.doesReturnType[Double](header) && right.doesReturnType[Double](header) || left.doesReturnType[Long](header) && right.doesReturnType[Double](header) || left.doesReturnType[Double](header) && right.doesReturnType[Long](header)) then
+			return true
+		else
+			return false
+	}
+
+	/**
+		* Takes a header, and returns a concrete add function based on the argument types
+		*
+		* @param header A list of fields in this table, and their types
+		* @return Concat for String types, Integer addition for Long types, and Double addition for Double types
+		*/
+	def resolve(header : TableResultHeader) : ResolvedFieldExpression = {
+		if (left.doesReturnType[Long](header) && right.doesReturnType[Long](header)) {
+			return FieldOperations.ModLong(left, right).resolve(header)
+		}
+		else if (left.doesReturnType[Double](header) && right.doesReturnType[Double](header)) {
+			return FieldOperations.ModDouble(left, right).resolve(header)
+		} 
+		else if (left.doesReturnType[Double](header) && right.doesReturnType[Long](header)) {
+			return FieldOperations.ModDoubleLong(left, right).resolve(header)
+		} 
+		else if (left.doesReturnType[Long](header) && right.doesReturnType[Double](header)) {
+			return FieldOperations.ModLongDouble(left, right).resolve(header)
+		} 
+		else {
+			throw new IllegalArgumentException("Parameter FieldExpressions must return type (Long, Long) or (Double, Double). (Are you missing a cast?)")
+		}
+	}
 
 // Polymorphic cast definitions (takes any argument, and returns the type or an error)
 final case class CastToString(argument: FieldExpression) extends FunctionCall:

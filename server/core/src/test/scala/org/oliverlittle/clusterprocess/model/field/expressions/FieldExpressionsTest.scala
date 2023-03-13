@@ -279,7 +279,8 @@ class FunctionCallSpec extends UnitSpec {
         func.resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be ("a")
     }
 
-    private class FunctionCallImpl extends FunctionCall("testName"):
+    private class FunctionCallImpl extends FunctionCall:
+        val functionName = "testName"
         def isWellTyped(header : TableResultHeader) = true
         def doesReturnType[T](header : TableResultHeader)(using evalTag : ClassTag[T]) : Boolean = evalTag.equals(classTag[String])
         val arguments = Seq(V("a"))
