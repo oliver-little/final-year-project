@@ -107,10 +107,10 @@ class FieldExpression():
     def istarts_with(self, operand : Union[V, str, int, float, bool, datetime]) -> FieldComparison:
         return BinaryFieldComparison("ISTARTS_WITH", self, operand)
 
-    def contains(self, operand : Union[V, str, int, float, bool, datetime]) -> FieldComparison:
+    def ends_with(self, operand : Union[V, str, int, float, bool, datetime]) -> FieldComparison:
         return BinaryFieldComparison("ENDS_WITH", self, operand)
 
-    def icontains(self, operand : Union[V, str, int, float, bool, datetime]) -> FieldComparison:
+    def iends_with(self, operand : Union[V, str, int, float, bool, datetime]) -> FieldComparison:
         return BinaryFieldComparison("IENDS_WITH", self, operand)
 
     def is_null(self) -> FieldComparison:
@@ -142,7 +142,7 @@ class V(FieldExpression):
         elif value_type == int:
             value_field_name = "int"
         elif value_type == float:
-            value_field_name = "float"
+            value_field_name = "double"
         elif value_type == bool:
             value_field_name = "bool"
         elif value_type == datetime:
@@ -202,7 +202,14 @@ class Function(FieldExpression):
     Div = function_builder("Div", 2)
     Pow = function_builder("Pow", 2)
     Mod = function_builder("Mod", 2)
-    IsNull = function_builder("IsNull", 1)
+    ToString = function_builder("ToString", 1)
+    ToInt = function_builder("ToInt", 1)
+    ToDouble = function_builder("ToDouble", 1)
+
+    Concat = function_builder("Concat", 2)
+    Left = function_builder("Left", 2)
+    Right = function_builder("Right", 2)
+    Substring = function_builder("Substring", 3)
 
     def __init__(self, function_name : str, *args):
         super().__init__()
@@ -267,7 +274,7 @@ class CombinedFieldComparison(FieldComparison):
             raise ValueError(f"Invalid operator provided {operator}")
     
     def to_protobuf(self) -> protobuf_model.Filter:
-        return protobuf_model.Filter(combinedFilter=protobuf_model.CombinedFilterExpression(
+        return protobuf_model.Filter(combined_filter=protobuf_model.CombinedFilterExpression(
             left_expression=self.left.to_protobuf(),
             operator=self.operator,
             right_expression=self.right.to_protobuf()

@@ -39,42 +39,45 @@ class Table():
     def join(self, join_type : str, join_table_name : str) -> Table:
         """Creates a new table by joining this table to another by name
         E.G: `table.join("INNER_JOIN", "table_name")`"""
-
+        raise NotImplementedError("Not Implemented yet")
         return Table(self.connector, self.data_source, self.transformations + [JoinTransformation(join_type, join_table_name)])
 
     def full_outer_join(self, join_table_name : str) -> Table:
         """Shortcut to `.join("FULL_OUTER_JOIN", "table_name")`"""
-
+        raise NotImplementedError("Not Implemented yet")
         return Table(self.connector, self.data_source, self.transformations + [JoinTransformation("FULL_OUTER_JOIN", join_table_name)])
 
     def inner_join(self, join_table_name : str) -> Table:
         """Shortcut to `.join("INNER_JOIN", "table_name")`"""
-
+        raise NotImplementedError("Not Implemented yet")
         return Table(self.connector, self.data_source, self.transformations + [JoinTransformation("INNER_JOIN", join_table_name)])
 
     def left_join(self, join_table_name : str) -> Table:
         """Shortcut to `.join("LEFT_JOIN", "table_name")`"""
-
+        raise NotImplementedError("Not Implemented yet")
         return Table(self.connector, self.data_source, self.transformations + [JoinTransformation("LEFT_JOIN", join_table_name)])
 
     def right_join(self, join_table_name : str) -> Table:
         """Shortcut to `.join("RIGHT_JOIN", "table_name")`"""
-
+        raise NotImplementedError("Not Implemented yet")
         return Table(self.connector, self.data_source, self.transformations + [JoinTransformation("RIGHT_JOIN", join_table_name)])
 
     def cross_join(self, join_table_name : str) -> Table:
         """Shortcut to `.join("CROSS_JOIN", "table_name")`"""
-
+        raise NotImplementedError("Not Implemented yet")
         return Table(self.connector, self.data_source, self.transformations + [JoinTransformation("CROSS_JOIN", join_table_name)])
 
-    def group_by(self, unique_fields : List[NamedFieldExpression], aggregate_fields : List[AggregateExpression]) -> Table:
+    def group_by(self, unique_fields : List[NamedFieldExpression], aggregate_fields : List[AggregateExpression] = []) -> Table:
         """Creates a new table, grouping any results in future by the provided columns"""
+
+        if len(unique_fields) == 0:
+            raise ValueError("At least 1 group by field is required")
 
         return Table(self.connector, GroupByDataSource(self, unique_fields, aggregate_fields), [])
 
     def aggregate(self, *aggregate_columns : AggregateExpression) -> Table:
         """Creates a new table, aggregating the table data by the provided columns"""
-
+        raise NotImplementedError("Not Implemented yet")
         return Table(self.connector, self.data_source, self.transformations + [AggregateTransformation(*aggregate_columns)])
 
     def agg(self, *aggregate_columns : AggregateExpression) -> Table:
@@ -85,12 +88,12 @@ class Table():
 
     def order_by(self, *order_by_columns : Tuple(FieldExpression, str)) -> Table:
         """Creates a new table, ordering the results by the provided columns"""
-
+        raise NotImplementedError("Not Implemented yet")
         return Table(self.connector, self.data_source, self.transformations + [OrderByTransformation(*order_by_columns)])
 
     def window(self, window_functions : List[FieldExpression], partition_fields : List[str], order_by : List(Tuple(FieldExpression, str)) = None) -> Table:
         """Creates a new table, calculating aggregate functions over a window of fields, optionally ordered by the specified columns"""
-
+        raise NotImplementedError("Not Implemented yet")
         return Table(self.connector, self.data_source, self.transformations + [WindowTransformation(window_functions, partition_fields, order_by)])
 
     def to_protobuf(self) -> table_model_pb2.Table:

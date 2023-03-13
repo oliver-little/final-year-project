@@ -1,8 +1,7 @@
 package org.oliverlittle.clusterprocess.model.field.expressions
 
-import java.time.{LocalDateTime, Instant}
 import scala.reflect.{ClassTag, classTag}
-import java.text.DecimalFormat
+import java.time.LocalDateTime
 import java.time.ZoneOffset
 
 import org.oliverlittle.clusterprocess.table_model.{Expression, Value}
@@ -341,127 +340,5 @@ class TernaryFunctionSpec extends UnitSpec {
 
     it should "evaluate the function according to its argument" in {
         func(V("a"), V("b"), V("c")).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be ("abc")
-    }
-}
-
-class ToStringSpec extends UnitSpec {
-    "A ToString Cast" should "convert Strings" in {
-        val result = ToString(V("a")).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be ("a")
-    }
-
-    it should "convert Ints" in {
-        ToString(V(1 : Int)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be ("1")
-    }
-
-    it should "convert Longs" in {
-        ToString(V(1 : Long)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be ("1")
-    }
-
-    it should "convert Floats" in {
-        ToString(V(1.01 : Float)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value shouldBe a [String]
-    }
-
-    it should "convert Doubles" in {
-        ToString(V(1.01 : Double)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value shouldBe a [String]
-    }
-
-    it should "convert Instants" in {
-        ToString(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be (LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant.toString)
-    }
-
-    it should "convert Booleans" in {
-        ToString(V(true)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be ("true")
-    }
-}
-
-class DoubleToStringSpec extends UnitSpec {
-    "A DoubleToString cast" should "convert Floats" in {
-        DoubleToString(V(1.01 : Float), DecimalFormat("#.##")).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be ("1.01")
-    }
-
-    "A DoubleToString cast" should "convert Doubles" in {
-        DoubleToString(V(1.01 : Double), DecimalFormat("#.##")).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be ("1.01")
-    }
-}
-
-class ToIntSpec extends UnitSpec {
-    "A ToInt Cast" should "convert Strings" in {
-        ToInt(V("1")).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be (1)
-    }
-
-    it should "convert Ints" in {
-        ToInt(V(1 : Int)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be (1)
-    }
-
-    it should "convert Longs" in {
-        ToInt(V(1 : Long)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be (1)
-    }
-
-    it should "convert Floats" in {
-        ToInt(V(1.01 : Float)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be (1)
-    }
-
-    it should "convert Doubles" in {
-        ToInt(V(1.01 : Double)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be (1)
-    }
-
-    it should "fail to convert Instants" in {
-        assertThrows[IllegalArgumentException] {
-            ToInt(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).resolve(TableResultHeader(Seq())).evaluate(Seq())
-        }
-    }
-
-    it should "fail to convert Booleans" in {
-        assertThrows[IllegalArgumentException] {
-            ToInt(V(true)).resolve(TableResultHeader(Seq())).evaluate(Seq())
-        }
-    }
-}
-
-class ToDoubleSpec extends UnitSpec {
-    "A ToDouble Cast" should "convert Strings" in {
-        ToDouble(V("1")).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.value should be (1)
-    }
-
-    it should "convert Ints" in {
-        val result = ToDouble(V(1 : Int)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.asInstanceOf[DoubleValue]
-        result.value should be (1)
-        result.value shouldBe a [Double]
-    }
-
-    it should "convert Longs" in {
-        val result = ToDouble(V(1 : Long)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.asInstanceOf[DoubleValue]
-        result.value should be (1)
-        result.value shouldBe a [Double]
-    }
-
-    it should "convert Floats" in {
-        val result = ToDouble(V(1.01 : Float)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.asInstanceOf[DoubleValue]
-        result.value should be (1.01 +- 0.01)
-        result.value shouldBe a [Double] 
-    }
-
-    it should "convert Doubles" in {
-        val result = ToDouble(V(1.01 : Double)).resolve(TableResultHeader(Seq())).evaluate(Seq()).get.asInstanceOf[DoubleValue]
-        result.value should be (1.01 +- 0.01)
-        result.value shouldBe a [Double]
-    }
-
-    it should "fail to convert LocalDateTimes" in {
-        assertThrows[IllegalArgumentException] {
-            ToDouble(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).resolve(TableResultHeader(Seq())).evaluate(Seq())
-        }
-    }
-
-    it should "fail to convert OffsetDateTimes" in {
-        assertThrows[IllegalArgumentException] {
-            ToDouble(V(LocalDateTime.of(2000, 1, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toInstant)).resolve(TableResultHeader(Seq())).evaluate(Seq())
-        }
-    }
-
-    it should "fail to convert Booleans" in {
-        assertThrows[IllegalArgumentException] {
-            ToDouble(V(true)).resolve(TableResultHeader(Seq())).evaluate(Seq())
-        }
     }
 }

@@ -186,11 +186,12 @@ case class TableStoreData(
 
     // Gets an iterator of the results of this TableStoreData which can only be read ONCE
     // Note: this may cause file reads without caching them into memory - use getResult to change the TableStoreData state
-    def getResultIterator(table : Table) : Iterator[TableResult] =
+    def getResultIterator(table : Table) : Iterator[TableResult] = 
         tables.get(table) match {
             case Some(value) => value.iterator.map(_._2.get)
             case None => Iterator.empty
         }
+    
 
     def getTableSize(table : Table) : Long = 
         tables.get(table) match {
