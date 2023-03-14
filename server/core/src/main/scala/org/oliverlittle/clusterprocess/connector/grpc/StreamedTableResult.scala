@@ -34,7 +34,6 @@ case class TableResultRunnable(responseObserver : ServerCallStreamObserver[table
             responseObserver.onCompleted
             logger.info(completedPromise.isDefined.toString)
             if completedPromise.isDefined then
-                logger.info("woihfoiewhfoiehfowiheoihfewoi")
                 completedPromise.get.success(true)
             closed = true;
     }
@@ -60,7 +59,6 @@ class DelayedTableResultRunnable(responseObserver : ServerCallStreamObserver[tab
       * @param tableResult
       */
     def setData(tableResult : TableResult) : Unit = {
-        logger.info("Set data from single result.")
         val header = table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Header(tableResult.header.protobuf))
         val rows = tableResult.rowsProtobuf.map(row => table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Row(row)))
         val iterator = Iterator(header) ++ rows
@@ -74,7 +72,6 @@ class DelayedTableResultRunnable(responseObserver : ServerCallStreamObserver[tab
       * @param results
       */
     def setData(results : Iterator[TableResult]) : Unit = {
-        logger.info("Set data from iterator")
         val tableResult = results.next
         val header = table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Header(tableResult.header.protobuf))
         val rows = tableResult.rowsProtobuf.map(row => table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Row(row)))

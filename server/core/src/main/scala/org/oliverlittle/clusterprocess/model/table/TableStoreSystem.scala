@@ -50,7 +50,6 @@ object DelayedRunnableActor:
                 Behaviors.stopped
             case Run() => Behaviors.same
             case Stop() => 
-                context.log.info("Stopping delayedRunnable actor.")
                 Behaviors.stopped
         }
     }
@@ -62,7 +61,6 @@ object DelayedRunnableActor:
                 delayedRunnable.run()
                 Behaviors.same
             case Stop() => 
-                context.log.info("Stopping delayedRunnable actor.")
                 Behaviors.stopped
             case Error(e) => 
                 delayedRunnable.setError(e)

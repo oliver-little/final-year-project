@@ -125,10 +125,8 @@ class WorkerQueryServicer(store : ActorRef[TableStore.TableStoreEvent])(using sy
 
             store.ask[Option[TableResult]](ref => TableStore.GetHash(table, request.totalPartitions, request.partitionNum, ref)).onComplete {
                 case Success(None) => 
-                    WorkerQueryServicer.logger.info("getHashedPartitionData - empty table")
                     actorRef ! DelayedRunnableActor.SetResult(table.empty)
                 case Success(Some(t)) => 
-                    WorkerQueryServicer.logger.info("getHashedPartitionData - single table")
                     actorRef ! DelayedRunnableActor.SetResult(t)
                 case Failure(e) => 
                     WorkerQueryServicer.logger.error("getHashedPartitionData failed:", e)
