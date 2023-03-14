@@ -46,8 +46,8 @@ object WorkerQueryServer {
     }
 }
 
-class WorkerQueryServer(executionContext: ExecutionContext, store : ActorRef[TableStore.TableStoreEvent], port : Int)(using system : ActorSystem[_])(using ec : ExecutionContext = system.executionContext) {
-    private val server =  ServerBuilder.forPort(port).addService(worker_query.WorkerComputeServiceGrpc.bindService(new WorkerQueryServicer(store), executionContext)).build.start
+class WorkerQueryServer(executionContext: ExecutionContext, store : ActorRef[TableStore.TableStoreEvent], port : Int)(using system : ActorSystem[_]) {
+    private val server =  ServerBuilder.forPort(port).addService(worker_query.WorkerComputeServiceGrpc.bindService(new WorkerQueryServicer(store)(using system)(using executionContext), executionContext)).build.start
     WorkerQueryServer.logger.info("gRPC Server started, listening on " + port)
     WorkerQueryServer.logger.info("Allocated " + (MemoryUsage.getMaxMemory(Runtime.getRuntime).toDouble / 1000000).round.toString +  "MB of memory.")
     
@@ -65,7 +65,7 @@ class WorkerQueryServer(executionContext: ExecutionContext, store : ActorRef[Tab
 object WorkerQueryServicer:
     private val logger = LoggerFactory.getLogger(classOf[WorkerQueryServicer].getName)
 
-class WorkerQueryServicer(store : ActorRef[TableStore.TableStoreEvent])(using system : ActorSystem[_])(using ec : ExecutionContext = system.executionContext)(using env : CassandraConfig {val connector : CassandraConnector} = CassandraConfig()) extends worker_query.WorkerComputeServiceGrpc.WorkerComputeService {
+class WorkerQueryServicer(store : ActorRef[TableStore.TableStoreEvent])(using system : ActorSystem[_])(using ec : ExecutionContext)(using env : CassandraConfig {val connector : CassandraConnector} = CassandraConfig()) extends worker_query.WorkerComputeServiceGrpc.WorkerComputeService {
         override def getLocalCassandraNode(request : worker_query.GetLocalCassandraNodeRequest) : Future[worker_query.GetLocalCassandraNodeResult] = {
             WorkerQueryServicer.logger.info("getLocalCassandraNode")
             val connector = env.connector
@@ -119,12 +119,12 @@ class WorkerQueryServicer(store : ActorRef[TableStore.TableStoreEvent])(using sy
                     WorkerQueryServicer.logger.info("getHashedPartitionData - empty table")
                     runnable.setData(table.empty)
                 case Success(Some(t)) => 
-                    WorkerQueryServicer.logger.info("getHashedPartitionData - iterator")
+                    WorkerQueryServicer.logger.info("getHashedPartitionData - single table")
                     runnable.setData(t)
                 case Failure(e) => 
                     WorkerQueryServicer.logger.error("getHashedPartitionData failed:", e)
                     runnable.setError(e)
-            }
+            }(using ec)
         }
 
         override def getTableStoreData(request : worker_query.GetTableStoreDataRequest) : Future[worker_query.TableStoreData] = 
