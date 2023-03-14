@@ -107,7 +107,7 @@ class StreamedTableResultCompiler(onComplete : Promise[Option[TableResult]]) ext
         value.data.number match {
             case 1 if header.isEmpty => header = Some(TableResultHeader.fromProtobuf(value.data.header.get))
             case 2 => rows += value.data.row.get.values.map(TableValue.fromProtobuf(_))
-            case _ => throw new IllegalArgumentException("Unknown result value found, or header was defined twice.")
+            case e => throw new IllegalArgumentException("Unknown result value found, or header was defined twice:" + e.toString)
         }
     }
 
