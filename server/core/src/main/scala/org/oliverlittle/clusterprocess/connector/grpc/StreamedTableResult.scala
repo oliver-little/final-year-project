@@ -57,6 +57,7 @@ class DelayedTableResultRunnable(responseObserver : ServerCallStreamObserver[tab
       * @param tableResult
       */
     def setData(tableResult : TableResult) : Unit = {
+        logger.info("Set data from single result.")
         val header = table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Header(tableResult.header.protobuf))
         val rows = tableResult.rowsProtobuf.map(row => table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Row(row)))
         val iterator = Iterator(header) ++ rows
@@ -70,6 +71,7 @@ class DelayedTableResultRunnable(responseObserver : ServerCallStreamObserver[tab
       * @param results
       */
     def setData(results : Iterator[TableResult]) : Unit = {
+        logger.info("Set data from iterator")
         val tableResult = results.next
         val header = table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Header(tableResult.header.protobuf))
         val rows = tableResult.rowsProtobuf.map(row => table_model.StreamedTableResult(table_model.StreamedTableResult.Data.Row(row)))
@@ -83,6 +85,7 @@ class DelayedTableResultRunnable(responseObserver : ServerCallStreamObserver[tab
     def setError(e : Throwable) : Unit = responseObserver.onError(e)
 
     def run(): Unit = {
+        logger.info("Running")
         if closed then return;
         if data.isEmpty then return;
 
@@ -91,6 +94,7 @@ class DelayedTableResultRunnable(responseObserver : ServerCallStreamObserver[tab
         // Send data until we can't send anymore (either because the channel can't accept more yet, or because we don't have anything to send)
         while responseObserver.isReady && iterator.hasNext do
             responseObserver.onNext(iterator.next) 
+        if !responseObserver.isReady then logger.info("Waiting for isReady on channel")
         if !iterator.hasNext then
             logger.info("Completed sending data")
             responseObserver.onCompleted
