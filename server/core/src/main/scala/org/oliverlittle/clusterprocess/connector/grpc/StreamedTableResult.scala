@@ -45,10 +45,13 @@ case class TableResultRunnable(responseObserver : ServerCallStreamObserver[table
   *
   * @param responseObserver
   */
-class DelayedTableResultRunnable(responseObserver : ServerCallStreamObserver[table_model.StreamedTableResult]) extends Runnable {
+class DelayedTableResultRunnable(responseObserver : ServerCallStreamObserver[table_model.StreamedTableResult], completedPromise : Promise[Boolean] = Promise[Boolean]()) extends Runnable {
+    val future = completedPromise.future
+    
     var data : Option[Iterator[table_model.StreamedTableResult]] = None
     var closed = false;
 
+    private val promise = completedPromise
     private val logger = LoggerFactory.getLogger(classOf[DelayedTableResultRunnable].getName)
 
     /**
@@ -85,7 +88,6 @@ class DelayedTableResultRunnable(responseObserver : ServerCallStreamObserver[tab
     def setError(e : Throwable) : Unit = responseObserver.onError(e)
 
     def run(): Unit = {
-        logger.info("Running")
         if closed then return;
         if data.isEmpty then return;
 
@@ -94,10 +96,10 @@ class DelayedTableResultRunnable(responseObserver : ServerCallStreamObserver[tab
         // Send data until we can't send anymore (either because the channel can't accept more yet, or because we don't have anything to send)
         while responseObserver.isReady && iterator.hasNext do
             responseObserver.onNext(iterator.next) 
-        if !responseObserver.isReady then logger.info("Waiting for isReady on channel")
         if !iterator.hasNext then
             logger.info("Completed sending data")
             responseObserver.onCompleted
+            promise.success(true)
             closed = true;
     }
 }

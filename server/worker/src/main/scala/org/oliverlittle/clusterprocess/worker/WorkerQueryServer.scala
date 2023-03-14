@@ -3,7 +3,7 @@ package org.oliverlittle.clusterprocess.worker
 import org.oliverlittle.clusterprocess.worker_query
 import org.oliverlittle.clusterprocess.table_model
 import org.oliverlittle.clusterprocess.query.PartialQueryPlanItem
-import org.oliverlittle.clusterprocess.model.table.{Table, TableTransformation, TableStore, TableStoreData, TableStoreSystem, TableResult}
+import org.oliverlittle.clusterprocess.model.table._
 import org.oliverlittle.clusterprocess.connector.grpc.{StreamedTableResult, TableResultRunnable, DelayedTableResultRunnable}
 import org.oliverlittle.clusterprocess.connector.cassandra.{CassandraConfig, CassandraConnector}
 import org.oliverlittle.clusterprocess.dependency.SizeEstimator
@@ -23,6 +23,7 @@ import org.slf4j.LoggerFactory
 import scala.concurrent.{ExecutionContext, Future, Await}
 import scala.concurrent.duration._
 import scala.util.{Success, Failure}
+import java.util.UUID
 
 
 // Globally set timeout for asks (this might not be long enough, as some PartialQueryPlanItems will be long running jobs)
@@ -110,20 +111,28 @@ class WorkerQueryServicer(store : ActorRef[TableStore.TableStoreEvent])(using sy
         override def getHashedPartitionData(request : worker_query.GetHashedPartitionDataRequest, responseObserver : StreamObserver[table_model.StreamedTableResult]) : Unit = {
             val table = Table.fromProtobuf(request.table.get)
 
-            val runnable = responseObserverToDelayedRunnable(responseObserver)
+            // Able to make this unchecked cast because this is a response from a server
+            val serverCallStreamObserver = responseObserver.asInstanceOf[ServerCallStreamObserver[table_model.StreamedTableResult]]
+            // Prepare onReady hook 
+            val runnable = DelayedTableResultRunnable(serverCallStreamObserver)
+
+            val actorRef = system.systemActorOf(DelayedRunnableActor(runnable), "actor-runnable-" + UUID.randomUUID.toString)
+            val caller = DelayedRunnableActorCaller(actorRef)
+            serverCallStreamObserver.setOnReadyHandler(caller)
+
 
             WorkerQueryServicer.logger.info("getHashedPartitionData")
 
             store.ask[Option[TableResult]](ref => TableStore.GetHash(table, request.totalPartitions, request.partitionNum, ref)).onComplete {
                 case Success(None) => 
                     WorkerQueryServicer.logger.info("getHashedPartitionData - empty table")
-                    runnable.setData(table.empty)
+                    actorRef ! DelayedRunnableActor.SetResult(table.empty)
                 case Success(Some(t)) => 
                     WorkerQueryServicer.logger.info("getHashedPartitionData - single table")
-                    runnable.setData(t)
+                    actorRef ! DelayedRunnableActor.SetResult(t)
                 case Failure(e) => 
                     WorkerQueryServicer.logger.error("getHashedPartitionData failed:", e)
-                    runnable.setError(e)
+                    actorRef ! DelayedRunnableActor.Error(e)
             }(using ec)
         }
 
