@@ -50,7 +50,7 @@ case class GroupByDataSource(source : Table, uniqueFields : Seq[NamedFieldExpres
     def hashPartitionedData(result : TableResult, numPartitions : Int) : Map[Int, TableResult] = {
         val resolved = uniqueFields.map(_.resolve(result.header))
         // Hash every row by the unique fields, then convert to a result
-        return result.rows.groupBy(row => MurmurHash3.unorderedHash(resolved.map(_.evaluate(row))) % numPartitions).view.mapValues(LazyTableResult(result.header, _)).toMap
+        return result.rows.groupBy(row => Math.floorMod(MurmurHash3.unorderedHash(resolved.map(_.evaluate(row))), numPartitions)).view.mapValues(LazyTableResult(result.header, _)).toMap
     }
 
     lazy val groupByProtobuf : table_model.GroupByDataSource = table_model.GroupByDataSource(Some(source.protobuf), uniqueFields.map(_.protobuf), aggregates.map(_.protobuf))
@@ -77,10 +77,19 @@ case class PartialGroupByDataSource(parent : GroupByDataSource, partitionNum : I
 
         // Once we've got the data from the workers, we need to actually run the group by       
         return Future.sequence(promises ++ Seq(localData)) // Concatenate all the data we are waiting on into one future
-            .map(results => results.flatten.reduceOption(_ ++ _) match {
-                case Some(tableResult) => performGroupBy(tableResult) // If we got some data, perform the group by
-                case None => parent.getHeaders.empty // If there was no data, this partition is empty - return an empty TableResult
-            }) 
+            .map{results => 
+                val infoString =
+                    "GroupByDataSource partition " + partitionNum.toString + " of " + totalPartitions.toString + ": \n" +
+                    results.map(_ match {
+                    case Some(value) => value.rows.size.toString + " rows."
+                    case None => "no table present."
+                }).reduce(_ + "\n" + _)  
+                logger.info(infoString)             
+                results.flatten.reduceOption(_ ++ _) match {
+                    case Some(tableResult) => performGroupBy(tableResult) // If we got some data, perform the group by
+                    case None => parent.getHeaders.empty // If there was no data, this partition is empty - return an empty TableResult
+                }
+            } 
     }
 
     def getHashedPartitionData(dependency : Table, channel : ChannelManager)(using ec : ExecutionContext) : Promise[Option[TableResult]] = {

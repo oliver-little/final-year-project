@@ -298,18 +298,21 @@ case class TableStoreData(
         val hashKeys = dataSource.getDependencies.map(table => (table, numPartitions))
         // Cleanup all dependencies
         hashKeys.foreach(hashes.get(_).map(_.values.foreach(_.cleanup)))
+
+        val inMemoryHashes : Set[InMemoryTableResult[_]] = hashKeys.flatMap(
+                hashes
+                .get(_)
+                .map(partials =>
+                        partials.values.collect{case e : InMemoryTableResult[((Table, Int), Int)]=> e}.toSet
+                    )   
+            ).fold(Set())(_ union _)
+
         return copy(
             hashes = hashes -- hashKeys,
             leastRecentlyUsed = 
                 // Delete all in memory hashes 
                 leastRecentlyUsed.deleteAll(
-                    hashKeys.flatMap(
-                        hashes
-                        .get(_)
-                        .map(partials =>
-                                partials.values.collect{case e : InMemoryTableResult[_] => e}.toSet
-                            )   
-                    ).reduce(_ union _)
+                    inMemoryHashes
                 )
         )
     }
