@@ -5,12 +5,14 @@ import org.oliverlittle.clusterprocess.model.table._
 import org.oliverlittle.clusterprocess.model.table.field.TableValue
 
 import io.grpc.stub.{StreamObserver, ServerCallStreamObserver}
+import akka.actor.typed.scaladsl.{Behaviors, LoggerOps}
+import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 import collection.mutable.{Buffer, ArrayBuffer}
-import scala.concurrent.Promise
-
+import scala.concurrent.{Promise, ExecutionContext}
+import scala.util.{Success, Failure}
 object StreamedTableResult:
     def tableResultToIterator(tableResult : TableResult) : Iterator[table_model.StreamedTableResult] = {
         // Create a new iterator that sends the header, then all the rows
@@ -100,6 +102,57 @@ class DelayedTableResultRunnable(responseObserver : ServerCallStreamObserver[tab
             closed = true;
     }
 }
+
+// Actor-based solution to get around multithreading issues when using DelayedResultRunnable (particularly in getHashedPartitionData)
+// This code isn't great as it's not testable (due to the future call in apply).
+// By wrapping this actor around the DelayedResultRunnable, we force all the multithreaded calls to run() to pipe into a single thread.
+object DelayedRunnableActor:
+    sealed trait DelayedRunnableActorEvent
+    case class SetResult(result : TableResult) extends DelayedRunnableActorEvent
+    case class Error(e : Throwable) extends DelayedRunnableActorEvent
+    case class Run() extends DelayedRunnableActorEvent
+    case class Stop() extends DelayedRunnableActorEvent
+    def apply(delayedRunnable : DelayedTableResultRunnable)(using ec : ExecutionContext) : Behavior[DelayedRunnableActorEvent] = Behaviors.setup{ context =>
+        delayedRunnable.future.onComplete {
+            case Success(v) => context.self ! Stop()
+            case Failure(e) => 
+        }(using context.executionContext)
+
+        setData(delayedRunnable)
+    }
+
+    def setData(delayedRunnable : DelayedTableResultRunnable) : Behavior[DelayedRunnableActorEvent] = Behaviors.receive {(context, message) =>
+        message match {
+            case SetResult(result) => 
+                delayedRunnable.setData(result)
+                handleMessage(delayedRunnable)
+            case Error(e) => 
+                delayedRunnable.setError(e)
+                Behaviors.stopped
+            case Run() => Behaviors.same
+            case Stop() => 
+                Behaviors.stopped
+        }
+    }
+
+    def handleMessage(delayedRunnable : DelayedTableResultRunnable) : Behavior[DelayedRunnableActorEvent] = Behaviors.receive {(context, message) => 
+        message match {
+            case SetResult(result) => throw new IllegalArgumentException("SetResult received twice.")
+            case Run() => 
+                delayedRunnable.run()
+                Behaviors.same
+            case Stop() => 
+                Behaviors.stopped
+            case Error(e) => 
+                delayedRunnable.setError(e)
+                Behaviors.stopped
+        }
+    }
+
+class DelayedRunnableActorCaller(actor : ActorRef[DelayedRunnableActor.DelayedRunnableActorEvent]) extends Runnable:
+    override def run(): Unit = {
+        actor ! DelayedRunnableActor.Run()
+    }
 
 class StreamedTableResultCompiler(onComplete : Promise[Option[TableResult]]) extends StreamObserver[table_model.StreamedTableResult]:
 

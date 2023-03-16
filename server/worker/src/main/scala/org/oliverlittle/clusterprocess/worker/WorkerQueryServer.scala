@@ -4,7 +4,7 @@ import org.oliverlittle.clusterprocess.worker_query
 import org.oliverlittle.clusterprocess.table_model
 import org.oliverlittle.clusterprocess.query.PartialQueryPlanItem
 import org.oliverlittle.clusterprocess.model.table._
-import org.oliverlittle.clusterprocess.connector.grpc.{StreamedTableResult, TableResultRunnable, DelayedTableResultRunnable}
+import org.oliverlittle.clusterprocess.connector.grpc._
 import org.oliverlittle.clusterprocess.connector.cassandra.{CassandraConfig, CassandraConnector}
 import org.oliverlittle.clusterprocess.dependency.SizeEstimator
 import org.oliverlittle.clusterprocess.util.MemoryUsage
