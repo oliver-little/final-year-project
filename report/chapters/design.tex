@@ -1,58 +1,81 @@
 \chapter{Design}
-% MoSCoW requirements
 
-F = Functional
+After conducting my review of previous work, I spent time producing a high-level design for my solution. In particular, I analysed what features it needed to have, what technologies I would use, and the overall architecture. The aim of this was to ensure that the limited development time I had was always spent producing the most useful features.
 
-NF = Non-Functional
+\section{MoSCoW Requirements}
 
-M = Must
-
-S = Should
-
-C = Could
+Before considering specific technologies and frameworks, I produced a list of MoSCoW requirements. Each requirement in the table below has two extra columns. The first column represents whether the requirement is Functional (F) or Non-Functional (NF), and the second column represents requirements that Must (M), Should (S) or Could (C) be completed.
 
 \begin{center}
-	\begin{xltabular}{0.82\paperwidth}{ | p{1.5cm} | p{2cm} | X | } 
+	\begin{xltabular}{0.82\paperwidth}{ | p{1.5cm} | p{1.5cm} | X | } 
 		\hline
-		F / NF & M / S / C & Requirement Description \\ \hline
+		F / NF& Priority & Requirement Description \\ \hline
+		
+ 		\multicolumn{3}{|c|}{Domain Specific Language - Expressions} \\ \hline
+		F & M & The language must support 5 data types: integers, floats, booleans, strings and date-time objects. \\ \hline
+		F & M & The language must allow users to reference a field in the current dataset. \\ \hline
+		F & M & The language must allow users to reference a constant value, which can take one of the data types defined above. \\ \hline
+		F & M & The language must support arithmetic operations like add, subtract, multiply, division and modulo. \\ \hline
+		F & M & The language must support string slicing and concatenation. \\ \hline
+		F & S & The language should utilise polymorphism in add operations to apply string concatenation, or arithmetic addition depending on the data types of the arguments. \\ \hline
+		F & C & The language could be designed in such a way to allow the user to define their own functions. \\ \hline
+		NF & S & The language should be intuitive to use, with SQL-like syntax. \\ \hline
+		
+		\multicolumn{3}{|c|}{Domain Specific Language - Comparisons} \\ \hline
+		F & M & The user must be able to provide expressions as inputs to comparison operators. \\ \hline
+		F & M & The language must support equals, and not equals comparisons \\ \hline
+		F & M & The language must support inequalities, using numerical ordering for number types, and lexicographic ordering for strings. \\ \hline
+		F & M & The language must support null and not null checks. \\ \hline
+		F & S & The language should support string comparisons, including case sensitive and insensitive versions of contains, starts with, and ends with. \\ \hline
+		F & S & The language should allow the user to combine multiple comparison criteria using $AND$ and $OR$ operators. \\ \hline
+		
 		\multicolumn{3}{|c|}{Data Processing} \\ \hline
-		F & M & The system must allow users to filter datasets according to custom criteria. \\ \hline
-		F & M & The system must allow users to join two datasets together according to custom criteria. \\ \hline
-		F & M & The system must allow users to group portions of datasets together by unique keys. \\ \hline
-		F & M & The system must allow users to apply custom functions to each row of a dataset. \\ \hline
-		F & M & The system must allow users to apply a reducer function to a dataset. \\ \hline 
-		NF & S & The complexities of the system should be hidden from the user; the operation of the system should be identical whether the user is running the code locally or over a cluster. \\ \hline
+		F & M & The system must allow the user to write queries in Python. \\ \hline
+		F & M & The system must allow users to apply Select operations on datasets, applying custom expressions to the input data. \\ \hline
+		F & M & The system must allow users to apply Filter operations on datasets, applying custom comparisons to the input data. \\ \hline
+		F & M & The system must allow users to apply Group By operations on datasets, which take a number of expressions as unique keys, and a number of aggregate. \\ \hline
+		F & M & The Group By operation must allow users to apply Minimum, Maximum, Sum and Count aggregate functions to Group By operations. \\ \hline
+		F & C & The system could allow users to apply Distinct Count, String Aggregate, and Distinct String Aggregate aggregate functions to Group By operations. \\ \hline
+		F & S & The system should allow users to join two datasets together according to custom criteria. \\ \hline
+		NF & S & The complexities of the system should be hidden from the user; from their perspective the operation should be identical whether the user is running the code locally or over a cluster. \\ \hline
+		
 		\multicolumn{3}{|c|}{Cluster} \\ \hline
-		F & M & The user should be able to index specific columns of the data to allow these rows to be accessed more quickly by the cluster. \\ \hline
-		F & S & The cluster should be able to handle node failures by restarting them and requesting new work. \\ \hline
-		NF & S & The cluster should feature some form of load balancing to ensure that nodes are not idling if there is still work to be performed. \\ \hline
-		\multicolumn{3}{|c|}{Main Nodes} \\ \hline
-		F & M & The main node must delegate work to the cluster nodes to perform the calculation efficiently. \\ \hline
-		F & M & The main node must collect the results from the cluster nodes to produce the final output for the user. \\ \hline
-		F & M & The main node must handle cluster node failures to ensure that the calculation completes successfully anyway. \\ \hline
-		\multicolumn{3}{|c|}{Automated ETL Workflows} \\ \hline
-		F & S & The user should be able to define workflows, defined as the below requirements in this section \textit{(Automated ETL)}, using some kind of configuration file. \\ \hline
-		F & S & The system should receive files sent from the user, ingest them into the system automatically, and start a calculation when the files are sent. \\ \hline
-		F & S & The user should start calculations manually, schedule them for a specific time, or schedule them at a regular interval. \\ \hline
-		F & S & The system should output the results of a calculation to a user-defined location. \\ \hline
-		F & S & The system should raise alerts when an unrecoverable failure occurs during a calculation. \\ \hline
-		F & C & The system could send alerts via email to the user when an unrecoverable failure occurs during a calculation. \\ \hline
-		F & C & The system could monitor a specific folder location for changes, then initiate a calculation when files in that location are changed. \\ \hline
-		\multicolumn{3}{|c|}{Dashboard} \\ \hline
-		F & S & The system should have a dashboard to display basic information about user-created workflows \textit{(from Automated ETL)}, including source and destination files, and previous executions. \\ \hline
-		F & C & The system could allow the user to start or schedule workflows from the dashboard. \\
-		\hline
+		F & M & The system must allow the user to upload source data to a permanent data store. \\ \hline
+		F & M & The orchestrator node must split up the full query and delegate partial work to the worker nodes. \\ \hline
+		F & M & The orchestrator node must collect partial results from the cluster nodes to produce the overall result for the user. \\ \hline
+		F & M & The orchestrator node must handle worker node failures and other computation errors by reporting them to the user. \\ \hline
+		F & S & The orchestrator should perform load balancing to ensure work is evenly distributed among all nodes. \\ \hline
+		F & C & The orchestrator could handle worker node failures by redistributing work to active workers. \\ \hline
+		F & M & The worker nodes must accept partial work, compute and return results to the orchestrator. \\ \hline
+		F & M & The worker nodes must pull source data from the permanent data store. \\ \hline
+		F & M & The worker nodes must report any computation errors to the orchestrator. \\ \hline
+		F & S & The worker nodes should cache results for reuse in later queries. \\ \hline
+		F & S & The worker nodes should spill data to disk storage when available memory is low. \\ \hline
 	\end{xltabular}
 \end{center}
 
-% Choice of language
-% Python front-end - ease of use
-% Scala back-end - why? over other OO languages like Java, JavaScript, C, Rust even non-OO languages
+\section{Design Choices}
 
-% Runtime
+From the MoSCoW requirements I had a number of decisions to make regarding what languages and technologies I would use to implement my solution.
+
+\subsection{Language}
+
+\paragraph{Frontend} 
+Python was selected as the language of choice for the frontend. This is because the intended users of my solution are most experienced with Python and SQL, which should make it easier for them to adopt and use my solution.
+
+\paragraph{Orchestrator and Worker Nodes}
+Both the orchestrator and worker nodes would use the same language, which would reduce overhead as the same codebase could be used for both parts of the system. When selecting a language, I firstly had to decide whether I would use a language with automatic or manual garbage collection (GC). Choosing a manual GC language would theoretically allow for increased performance, but I also felt that it would slow my development down significantly, as I would have to spend time handling GC myself. Therefore, I ruled out these languages.
+
+The remaining options were a range of object-oriented and functional languages. I knew that much of the implementation would require iterating over lists of items, and functional languages are strong at this because of their use of operations like $map$ and $reduce$. However, I did not have any experience using purely functional languages like Haskell for large software engineering projects, and so ruled these out. I also knew that the solution would need to perform large amounts of CPU intensive processing, so a language with strong support for parallelisation was preferable. This ruled out languages like Python and JavaScript which are largely single-threaded; both support some form of parallelisation, but much more manual intervention by the developer is required.
+
+In the end, I chose Scala, which is built on top of Java. It features a mix of both object-oriented, and functional paradigms, with built-in support for parallelisation and threading. This would allow me to leverage my previous experience writing large solutions in object-oriented languages, while making use of the functional programming style when convenient. 
+\subsection{Runtime}
 % Containerisation - Docker
 % Kubernetes / Docker Swarm
+% gRPC
 
+
+\subsection{Persistent Storage}
 % Database backend
 % Custom implementation vs existing - chose existing due to time constraints
 % Choice of existing - cassandra vs other solutions like SQL, NoSQL
