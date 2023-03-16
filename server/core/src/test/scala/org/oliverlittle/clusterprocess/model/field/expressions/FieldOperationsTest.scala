@@ -45,16 +45,29 @@ class FieldOperationsTest extends UnitSpec {
         FieldOperations.Add(V("a"), V("b")).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(StringValue("ab")))
         FieldOperations.Add(V(1), V(2)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(IntValue(3)))
         FieldOperations.Add(V(1.01d), V(1.01d)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(DoubleValue(2.02d)))
+        FieldOperations.Add(V(1), V(1.01d)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(DoubleValue(2.01d)))
+        FieldOperations.Add(V(1.01d), V(1)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(DoubleValue(2.01d)))
     }
 
     it should "calculate polymorphic multiplications" in {
         FieldOperations.Mul(V(2), V(2)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(IntValue(4)))
         FieldOperations.Mul(V(2.5d), V(3d)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(DoubleValue(7.5d)))
+        FieldOperations.Mul(V(2), V(3d)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(DoubleValue(6d)))
+        FieldOperations.Mul(V(2.5d), V(3)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(DoubleValue(7.5d)))
     }
 
     it should "calculate polymorphic subtractions" in {
         FieldOperations.Sub(V(2), V(2)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(IntValue(0)))
         FieldOperations.Sub(V(2.5d), V(3d)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(DoubleValue(-0.5d)))
+        FieldOperations.Sub(V(2), V(3d)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(DoubleValue(-1d)))
+        FieldOperations.Sub(V(2.5d), V(3)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(DoubleValue(-0.5d)))
+    }
+
+    it should "calculate polymorphic divisions" in {
+        FieldOperations.Div(V(4), V(3)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(IntValue(1)))
+        FieldOperations.Div(V(4.5d), V(3d)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(DoubleValue(1.5d)))
+        FieldOperations.Div(V(4), V(2.5d)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(DoubleValue(1.6d)))
+        FieldOperations.Div(V(4.5d), V(3)).resolve(TableResultHeader(Seq())).evaluate(Seq()) should be (Some(DoubleValue(1.5d)))
     }
 
     it should "calculate polymorphic modulo" in {

@@ -120,7 +120,7 @@ class FieldExpression():
         return UnaryFieldComparison("IS_NOT_NULL", self)
 
     def as_name(self, name : str):
-        return DefaultNamedFieldExpression(name, self)
+        return DefaultNamedFieldExpression(name.lower(), self)
 
 class V(FieldExpression):
     """Class definition for a literal argument. Automatically parses argument into an accepted type by the system or throws an error."""
@@ -169,7 +169,7 @@ class F(FieldExpression):
     """Class definition for an expression representing a Field in the system"""
     def __init__(self, field_name):
         super().__init__()
-        self.field_name = field_name
+        self.field_name = field_name.lower()
 
     # Use ducktyping here to mimic a NamedFieldExpression even though it doesn't actually inherit from NamedFieldExpression
     def to_named_protobuf(self) -> protobuf_model.NamedExpression:
