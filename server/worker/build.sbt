@@ -1,6 +1,10 @@
 val scala3Version = "3.2.1"
 val AkkaVersion = "2.7.0"
 
+Universal / javaOptions ++= Seq(
+  "-J-XX:MaxRAMPercentage=97.5",
+)
+
 lazy val root = project
   .in(file("."))
   .settings(
