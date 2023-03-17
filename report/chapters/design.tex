@@ -68,15 +68,48 @@ Both the orchestrator and worker nodes would use the same language, which would 
 
 The remaining options were a range of object-oriented and functional languages. I knew that much of the implementation would require iterating over lists of items, and functional languages are strong at this because of their use of operations like $map$ and $reduce$. However, I did not have any experience using purely functional languages like Haskell for large software engineering projects, and so ruled these out. I also knew that the solution would need to perform large amounts of CPU intensive processing, so a language with strong support for parallelisation was preferable. This ruled out languages like Python and JavaScript which are largely single-threaded; both support some form of parallelisation, but much more manual intervention by the developer is required.
 
-In the end, I chose Scala, which is built on top of Java. It features a mix of both object-oriented, and functional paradigms, with built-in support for parallelisation and threading. This would allow me to leverage my previous experience writing large solutions in object-oriented languages, while making use of the functional programming style when convenient. 
+In the end, I chose Scala, which is built on top of Java. It features a mix of both object-oriented, and functional paradigms, with built-in support for parallelisation and threading. This would allow me to leverage my previous experience writing large solutions in object-oriented languages, while making use of the functional programming style when convenient. Furthermore, packages originally written for Java can run in Scala, and I felt this wider compatibility would be useful with my later design choices.
+ 
 \subsection{Runtime}
-% Containerisation - Docker
-% Kubernetes / Docker Swarm
-% gRPC
+\paragraph{Containerisation}
+With the nature of my project being to produce a distributed system, the clear choice for how to run my code was within containers. Docker is by far the most popular option for creating images to run as containers, but is not suitable for running and managing large numbers of containers. For this, I would need a container orchestration tool, and there are two main options: Docker Swarm, and Kubernetes. Docker Swarm is more closely integrated within the Docker ecosystem, but Kubernetes is more widely used in industry. I felt that the experience I would gain learning to use Kubernetes would be more useful, and therefore chose it as my container orchestration tool.
+
+\paragraph{Network Communication} 
+I also had to select a method of communicating between the Python frontend, the orchestrator and the worker nodes. At first, I considered various REST API frameworks, but upon further research, found that a remote procedure call (RPC) framework would be more suited to my needs. This is because REST is resource-centric, providing a standard set of operations - create, read, update, delete (CRUD). My system is less resource-centric, and more focused on operations, so the CRUD model wouldn't fit the requirements correctly. In contrast, RPC frameworks are designed to allow function calls over a remote network, while hiding the complexity of the remote operation from the developer. My research into these frameworks found that they are usually not designed around a particular data model like REST, which would allow me to implement my own function calls. 
+
+In the end, I chose gRPC, designed and maintained by Google, as the RPC framework for my solution. I did this for a number of reasons. Firstly, there are well-maintained implementations for both Python and Scala, which would make using it in all parts of my system straightforward. Secondly, it uses protocol buffers as its message system, which is a serialisation format also maintained by Google. Protocol buffers are designed to be extremely storage efficient, which would reduce network overhead compared to a solution that used something like XML or JSON. As protocol buffers are also a serialisation format, gRPC provides APIs to store messages on disk, which I felt might be a useful feature.
 
 
 \subsection{Persistent Storage}
-% Database backend
-% Custom implementation vs existing - chose existing due to time constraints
-% Choice of existing - cassandra vs other solutions like SQL, NoSQL
-% - Partitioning
+I had a wide range of options for implementing persistent data storage. The first key decision in this area was whether to design this myself, or use an existing storage solution. A custom solution would come with the benefit of being more closely integrated with the rest of the system, but at the cost of increased development time. I chose not to implement my own solution, as I felt that I was already limited on time, and designing a resilient persistent storage module is a large challenge in its own right.
+
+There are a wide range of options that exist for persistent data storage. I considered a number of types of file systems and databases which I eventually elected not to use:
+\begin{itemize}
+	\item Single System SQL Databases \textit{(Microsoft SQL Server, PostgreSQL, MySQL)}: while this option would be fastest to start using due to my prior knowledge, and extensive support, the database would quickly become a bottleneck in my system, as the rate at which data can be read from the server would determine how quickly computations could be performed.
+	\item Distributed File Systems \textit{(Hadoop Distributed File System)}: these provide a mechanism for storing files resiliently across a number of machines, which would reduce the bottleneck when reading data. However, they provide no straightforward way of querying the stored data, meaning I would have to implement this myself.
+	\item Distributed NoSQL Databases \textit{(MongoDB, CouchDB)}: these are distributed, meaning the load of reading the data could be spread across a number of machines. However, the data I will be processing is strictly tabular in format, meaning I don't need the features of a NoSQL architecture (document formats), and it is likely to result in added complexity when retrieving data from the database.
+\end{itemize}
+
+\paragraph{Apache Cassandra} 
+In the end, I selected Apache Cassandra %reference
+as my persistent storage module. This has a number of benefits for the solution I am designing. Firstly, the data model is very similar to single-system SQL databases, and as such closely matches the data model I intend to use. Furthermore, it is a distributed database, so source data will be stored across a number of machines (nodes). This will allow me to spread the load when retrieving data from the database, reducing the impact of read speed. 
+
+Aside from these benefits, the main reason I selected Cassandra as my persistent data store was because of how it handles partitioning data. Each node in the database is assigned a token range, which determines what records it holds. When data is inserted into the database, Cassandra hashes the primary key of each record, producing a 64-bit token that maps it to a node. A diagram showing this process is included below:
+
+% diagram
+
+Cassandra allows these tokens to be filtered in ranges as part of queries, so this will allow me to split up the data that each of the worker nodes pull in .
+
+Cassandra can be run on Kubernetes using K8ssandra \cite{k8ssandra}. This is a tool which can be used to initialise, configure and manage Cassandra clusters. This is particularly useful because the Cassandra cluster can be configured to run on the same machines as the worker nodes. This enables the source data to be co-located with the workers that will actually perform the computation, reducing network latency when transferring the source data.
+
+In terms of interfacing with the rest of the system, there are drivers for both Python %reference
+and Java %reference.
+which are maintained by one of the largest contributors to Apache Cassandra. The Java driver has a core module which provides basic functionality for making queries and receiving results from the database. There are submodules with more complex functionality including query builders, but I chose not to use these as I was unlikely to actually use the features, and did not want to handle the extra complexity these submodules would introduce.
+
+There are also some Scala specific frameworks for executing Cassandra queries, including Phantom %reference
+and Quill. %reference
+Again, I chose not to use these as I felt the extra functionality was not required, and they may introduce extra complexity which could be difficult to debug.
+
+
+\section{Architecture}
+
