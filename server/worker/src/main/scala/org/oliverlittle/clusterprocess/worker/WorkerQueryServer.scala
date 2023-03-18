@@ -94,18 +94,28 @@ class WorkerQueryServicer(store : ActorRef[TableStore.TableStoreEvent])(using sy
         override def getTableData(request : worker_query.GetTableDataRequest, responseObserver : StreamObserver[table_model.StreamedTableResult]) : Unit = {
             val table = Table.fromProtobuf(request.table.get)
 
-            val runnable = responseObserverToDelayedRunnable(responseObserver)
+            // Able to make this unchecked cast because this is a response from a server
+            val serverCallStreamObserver = responseObserver.asInstanceOf[ServerCallStreamObserver[table_model.StreamedTableResult]]
+            // Prepare onReady hook 
+            val runnable = DelayedTableResultRunnable(serverCallStreamObserver)
+
+            val actorRef = system.systemActorOf(DelayedRunnableActor(runnable), "actor-runnable-" + UUID.randomUUID.toString)
+            val caller = DelayedRunnableActorCaller(actorRef)
+            serverCallStreamObserver.setOnReadyHandler(caller)
+
 
             WorkerQueryServicer.logger.info("getTableData")
             WorkerQueryServicer.logger.info(table.toString)
 
             store.ask[Iterator[TableResult]](ref => TableStore.GetResultIterator(table, ref)).onComplete {
-                case Success(i) if i.isEmpty => runnable.setData(table.empty)
-                case Success(i) => runnable.setData(i)
+                case Success(i) if i.isEmpty => 
+                    actorRef ! DelayedRunnableActor.SetResult(Left(table.empty))
+                case Success(t) => 
+                    actorRef ! DelayedRunnableActor.SetResult(Right(t))
                 case Failure(e) => 
-                    WorkerQueryServicer.logger.error("getTableData failed:", e)
-                    runnable.setError(e)
-            }
+                    WorkerQueryServicer.logger.error("getHashedPartitionData failed:", e)
+                    actorRef ! DelayedRunnableActor.Error(e)
+            }(using ec)
         }
 
         override def getHashedPartitionData(request : worker_query.GetHashedPartitionDataRequest, responseObserver : StreamObserver[table_model.StreamedTableResult]) : Unit = {
@@ -125,9 +135,9 @@ class WorkerQueryServicer(store : ActorRef[TableStore.TableStoreEvent])(using sy
 
             store.ask[Option[TableResult]](ref => TableStore.GetHash(table, request.totalPartitions, request.partitionNum, ref)).onComplete {
                 case Success(None) => 
-                    actorRef ! DelayedRunnableActor.SetResult(table.empty)
+                    actorRef ! DelayedRunnableActor.SetResult(Left(table.empty))
                 case Success(Some(t)) => 
-                    actorRef ! DelayedRunnableActor.SetResult(t)
+                    actorRef ! DelayedRunnableActor.SetResult(Left(t))
                 case Failure(e) => 
                     WorkerQueryServicer.logger.error("getHashedPartitionData failed:", e)
                     actorRef ! DelayedRunnableActor.Error(e)
@@ -155,13 +165,4 @@ class WorkerQueryServicer(store : ActorRef[TableStore.TableStoreEvent])(using sy
             }.recover { _ =>
                 worker_query.GetEstimatedTableSizeResult(estimatedSizeMb = 0)
             }
-
-        private def responseObserverToDelayedRunnable(responseObserver : StreamObserver[table_model.StreamedTableResult]) : DelayedTableResultRunnable = {
-            // Able to make this unchecked cast because this is a response from a server
-            val serverCallStreamObserver = responseObserver.asInstanceOf[ServerCallStreamObserver[table_model.StreamedTableResult]]
-            // Prepare onReady hook 
-            val runnable = DelayedTableResultRunnable(serverCallStreamObserver)
-            serverCallStreamObserver.setOnReadyHandler(runnable)
-            return runnable
-        }
     }

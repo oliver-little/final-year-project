@@ -108,7 +108,7 @@ class DelayedTableResultRunnable(responseObserver : ServerCallStreamObserver[tab
 // By wrapping this actor around the DelayedResultRunnable, we force all the multithreaded calls to run() to pipe into a single thread.
 object DelayedRunnableActor:
     sealed trait DelayedRunnableActorEvent
-    case class SetResult(result : TableResult) extends DelayedRunnableActorEvent
+    case class SetResult(result : Either[TableResult, Iterator[TableResult]]) extends DelayedRunnableActorEvent
     case class Error(e : Throwable) extends DelayedRunnableActorEvent
     case class Run() extends DelayedRunnableActorEvent
     case class Stop() extends DelayedRunnableActorEvent
@@ -124,7 +124,10 @@ object DelayedRunnableActor:
     def setData(delayedRunnable : DelayedTableResultRunnable) : Behavior[DelayedRunnableActorEvent] = Behaviors.receive {(context, message) =>
         message match {
             case SetResult(result) => 
-                delayedRunnable.setData(result)
+                result match {
+                    case Left(value) => delayedRunnable.setData(value)
+                    case Right(value) => delayedRunnable.setData(value)
+                }
                 handleMessage(delayedRunnable)
             case Error(e) => 
                 delayedRunnable.setError(e)
