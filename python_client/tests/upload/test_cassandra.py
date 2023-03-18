@@ -98,7 +98,7 @@ def test_create_from_csv(mocker):
     mock_infer.assert_called_once_with("test.csv", ",", '"', "\n", 1, detect_headers=True)
     mock_create.assert_called_once_with("test", "table", ["A", "B"], ["text", "bigint"], ["A"], ["B"])
     # Use any for the default converter for bigint, because we can't test it
-    mock_insert.assert_called_once_with("test.csv", "test", "table", ["A", "B"], {"B": mocker.ANY}, 2, ',', '"', "\n")
+    mock_insert.assert_called_once_with("test.csv", "test", "table", ["A", "B"], {"B": mocker.ANY}, 2, ',', '"', "\n", 2)
 
 def test_create_from_csv_provided_columns(mocker):
     mock_infer = mocker.patch("cluster_client.upload.cassandra.infer_columns_from_csv", return_value=["text", "bigint"])
@@ -113,7 +113,7 @@ def test_create_from_csv_provided_columns(mocker):
 
     mock_infer.assert_called_once_with("test.csv", ",", '"', "\n", 1, detect_headers=False)
     mock_create.assert_called_once_with("test", "table", ["A", "B"], ["text", "bigint"], ["A"], ["B"])
-    mock_insert.assert_called_once_with("test.csv", "test", "table", ["A", "B"], {"B": mocker.ANY}, 1, ',', '"', "\n")
+    mock_insert.assert_called_once_with("test.csv", "test", "table", ["A", "B"], {"B": mocker.ANY}, 1, ',', '"', "\n", 2)
 
 def test_create_from_csv_provided_columns_and_types(mocker):
     mock_infer = mocker.patch("cluster_client.upload.cassandra.infer_columns_from_csv")
@@ -128,7 +128,7 @@ def test_create_from_csv_provided_columns_and_types(mocker):
 
     assert not mock_infer.called
     mock_create.assert_called_once_with("test", "table", ["A", "B"], ["text", "bigint"], ["A"], ["B"])
-    mock_insert.assert_called_once_with("test.csv", "test", "table", ["A", "B"], {"B": mocker.ANY}, 1, ',', '"', "\n")
+    mock_insert.assert_called_once_with("test.csv", "test", "table", ["A", "B"], {"B": mocker.ANY}, 1, ',', '"', "\n", 2)
 
 
 def get_mock_connector(mocker):
