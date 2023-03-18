@@ -55,7 +55,7 @@ class CassandraUploadHandler():
         self.connector.get_session().execute(f"DROP TABLE IF EXISTS {keyspace}.{table}")
         return self
 
-    def create_from_csv(self, file_name : str, keyspace : str, table : str, partition_keys : List[str], primary_keys : List[str] = [], column_names : List[str] = None, column_types : List[str] = None, row_converters : Dict[str, Callable] = {}, start_row : int = 1, delimiter : str = ",", quotechar : str = '"', row_delimiter : str ="\n") -> None:
+    def create_from_csv(self, file_name : str, keyspace : str, table : str, partition_keys : List[str], primary_keys : List[str] = [], column_names : List[str] = None, column_types : List[str] = None, row_converters : Dict[str, Callable] = {}, start_row : int = 1, delimiter : str = ",", quotechar : str = '"', row_delimiter : str ="\n", num_workers = NUM_CASSANDRA_UPLOAD_PROCESSES) -> None:
         if column_types is None:
             if column_names is None:
                 column_names, column_types = infer_columns_from_csv(file_name, delimiter, quotechar, row_delimiter, start_row, detect_headers=True)
@@ -77,11 +77,11 @@ class CassandraUploadHandler():
 
         if not self.connector.has_table(keyspace, table):
             self.create_table(keyspace, table, column_names, column_types, partition_keys, primary_keys)
-        self.insert_from_csv(file_name, keyspace, table, column_names, row_converters, start_row, delimiter, quotechar, row_delimiter)
+        self.insert_from_csv(file_name, keyspace, table, column_names, row_converters, start_row, delimiter, quotechar, row_delimiter, num_workers)
 
-    def create_from_iterator(self, row_iterator : Iterator, keyspace : str, table : str, column_names : List[str], column_types : List[str], partition_keys : List[str], primary_keys : List[str] = []):
+    def create_from_iterator(self, row_iterator : Iterator, keyspace : str, table : str, column_names : List[str], column_types : List[str], partition_keys : List[str], primary_keys : List[str] = [], num_workers = NUM_CASSANDRA_UPLOAD_PROCESSES):
         self.create_table(keyspace, table, column_names, column_types, partition_keys, primary_keys)
-        self.insert_from_iterator(keyspace, table, column_names, row_iterator)
+        self.insert_from_iterator(keyspace, table, column_names, row_iterator, num_workers)
 
     def create_table(self, keyspace : str, table : str, column_names : List[str], column_types : List[str], partition_keys : List[str], primary_keys : List[str]) -> None:
         self.connector.create_keyspace(keyspace)
@@ -122,7 +122,7 @@ class CassandraUploadHandler():
         self.logger.debug(f"Executing {query_string}")
         self.connector.get_session().execute(query_string)
 
-    def insert_from_csv(self, file_name : str, keyspace : str, table : str, column_names : List[str] = None, row_converters : Dict[str, Callable] = {}, start_row : int = 1, delimiter = ",", quotechar = '"', row_delimiter="\n") -> None:  
+    def insert_from_csv(self, file_name : str, keyspace : str, table : str, column_names : List[str] = None, row_converters : Dict[str, Callable] = {}, start_row : int = 1, delimiter = ",", quotechar = '"', row_delimiter="\n", num_workers = NUM_CASSANDRA_UPLOAD_PROCESSES) -> None:  
         """Performs a multithreaded insert into the database from a csv file"""
 
         # If we don't have column names, detect them from the first row after start_row
@@ -142,7 +142,7 @@ class CassandraUploadHandler():
             start_row += 1
         
         generator = self.parse_csv_generator(file_name, column_names, row_converters, start_row, delimiter, quotechar, row_delimiter)
-        self.insert_from_iterator(keyspace, table, column_names, generator)
+        self.insert_from_iterator(keyspace, table, column_names, generator, num_workers)
         
 
     def parse_csv_generator(self, file_name : str, column_names : List[str] = None, row_converters : Dict[str, Callable] = {}, start_row : int = 1, delimiter = ",", quotechar = '"', row_delimiter="\n"):
@@ -163,7 +163,7 @@ class CassandraUploadHandler():
                 count += 1
         self.logger.debug(f"Finished file read, read {count} items")
 
-    def insert_from_iterator(self, keyspace : str, table : str, column_names : List[str], row_iterator : Iterator):
+    def insert_from_iterator(self, keyspace : str, table : str, column_names : List[str], row_iterator : Iterator, num_workers = NUM_CASSANDRA_UPLOAD_PROCESSES):
         """Performs a multithreaded insert into the database from a csv file"""
         column_string = ", ".join(column_names)
         value_string = ", ".join(["?"] * len(column_names))
@@ -172,7 +172,7 @@ class CassandraUploadHandler():
         prep = self.connector.get_session().prepare(f"INSERT INTO {keyspace}.{table} ({column_string}) VALUES ({value_string});")
 
         # Perform a multiprocess read/upload - the main process reads from the file, then a number of other processes actually perform the inserts
-        queue = multiprocessing.Queue()
+        queue = multiprocessing.Queue(10000)
         # Requests that writers quit at the earliest opportunity
         request_stop_event = multiprocessing.Event()
         # Notifies writers that there are no more items to read, so when the queue is empty they can quit
@@ -183,7 +183,7 @@ class CassandraUploadHandler():
         
         # Start writer processes
         self.logger.debug("Starting insert processes")
-        writers = [multiprocessing.Process(target=insert_from_queue, args=(queue, self.connector.server_url, self.connector.port, prep, finished_reading_event, request_stop_event, insert_failure_event, insert_failure_queue, self.connector.auth_provider)) for _ in range(NUM_CASSANDRA_UPLOAD_PROCESSES)]
+        writers = [multiprocessing.Process(target=insert_from_queue, args=(queue, self.connector.server_url, self.connector.port, prep, finished_reading_event, request_stop_event, insert_failure_event, insert_failure_queue, self.connector.auth_provider)) for _ in range(num_workers)]
         
         try:
             for writer in writers:

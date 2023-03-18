@@ -90,12 +90,12 @@ def month_range_day(start, periods):
     return pd.to_datetime(month_range.year*10000+month_range.month*100+month_day, format='%Y%m%d')
 # END
 
-def generate_origination(start, end):
-    amount = random.randint(ORIGINATION_MIN, ORIGINATION_MAX)
+def generate_origination(start, end, origination_min = ORIGINATION_MIN, origination_max = ORIGINATION_MAX, interest_rate_min = INTEREST_RATE_MIN, interest_rate_max = INTEREST_RATE_MAX, duration_min = DURATION_MIN, duration_max = DURATION_MAX):
+    amount = random.randint(origination_min, origination_max)
 
-    interest_rate = random.uniform(INTEREST_RATE_MIN, INTEREST_RATE_MAX)
+    interest_rate = random.uniform(interest_rate_min, interest_rate_max)
 
-    duration = random.randint(DURATION_MIN, DURATION_MAX)
+    duration = random.randint(duration_min, duration_max)
 
     origination_date = random_date(start, end, random.random())
 
@@ -132,22 +132,22 @@ def loan_origination_metadata():
     """Returns metadata for the loan origination generator: (column names, column types)"""
     return (["loan_id", "amount", "interest_rate", "duration", "origination_date"], ["bigint", "double", "double", "bigint", "timestamp"])
 
-def loan_origination_generator(count : int):
+def loan_origination_generator(count : int, start_origination_date = START_ORIGINATION_DATE, end_origination_date = END_ORIGINATION_DATE, origination_min = ORIGINATION_MIN, origination_max = ORIGINATION_MAX, interest_rate_min = INTEREST_RATE_MIN, interest_rate_max = INTEREST_RATE_MAX, duration_min = DURATION_MIN, duration_max = DURATION_MAX):
     """Returns an iterator that generates `count` existing loans
     Each value returns a list of `loan_id, amount, interest_rate, duration, origination_date`"""
     for loan_id in range(count):
-        amount, interest_rate, duration, origination_date = generate_origination(START_ORIGINATION_DATE, END_ORIGINATION_DATE)
+        amount, interest_rate, duration, origination_date = generate_origination(start_origination_date, end_origination_date, origination_min, origination_max, interest_rate_min, interest_rate_max, duration_min, duration_max)
         yield [loan_id, amount, interest_rate, duration, origination_date]
 
 def loan_amortisation_metadata():
     """Returns metadata for the loan amortisation generator: (column names, column types)"""
     return (["date", "principal_repayment", "interest_repayment", "total_repayment", "principal_repaid", "interest_repaid", "total_repaid", "loan_id"], ["timestamp", "double", "double", "double", "double", "double", "double", "bigint"])
 
-def loan_amortisation_generator(count : int):
+def loan_amortisation_generator(count : int, start_existing_date = START_EXISTING_DATE, end_existing_date = END_EXISTING_DATE, origination_min = ORIGINATION_MIN, origination_max = ORIGINATION_MAX, interest_rate_min = INTEREST_RATE_MIN, interest_rate_max = INTEREST_RATE_MAX, duration_min = DURATION_MIN, duration_max = DURATION_MAX):
     """Returns an iterator that generates `count` existing loans
     Each value returns a row `date, principal_repayment, interest_repayment, total_repayment, principal_repaid, interest_repaid, total_repaid, Loan_ID`"""
     for loan_id in range(count):
-        amount, interest_rate, duration, origination_date = generate_origination(START_EXISTING_DATE, END_EXISTING_DATE)
+        amount, interest_rate, duration, origination_date = generate_origination(start_existing_date, end_existing_date, origination_min, origination_max, interest_rate_min, interest_rate_max, duration_min, duration_max)
         schedule = generate_amortisation_schedule(amount, interest_rate, duration, origination_date)
         schedule = schedule[(schedule["date"] > START_DATA_DATE) & (schedule["date"] < END_DATA_DATE)]
         schedule["Loan_ID"] = loan_id
