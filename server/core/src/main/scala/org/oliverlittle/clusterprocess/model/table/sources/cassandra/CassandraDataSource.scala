@@ -21,6 +21,7 @@ import org.slf4j.LoggerFactory
 import scala.jdk.CollectionConverters._
 import java.time.Instant
 import scala.concurrent.{Future, ExecutionContext}
+import com.datastax.oss.driver.api.core.cql.SimpleStatement
 
 object CassandraDataSource:
     def inferDataSourceFromCassandra(keyspace : String, table : String)(using env : CassandraConfig {val connector : CassandraConnector} = CassandraConfig()) : CassandraDataSource  = {
@@ -115,7 +116,10 @@ case class PartialCassandraDataSource(parent : CassandraDataSource, tokenRanges 
       */
     def getPartialData(store : ActorRef[TableStore.TableStoreEvent], workerChannels : Seq[ChannelManager])(using t : Timeout)(using system : ActorSystem[_])(using ec : ExecutionContext = system.executionContext) : Future[TableResult] = {
         val session = parent.env.connector.getSession
-        val results = getDataQueries.map(session.execute(_).asScala.map(row => parent.fields.map(_.getTableValue(row)))).reduce(_ ++ _)
+        // Use custom execution profile to increase timeout, accounts for overloaded database in very large queries.
+        // NOTE: This doesn't solve the problem where the timeout actually hits, need to implement some kind of exponential backoff algorithm for retries.
+        val statements = getDataQueries.map(SimpleStatement.builder(_).setExecutionProfileName("getpartition").build())
+        val results = statements.map(session.execute(_).asScala.map(row => parent.fields.map(_.getTableValue(row)))).reduce(_ ++ _)
         Future.successful(LazyTableResult(getHeaders, results))
     }
 
