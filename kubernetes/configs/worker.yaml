@@ -23,17 +23,16 @@ spec:
           name: worker
         resources:
           requests:
-            cpu: 1
             memory: 4Gi
           limits:
-            cpu: 1.5
+            cpu: 2
             memory: 6Gi
         volumeMounts:
         - name: cassandra
           mountPath: "/etc/cassandra"
           readOnly: true
-        - name: ephemeral
-          mountPath: "/tmp"
+        - name: cache
+          mountPath: "/cache"
         env:
         - name: CASSANDRA_DATACENTER
           value: "dc1"
@@ -48,14 +47,15 @@ spec:
         - name: CASSANDRA_NODE_NAME
           value: "demo-dc1-default-sts"
         - name: SPILL_STORAGE_PATH  
-          value: "/tmp"
+          value: "/cache"
       volumes:
         - name: cassandra
           secret:
             secretName: demo-superuser
             optional: false
-        - name: ephemeral
-          emptyDir: {}
+        - name: cache
+          emptyDir:
+            sizeLimit: 5Gi
       affinity:
         podAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
