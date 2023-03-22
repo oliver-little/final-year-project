@@ -87,7 +87,7 @@ case class InMemoryDependency(dependencyData : ((Table, Int), Int), tableResult 
 
 object ProtobufTableResult:
     // Generate a semi-random path
-    val storagePath = Path.of(envOrElse("SPILL_STORAGE_PATH", "temp/"), UUID.randomUUID.toString)
+    val storagePath = Paths.get(envOrElse("SPILL_STORAGE_PATH", "temp/"), UUID.randomUUID.toString)
 
 case class ProtobufTableResult[T](source : T) extends StoredTableResult[T]:
     // Add randomness, because PrepareHashes will use the same hashCode multiple times
