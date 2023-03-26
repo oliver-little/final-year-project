@@ -1,8 +1,13 @@
-## sbt project compiled with Scala 3
+# Orchestrator
 
-### Usage
+This module contains code and tests specific to the orchestrator server implementation.
 
-This is a normal sbt project. You can compile code with `sbt compile`, run it with `sbt run`, and `sbt console` will start a Scala 3 REPL.
+## Requirements
+- sbt must be installed with either Java 8 or 11.
+- Docker Desktop must be installed to build a docker image.
 
-For more information on the sbt-dotty plugin, see the
-[scala3-example-project](https://github.com/scala/scala3-example-project/blob/main/README.md).
+## Usage
+- `sbt run` will start an orchestrator on the port 50051.
+
+## Docker Build
+- `sbt docker:publishLocal` will build a docker image and publish it to the local docker registry.
