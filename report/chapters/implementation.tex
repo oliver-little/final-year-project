@@ -1,5 +1,32 @@
 \chapter{Implementation}
 
+\section{Type System}
+% - Built around gRPC implementation
+
+% Type system
+% - Erasure of Types
+% - ClassTags fix this problem
+
+\section{FieldExpressions}
+% Abstract class implementation
+% - isWellTyped
+% - doesReturnType
+% - resolve/evaluate steps
+% - named/unnamed
+% primitive operations
+%  - Fields - dynamic lookup at resolve phase
+%  - Values - literals
+%  - Functions - extensible architecture
+\section{FieldComparisons}
+% FieldComparisons
+% - built on field
+% Aggregate Expressions
+% Table Commands
+% - Select - uses FieldExpressions
+% - Filter - uses FieldComparisons
+% - Group By - uses FieldExpressions and FieldComparisons
+% - examples of each
+
 % Front-end
 % DSL in the front-end
 % Dunder methods in Python
@@ -9,7 +36,7 @@
 % Execution phases - some types need all data ready, others don't
 
 % Worker
-% DSL - FieldExpressions, type system, etc
+% Select / Filter implementation - for MVP
 % cross-communication for group bys/joins once implemented
 % custom hashing
-
+% spill to memory
