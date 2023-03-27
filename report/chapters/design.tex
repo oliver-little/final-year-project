@@ -19,6 +19,7 @@ Before considering specific technologies and frameworks, a list of MoSCoW requir
 		
  		\multicolumn{3}{|c|}{Domain Specific Language - Expressions} \\ \hline
 		F & M & The language must support 5 data types: integers, floats, booleans, strings and date-time objects. \\ \hline
+		F & M & The language must be able to tolerate null values in the results of a dataset. \\ \hline
 		F & M & The language must allow users to reference a field in the current dataset. \\ \hline
 		F & M & The language must allow users to reference a constant value, which can take one of the data types defined above. \\ \hline
 		F & M & The language must support arithmetic operations like add, subtract, multiply, division and modulo. \\ \hline
@@ -82,7 +83,7 @@ A communication method had to be selected to allow the Python frontend, the orch
 
 In contrast, RPC frameworks are designed to allow function calls over a remote network, while hiding the complexity of the communication from the developer \todo{reference}. They are also typically not designed around a particular data model like REST, which would allow custom function calls to  be implemented \todo{Reference}. 
 
-The chosen framework was gRPC \todo{Reference}, which is designed and maintained by Google. Firstly, there are well-maintained implementations for both Python and Scala, which would make using it in all parts of the solution straightforward \todo{reference}. Secondly, it uses protocol buffers \todo{Reference} as its message system, which is a serialisation format also maintained by Google. Protocol buffers are designed to be extremely space efficient, reducing network overhead compared to a solution that used something like XML or JSON \todo{reference}. As protocol buffers are also a serialisation format, APIs are provided to store messages on disk.
+The chosen framework was gRPC \todo{Reference}, which is designed and maintained by Google. Firstly, there are well-maintained implementations for both Python and Scala, which would make using it in all parts of the solution straightforward \todo{reference}. Secondly, it uses protocol buffers (protobuf) \todo{Reference} as its message system, which is a serialisation format also maintained by Google. Protocol buffers are designed to be extremely space efficient, reducing network overhead compared to a solution that used something like XML or JSON \todo{reference}. As protocol buffers are also a serialisation format, APIs are provided to store messages on disk.
 
 
 \section{Persistent Storage}
@@ -114,7 +115,7 @@ Based on the above design choices, a high level diagram was produced, detailing 
 
 \begin{figure}[h]
 	\centering
-	\includegraphics[width=0.5\textwidth]{chapters/diagrams/architecture-overall}
+	\includegraphics[width=0.5\textwidth]{chapters/diagrams/design/architecture-overall}
 	\caption{Overall Architecture Diagram for the Proposed Solution}
 \end{figure}
 
