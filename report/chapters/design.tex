@@ -98,7 +98,7 @@ There are a wide range of options for persistent data storage. The first key dec
 In the end, Apache Cassandra \todo{Reference} was chosen for persistent storage. This has a number of benefits for the proposed solution. Firstly, the data model is tabular, and as such closely matches the format of the expected input data. Furthermore, Cassandra is a distributed database, so source data will be stored across a number of nodes, each on different computers. This will increase the effective read speed when retrieving data from the database, as the full load will be spread across all nodes.
 
 \paragraph{Partitioning} Cassandra's method of partitioning data is another key reason why it was selected. Each node in the database is assigned a token range, which determines what records it holds. When data is inserted into the database, Cassandra hashes the primary key of each record, producing a 64-bit token that maps it to a node. A diagram showing this process is included below:
-
+% This should be clear and detailed, it's important
 \missingfigure{Cassandra Hashing Process}
 
 Cassandra allows token ranges to be provided as filters in queries, which will allow the worker nodes to control what data is retrieved in each query.
