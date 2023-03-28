@@ -339,9 +339,41 @@ Once a worker has collected all data relating to a particular partition, it must
 
 \missingfigure{Group By Computations}
 
-
 \section{Spill to Memory}
-% spill to memory - least recently used
+In situations with very large datasets, the amount of memory available to the workers will be less than the amount of data the system attempts to load. In this case, it is likely that the JVM will run out of heap space, causing a crash when it attempts to allocate more memory to store data. Therefore, the system features a module which allows it to move cached data onto disk to free up heap space. The module works as an extension of the data store, 
+
+\subsection{Storage Interface}
+To implement the spill process, an interface \textit{StoredTableResult} is defined. This interface holds a key which corresponds to that result, and a \textit{get} operation to retrieve the result data. There are two main subclasses that implement this interface: \textit{InMemoryTableResult} and \textit{ProtobufTableResult}. 
+
+InMemoryTableResult is a simple wrapper for the interface, which simply contains the result and holds it in memory. It also features a \textit{spillToDisk} method which moves the data onto disk by creating a file under a randomised folder name for that execution, with the name set to the hashcode of the key. 
+
+ProtobufTableResult only holds a pointer to the data on disk, and reads the data from there when the \textit{get} operation is called. It also features a cleanup method which removes the stored data from disk.
+
+\subsection{Spill Process}
+The data store is responsible for managing in-memory and on-disk data. Before almost every operation on the data store, it makes a check for the current memory utilisation, which is calculated using a set of methods on the \textit{Runtime} class \todo{reference javadocs}. If the memory utilisation is over a given threshold, the data store attempts to spill at least the amount of bytes over the utilisation threshold. Figure \label{fig:bytes-over-memory-threshold} shows how the amount of bytes over a percentage threshold is calculated.
+
+\begin{figure}[h]
+	\centering
+	\[ \left( \frac{\text{Bytes in Use}}{\text{Total Bytes Available}} - \text{Threshold} \right) * \text{Total Bytes Available} \]
+	\caption{Number of Bytes Over Memory Threshold}
+	\label{fig:bytes-over-memory-threshold}
+\end{figure}
+
+To perform the spill, the data store will follow the decision tree shown in Figure \todo{insert figure here}. After the process is completed, the data store forces the JVM to perform Garbage Collection to immediately free the relevant amount of memory.
+
+\missingfigure{Spill process}
+% Determine item to spill (LRU)
+% Estimate number of bytes freed
+% Perform spill
+% Number of bytes to free already freed? Yes - stop, No - repeat
+% Force GC
+
+This process is not without flaws. It relies on no other class in the current JVM instance  holding references to any of the results being spilled. In the controlled worker environment, it is possible to ensure this is the case, meaning the spill works reliably, but this approach would not work more generally. Also, this approach is reliant on size estimates, meaning the actual amount of memory freed will not be the same as the estimated memory freed. With a suitably low threshold for spilling (60-70\% of maximum memory) and regular checks of memory utilisation, this risk does not become a real problem.
+
+\subsection{Eviction Policy}
+Finally, the policy for determining results to spill is important. A policy that does not fit the way the results are being used could result in large performance impacts, as it could cause antipatterns like the data store spilling a result, then immediately reading it back to memory.
+
+The data store makes use of a least-recently-used (LRU) policy to determine the next result to spill to disk. This policy is implemented using an ordered list containing all in-memory results. When results are inserted into the data store, they are added to the end of the list. When results are read from the data store, they are moved to the end of the list. Then, when a result must be selected for spill, the item at the head of the list is chosen and removed.
 
 \section{Kubernetes}
 As discussed in the Design chapter, Kubernetes is used to manage the cluster, including Cassandra, the Orchestrator and the Worker nodes.
