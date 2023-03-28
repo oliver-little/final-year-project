@@ -136,7 +136,8 @@ To break development into more manageable chunks, a minimum viable product (MVP)
 Group By partitioning would not be implemented for the MVP, meaning all operations available to the user are row-level, and only one set of partitions need to be generated for a query. This removes the need for state in the workers, greatly simplifying their design at this stage.
 
 The below diagrams are provided to give a high-level picture of how the MVP system operates. The Orchestrator manages calculating partitions, delegating them to workers, and collating final results. 
-\todo{insert figure here} shows the data flow for the Orchestrator in the MVP.
+
+\todo{insert figure here} shows the data flow for the Orchestrator.
 
 \missingfigure{MVP Orchestrator Flow}
 % Calculate partitions from Cassandra
@@ -191,7 +192,7 @@ Figure \todo{insert missing figure} demonstrates how the joining process works. 
 
 The Cassandra Java Driver provides a wide range of helper functions for performing the joining and splitting of token ranges accurately to produce new token ranges. The system simply calculates how much joining or splitting is required based on the size of the token ranges and the table size estimate. It then uses the driver to perform the calculations.
 
-\subsection{Cassandra Data Co-Location}
+\subsection{Cassandra Data Co-Location}\label{subsec:colocation}
 Once the list of partitions for each Cassandra node are generated, the system attempts to co-locate workers to Cassandra nodes. The goal of this process is to produce an \textit{optimal assignment} of partitions, where each partition is matched to one or more workers to minimise network latency when fetching the data from Cassandra.
 
 To do this, each worker first calculates its closest Cassandra node. This is done by opening a TCP connection multiple times with each Cassandra node, and averaging the time taken over multiple attempts. The node with the lowest average latency is selected as the closest node. Figure \todo{insert figure here} shows this process.
@@ -210,6 +211,8 @@ The ideal solution would ensure a worker first computes all of its own optimal p
 However, this presents concurrency challenges, including preventing race conditions like the same partition being delegated twice to different workers. The final approach taken to solve this uses the actor model, first introduced in 1973 by Carl Hewitt \cite{hewitt1973session}. Specifically, the Akka Actors framework was chosen, as it is one of the most widely supported implementations of this model for Scala \todo{reference docs}. The actor model abstracts away the complexity of synchronisation and thread management. Instead, components of the system become actors. Each actor defines a set of messages that it accepts, and the response to each message. The framework provides a guarantee that an actor will only ever process one message at a time.
 
 The solution models the optimal partitions as \textit{producer} actors, and the workers as \textit{consumers}. Producers will respond to requests for work with partitions, and will shut down when all partitions have been given out. Consumers are provided with an ordered list of producers, then repeatedly request and compute work from each in order. When all assigned producers for a consumer are empty, the consumer will shut down. Each consumer is given a list with a different order, with the producer of that consumer's optimal partitions placed first in the list. 
+
+This solution also handles the case where no worker is co-located with a set of partitions, as this producer will simply be placed at the end of the list of producers for each consumer. As a result, these partitions will eventually be processed.
 
 % Include this? possibly confusing
 The final part of this solution is an \textit{assembler}, which compiles the results from each consumer into a complete result. When all results are received, the assembler sends the result data back to the user.
@@ -239,39 +242,129 @@ Selects and Filters can be applied repeatedly, in any order from the source data
 
 \missingfigure{Calculation of Source -> Select -> Filter -> Output}
 	
-\section{Query Plan}
+\section{Overall Solution}
+The main change from the MVP to the final solution is to add Group By operations. However, this is the first operation that cannot be computed row-by-row, which introduces a significant amount of complexity, as the worker nodes will now need to be stateful. In particular, the workers will have to cache partial results, and communicate with one another to generate new partitions for the Group By operation. This change also introduces further complexity for the Orchestrator, as it will have to manage the states of each worker, and ensure the worker state is cleared after a query completes.
 
 % Overview of final model
-% Data Sources - Anywhere where new partitioning is required
-% Tables - row level operations
-% Full/partial query plan - components
-% Source data fetching
+% Diagram of orchestrator and worker model - incoming and outgoing requests
+% Orchestrator - collate results from workers
+% Worker - same as before, but stateful
 
-\section{Group By}
-% Hashing
-% shuffling
-% computation
-% The Group By operation takes any number of NamedFieldExpressions to act as unique keys, as well as any number of aggregate expressions which will be computed for each combination of unique keys.
+\subsection{Data Model}\label{subsec:data-model}
+% This section should be clear and understandable, as much of the rest refers to partial and full versions
+The data model is split into two key components: \textit{DataSource} and \textit{Table}. DataSource is an interface, representing any part of the query where new partitioning is required to continue, including Cassandra Source Data, and Group By operations. Table is a class, representing any part of the query that contains purely row-level computations, including Select and Filter operations. Tables depend on a specific DataSource. 
 
-\section{Worker}
-% Overview of worker functionality
+Optionally, DataSources can have dependent Tables which must be calculated first. For example, a Group By DataSource requires a single Table to be fully computed before it can be generated. A Cassandra DataSource will always act as the terminal component for a query, as it has no dependencies. 
 
-\subsection{Table Store}
-% table cache - actor system, store model
+Furthermore, DataSources and Tables also have a partial form, which represents part of the full source dataset. \textit{PartialDataSource} is also provided as an interface, as the implementation is different depending on how the dataset is partitioned. \textit{PartialTable}, is essentially a duplicate of Table, but references a PartialDataSource rather than a DataSource.
 
-\subsection{Spill to Memory}
+Any query the user writes is made up of a mix of DataSource and Table components. Figure \todo{insert figure here} shows the outline for a Filter and Select query. 
+
+\missingfigure{Filter/Select query datasource table}
+
+Figure \todo{insert figure here} shows the outline for a more complex query including a Group By. Note that any number of Select and Filter operations can be placed in the Table component, as no new partitions are required to produce the result.
+
+\missingfigure{Group By Query}
+
+\subsection{Data Store}
+The data store is a core worker component in the overall solution. It allows the workers to store partially computed data, which can be referenced again in later parts of the query execution. In particular when workers are communicating with one another, it is likely that the worker will be processing more than one request at the same time. Therefore, Akka Actors is used again in this component to simplify the implementation of the data store, by ensuring it only processes one request at a time.
+
+The data store is modelled as an actor which contains three kinds of data: results, partitions and hashes. Results contain a set of outputs for a Table computation, partitions contain a set of outputs for a DataSource computation, and hashes are used in the process of computing a Group By partition.
+
+The data store provides a set of create, read, and delete operations for each of these types of data, as well as helper functions for managing the data store state. Figure \todo{insert figure here} shows the architecture of the data store. 
+
+\missingfigure{Table store architecture diagram}
+
+The data store is designed using two lookups at each stage. First, the full version of the data is looked up, then the partial version. Partial forms of Tables and DataSources always contain a reference to the full version, but not the other way around. Therefore, this decision does not increase the time taken to insert new data significantly, but it does improve the speed of get and deletes, which would otherwise require searching the entire data store to find the items to get or delete.
+
+\subsection{Query Plan}
+By separating Tables and DataSources, a generic framework for executing queries can be designed. This is known as a Query Plan. The Orchestrator is responsible for generating and managing the execution of query plans when the user makes a request. 
+
+A Query Plan is made up of a sequence of \textit{QueryPlanItems}, which is an interface defining some part of a query plan. Each QueryPlanItem has an \textit{execute} method, which will make some change to the state of all workers in the cluster when called. There are four main QueryPlanItems, which allow DataSources and Tables to be calculated and deleted, and both DataSource and Table have a function that generates the full Query Plan to compute their output from scratch.
+
+Figure \todo{insert figures here} shows the query plan generated for the Filter and Select query and the Group By Query shown in \ref{subsec:data-model}.
+
+\missingfigure{Select and Group By query plan}
+
+\paragraph{GetPartition}
+This is the most complex QueryPlanItem, encapsulating a number of steps in order to compute and store the partitions of a DataSource. There are two main flows depending on if the DataSource has dependent Tables.
+
+If the DataSource has no dependencies, for example when pulling data from Cassandra, then Figure \todo{insert figure here} shows the process for this item. 
+
+\missingfigure{Flow with no dependencies}
+
+If the DataSource has dependencies, for example when computing a Group By operation, then Figure \todo{insert figure here} shows the process for this item. The details of the hashing process are abstracted behind the \textit{DataSource} interface from the perspective of GetPartition, but further details of how this is implemented for Group By can be found in \ref{subsec:group-by}.
+
+\missingfigure{Flow with dependencies}
+
+In both cases, GetPartition needs to manage the process of sending the requests to the workers to actually compute the partitions.
+% Integrate earlier actor system code here
+
+\paragraph{PrepareResult}
+The aim of this QueryPlanItem is to compute a Table from partitions of a DataSource that are already stored on the workers. Therefore, it will always be called after GetPartition, with the partitions generated by GetPartition as an argument. It uses a modified version of GetPartition's actor system to iterate through all partitions stored on each worker, sending a request for each to perform the Table computation for that partition.
+
+\paragraph{DeleteResult and DeletePartition}
+There are also delete operations to remove a result when it is no longer required, \textit{DeletePartition} and \textit{DeleteResult}. These will send a single request to each worker to delete a specific Table or DataSource. The workers will remove all results that relate to that Table or DataSource, and respond with a confirmation.
+
+\subsection{Group By}\label{subsec:group-by}
+The Group By operation takes any number of NamedFieldExpressions to act as unique keys, as well as any number of aggregate expressions which will be computed for each combination of unique keys. As with pulling source data from Cassandra, the goal when computing a Group By is for the partitions generated to be roughly equal chunks of a manageable size. As before, to do this, two things are needed: an estimate of the full size of the dataset, and a way of splitting the dataset up to keep unique keys together.
+
+The four-step process of calculating hashes, shuffling data, computing the result and deleting the original hashes is all controlled by the query plan execution in the orchestrator
+
+\paragraph{Hashing} To estimate the size of the full dataset, an existing class, \textit{SizeEstimator}, from Apache Spark was used, with a small number of changes for compatibility with Scala 3 \todo{reference}. This class provides a static method \textit{estimate} which accepts any Scala object and produces an estimate, in bytes, of the size of the object. This can be called on all partial results across all workers, and the results totalled to calculate the total size of all data for a Table. Figure \ref{fig:group-by-num-partitions} shows how the size estimate can be used to derive the total number of partitions to generate for a Table.
+
+\begin{figure}[h]
+	\centering
+	\[ \frac{\text{Table Size Estimate}}{\text{Goal Partition Size}} \]
+	\caption{Group By - Total Partitions}
+	\label{fig:group-by-num-partitions}
+\end{figure}
+
+Hashing, combined with the modulo operation, is used to determine which partition each row should be assigned to. In particular, Murmur3Hash is used as the hashing algorithm, which is the same as in Cassandra and is provided natively by Scala. Figure \ref{fig:group-by-partition-assign} shows the high level equation for assigning rows to partitions. This process ensures that the new partitions will be roughly equal in size, and all rows with the same values for the unique keys will be mapped to the same partition.
+ 
+\begin{figure}[h]
+	\centering
+	\[ Murmur3Hash(\text{Unique Key Data}) \; \%  \; \text{Total Partitions} \]
+	\caption{Group By - Row Partition Assignment}
+	\label{fig:group-by-partition-assign}
+\end{figure} 
+
+\paragraph{Shuffling}
+After the hashes are computed and a worker is assigned a particular partition, it must communicate with all other workers in the cluster to get any data that relates to that partition.This ensures that the partition data is complete, and it is much the same as when the orchestrator requests query result data from the workers. Figure \todo{insert figure here} shows how this works. The worker makes a request to all other workers, and they stream the header and rows of their partial data back to the worker that made the request. When a Group By is being computed, it's likely that a worker will be simultaneously receiving data from another worker, and sending a different set of data to it. This makes the actor system driving the data store in each worker particularly valuable, as it provides thread-safe concurrent access to the data store.
+
+\missingfigure{Worker shuffle data}
+
+\paragraph{Computation}
+Once a worker has collected all data relating to a particular partition, it must compute the Group By result. Scala features a built-in Group By function, which this operation uses. The values for the unique keys of the Group By are calculated for each row, and the rows are placed into groups based on those values. Then, the aggregate functions are computed for each of the groups, resulting in one output row for each combination of unique keys. Figure \todo{insert figure here} provides a visual representation of this process.
+
+\missingfigure{Group By Computations}
+
+
+\section{Spill to Memory}
 % spill to memory - least recently used
 
-\section{Orchestrator}
-% Collating results from workers - akka actors
-
 \section{Kubernetes}
-% how it all fits together
-% K8s setup
+As discussed in the Design chapter, Kubernetes is used to manage the cluster, including Cassandra, the Orchestrator and the Worker nodes.
+
 \subsection{K8ssandra}
-% K8ssandra nodes
+Creating a Cassandra cluster on Kubernetes using K8ssandra is simple, with the key decision being the number of nodes to create. K8ssandra automatically provides scheduling rules to ensure that no more than one Cassandra node is placed on each Kubernetes node (physical machine). Therefore, the clear choice is to have the same number of Cassandra nodes as Kubernetes nodes in the cluster.
 
 \subsection{Worker Scheduling}
-% Worker scheduling rules - affinity to K8ssandra, anti-affinity to other workers
+Scheduling rules can also be used to ensure optimal placement of worker nodes. As previously described in \ref{subsec:colocation}, worker nodes will determine their closest Cassandra node automatically based on latency. Therefore, only two scheduling rules are required to ensure optimal placement of workers.
+\begin{enumerate}
+	\item Workers should be placed on the same Kubernetes node as a Cassandra node if possible.
+	\item Workers should not be placed on the same node as other worker nodes.
+\end{enumerate}
 
+These scheduling rules ensure that the workers are spread evenly among the Kubernetes nodes, providing even coverage of all Cassandra nodes. If there are the same number of workers as Cassandra nodes, each worker corresponds to a single Cassandra nodes.
+
+Figure \todo{insert figure here} shows the layout of the system with 3 Kubernetes, Cassandra and Worker nodes.
+
+\missingfigure{Kubernetes layout}
+
+The scheduling rules are preferences rather than requirements, so the cluster is still able to handle the case where there are more workers than Kubernetes nodes.
+
+Figure \todo{insert figure here} shows the layout of the system with 3 Kubernetes nodes, 3 Cassandra nodes and 5 Worker nodes.
+
+\missingfigure{Kubernetes layout 2}
 
