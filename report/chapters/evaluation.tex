@@ -1,21 +1,40 @@
-\chapter{Evaluation}
+\chapter{Evaluation}\label{cha:evaluation}
+Following the performance testing of the completed solution, this section will discuss a high level evaluation of the solution, and the project as a whole.
 
-% Unit test + coverage
+\section{Limitations}
+The solution has a number of limitations which could be improved upon in future.
 
-% Test data
+\subsection{Data Transfer}
+Network transfers of data are common in the distributed system model. They are used when returning final result data to the orchestrator and frontend, as well as when cross-communicating between workers. However, the performance testing identified that this is one of the weakest areas of the implementation. Therefore, optimising this process would be a focus in future development.
 
-% SQL vs Cluster
+\subsection{Group Bys}
+The current implementations of Group Bys are computationally correct, but not as efficient as they could be. Currently, when partial data for a partition is communicated between workers, all rows from the source data are sent over the network. As the data transfer solution also has relatively poor performance, sending unnecessary data between workers increases computation time further. It should be possible to partially compute each group by during the hash calculation phase, then only send the partially computed result, which is then compiled by the worker that is responsible for the final partition. 
 
-% Adjusting number of workers with performance changes - 2/3/6/9/12
+\subsection{Memory Usage}
+Result data uses an extremely large amount of space when resident in memory. This is because each cell in a result dataset is wrapped in a class containing its type, as well as the value. As discussed in the implementation section, this approach is essential to the functionality of the DSL, as the type information is not accessible at runtime otherwise. However, this decision results in even small datasets taking up large amounts of memory. For example, a 100MB source data file can use up to 800MB of memory once loaded into the storage format.
 
-% Adjusting number of workers without performance changes 1/2/3
+\section{Further Work}
+The nature of this project means that there is a large scope for future work and improvements.
 
-% Limitations
-% Memory usage 
+\subsection{Cluster State Analyser}
+As discussed in the Testing chapter, different cluster layouts are more optimised for different kinds of queries. Queries with less computation, or that run on smaller amounts of data are better applied to smaller clusters, while increasing the level of parallelisation is better when the query is larger or more complex. Therefore, a module that runs at the Kubernetes level, monitoring the utilisation of the cluster and the types of queries being executed may be able to improve computation times by adjusting the cluster layout.
 
-% Further Work
+\subsection{Cached Results}
+The data store is currently used to assist in the computation of queries by temporarily storing partial result data. However, its design means that it could also be used to store results between queries. This would improve the computation time of repeated queries to the same dataset, as the steps to reach the stored result would not have to be repeated each time.
 
-% Personal analysis
+\subsection{Join Operations}
+Join operations are not implemented in the solution, but are essential for many types of queries, particularly when relating two different datasets by a common key. Creating  this would require a new DataSource implementation, but much of the work to do it is already in place.
+
+\subsection{Improved Error Recovery}
+The error handling in the system is designed to send an error message to the Python frontend if anything goes wrong during computation. For some errors, like if the Cassandra database is unexpectedly not responsive, this is acceptable. For other errors, like if a worker node suddenly goes down, it should be possible to handle this error by delegating the work of the failed worker to others, without alerting the user of any failure in the first place.
+
+\subsection{In-Database Operations}
+Finally, the Cassandra database is currently only used as a permanent data store, and for splitting up the source data into partitions. However, it is a database in its own right, and some computations could be performed on Cassandra before sending any data at all, improving query times by reducing the amount of network transfer. In particular, any filter operation on the source dataset, and group by operations on the primary key are perfect candidates for this optimisation, as it could be implemented with minimal work.
+
+% Personal analysis?? not present in other projects
 % - Software Engineering Processes - CI/CD
 % - Architecture
 % - Approach (MVP first)
+
+\section{Conclusion}
+% Reiterate abstract

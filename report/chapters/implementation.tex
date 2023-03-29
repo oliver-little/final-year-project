@@ -350,7 +350,7 @@ InMemoryTableResult is a simple wrapper for the interface, which simply contains
 ProtobufTableResult only holds a pointer to the data on disk, and reads the data from there when the \textit{get} operation is called. It also features a cleanup method which removes the stored data from disk.
 
 \subsection{Spill Process}
-The data store is responsible for managing in-memory and on-disk data. Before almost every operation on the data store, it makes a check for the current memory utilisation, which is calculated using a set of methods on the \textit{Runtime} class \todo{reference javadocs}. If the memory utilisation is over a given threshold, the data store attempts to spill at least the amount of bytes over the utilisation threshold. Figure \label{fig:bytes-over-memory-threshold} shows how the amount of bytes over a percentage threshold is calculated.
+The data store is responsible for managing in-memory and on-disk data. Before almost every operation on the data store, it makes a check for the current memory utilisation, which is calculated using a set of methods on the \textit{Runtime} class \todo{reference javadocs}. If the memory utilisation is over a given threshold, the data store attempts to spill at least the amount of bytes over the utilisation threshold. Figure \ref{fig:bytes-over-memory-threshold} shows how the amount of bytes over a percentage threshold is calculated.
 
 \begin{figure}[h]
 	\centering
@@ -375,8 +375,13 @@ Finally, the policy for determining results to spill is important. A policy that
 
 The data store makes use of a least-recently-used (LRU) policy to determine the next result to spill to disk. This policy is implemented using an ordered list containing all in-memory results. When results are inserted into the data store, they are added to the end of the list. When results are read from the data store, they are moved to the end of the list. Then, when a result must be selected for spill, the item at the head of the list is chosen and removed.
 
-\section{Kubernetes}
-As discussed in the Design chapter, Kubernetes is used to manage the cluster, including Cassandra, the Orchestrator and the Worker nodes.
+\section{Deployment}
+As discussed in Chapter \ref{cha:design}, Kubernetes was chosen to manage the cluster, including Cassandra, the Orchestrator and the Worker nodes.
+
+\subsection{CI/CD}
+% Pipelines for Python frontend, worker and orchestrator
+% Run unit tests, then build an deploy containers to azure container registry
+% All automatic on commit to develop/master branchs
 
 \subsection{K8ssandra}
 Creating a Cassandra cluster on Kubernetes using K8ssandra is simple, with the key decision being the number of nodes to create. K8ssandra automatically provides scheduling rules to ensure that no more than one Cassandra node is placed on each Kubernetes node (physical machine). Therefore, the clear choice is to have the same number of Cassandra nodes as Kubernetes nodes in the cluster.

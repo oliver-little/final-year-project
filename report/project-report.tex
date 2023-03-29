@@ -10,6 +10,74 @@
 
 \pagestyle{plain}
 
+% Listings config
+% From: https://tex.stackexchange.com/questions/83882/how-to-highlight-python-syntax-in-latex-listings-lstinputlistings-command
+
+% Default fixed font does not support bold face
+\DeclareFixedFont{\ttb}{T1}{txtt}{bx}{n}{12} % for bold
+\DeclareFixedFont{\ttm}{T1}{txtt}{m}{n}{12}  % for normal
+
+% Custom colors
+\usepackage{color}
+\definecolor{deepred}{rgb}{0.6,0,0}
+\definecolor{deepgreen}{rgb}{0,0.5,0}
+
+% Python style for highlighting
+\newcommand\pythonstyle{\lstset{
+		language=Python,
+		basicstyle=\small\ttm,
+		breakatwhitespace=true,
+		breaklines=true,
+		morekeywords={self, cassandra_table, evaluate, Pow, ToDouble, Substring, ToString, select, filter, group_by, as_name},              % Add keywords here
+		keywordstyle=\color{blue},
+		emph={ClusterManager, Max, Avg, Min, F, Function, __init__},          % Custom highlighting
+		emphstyle=\color{deepred},    % Custom highlighting style
+		stringstyle=\color{deepgreen},
+		frame=tb,                         % Any extra options here
+		showstringspaces=false
+}}
+
+% Python environment
+\lstnewenvironment{python}[1][]
+{
+	\pythonstyle
+	\lstset{#1}
+}
+{}
+
+% Python for inline
+\newcommand\pythoninline[1]{{\pythonstyle\lstinline!#1!}}
+
+% SQL
+% From: https://gist.github.com/vivngo/e37e1c7b79bf7e8b910c6566c59c46be
+\definecolor{dkgreen}{rgb}{0,0.6,0}
+\definecolor{gray}{rgb}{0.5,0.5,0.5}
+\newcommand\sqlstyle{\lstset{language=SQL,
+	basicstyle={\small\ttm},
+	belowskip=3mm,
+	breakatwhitespace=true,
+	breaklines=true,
+	classoffset=0,
+	columns=flexible,
+	commentstyle=\color{dkgreen},
+	frame=tb,                        
+	keywordstyle=\color{blue},
+	numbers=none, %If you want line numbers, set `numbers=left`
+	numberstyle=\tiny\color{gray},
+	showstringspaces=false,
+	stringstyle=\color{deepgreen},
+	tabsize=3
+}}
+
+% SQL environment
+\lstnewenvironment{SQL}[1][]
+{
+	\sqlstyle
+	\lstset{#1}
+}
+{}
+
+
 \begin{document}
 	\maketitle
 	
@@ -38,13 +106,17 @@
 	
 	\include{chapters/evaluation}
 	
-	\backmatter
-	
 	\listoftodos
 	
-	\appendix
+	{
+		\backmatter
+		\printbibliography
+	}
 	
-	\printbibliography
+	\appendix
+	%\renewcommand{\thechapter}{\Alph{section}.\arabic{section}}
+	
+	\include{chapters/appendix}
 	
 	
 \end{document}

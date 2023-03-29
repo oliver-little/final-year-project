@@ -1,0 +1,150 @@
+\chapter{Testing Figures}\label{cha:testing-figs}
+
+Included in this appendix are figures with the queries used for performance testing.
+
+\begin{figure}[h]
+	\centering
+	\begin{SQL}
+SELECT * FROM data.origination_1000
+	\end{SQL}
+	\caption{SQL - Select Simple}
+	\label{fig:sql-select-simple}
+\end{figure}
+	
+\begin{figure}[h]
+	\begin{python}
+manager = ClusterManager("orchestrator-service")
+manager.cassandra_table("data", "origination_1000").evaluate()
+	\end{python}
+	\caption{Cluster Processor - Select Simple}
+	\label{fig:cluster-select-simple}
+\end{figure}
+
+\begin{figure}[h]
+	\centering
+	\begin{SQL}
+SELECT 
+Loan_ID + 1 as Loan_ID_Inc, 
+interest_rate + 1 as Interest_rate_Inc, 
+power(duration, 2) as Duration_Pow, 
+substring(cast(origination_date as nvarchar(300)), 0, 11) as origination_date_str 
+FROM data.origination_1000
+	\end{SQL}
+	\caption{SQL - Select Complex}
+	\label{fig:sql-select-complex}
+\end{figure}
+
+\begin{figure}[h]
+	\begin{python}
+manager = ClusterManager("orchestrator-service")
+manager.cassandra_table("data", "origination_1000").select(
+(F("loan_id") + 1).as_name("loan_id_inc"), 
+(F("interest_rate") + 1).as_name("interest_rate_inc"),
+Function.Pow(Function.ToDouble(F("duration")), 2.0).as_name("duration_pow"),
+Function.Substring(Function.ToString(F("origination_date")), 0, 10).as_name("orignation_date_str")
+).evaluate()
+	\end{python}
+	\caption{Cluster Processor - Select Complex}
+	\label{fig:cluster-select-complex}
+\end{figure}
+
+\begin{figure}[h]
+	\centering
+	\begin{SQL}
+SELECT *
+FROM data.origination_1000
+WHERE duration = 30
+	\end{SQL}
+	\caption{SQL - Filter Simple}
+	\label{fig:sql-filter-simple}
+\end{figure}
+
+\begin{figure}[h]	
+	\begin{python}
+manager = ClusterManager("orchestrator-service")
+manager.cassandra_table("data", "origination_1000")
+.filter(F("duration") == 30)
+.evaluate()
+	\end{python}
+	\caption{Cluster Processor - Filter Simple}
+	\label{fig:cluster-filter-simple}
+\end{figure}
+
+\begin{figure}[h]
+	\centering
+	\begin{SQL}
+SELECT *
+FROM data.origination_1000
+WHERE 
+(duration = 30 AND amount > 500000)
+OR loan_id = 1
+	\end{SQL}
+	\caption{SQL - Filter Complex}
+	\label{fig:sql-filter-complex}
+\end{figure}
+	
+\begin{figure}[h]
+	\begin{python}
+manager = ClusterManager("orchestrator-service")
+manager.cassandra_table("data", "origination_1000")
+.filter(
+((F("duration") == 30) & (F("amount") > 500000.0))
+| (F("loan_ID") == 1)
+).evaluate()
+	\end{python}
+	\caption{Cluster Processor - Filter Complex}
+	\label{fig:cluster-filter-complex}
+\end{figure}
+
+\begin{figure}[h]
+	\centering
+	\begin{SQL}
+		SELECT duration
+		FROM data.origination_1000
+		GROUP BY duration
+	\end{SQL}
+	\caption{SQL - Group By Simple}
+	\label{fig:sql-group-by-simple}
+\end{figure}
+
+\begin{figure}[h]
+	\begin{python}
+manager = ClusterManager("orchestrator-service")
+manager.cassandra_table("data", "origination_1000")
+.group_by([F("duration")])
+.evaluate()
+	\end{python}
+	\caption{Cluster Processor - Group By Simple}
+	\label{fig:cluster-group-by-simple}
+\end{figure}
+
+\begin{figure}[h]
+	\centering
+	\begin{SQL}
+SELECT 
+duration, 
+MAX(origination_date) as Max_origination_date, 
+AVG(interest_rate) as Avg_interest_rate, 
+Min(amount) as Min_amount 
+FROM data.origination_1000 
+GROUP BY duration
+	\end{SQL}
+	\caption{SQL - Group By Complex}
+	\label{fig:sql-group-by-complex}
+\end{figure}
+
+\begin{figure}[h]
+	\begin{python}
+manager = ClusterManager("orchestrator-service")
+manager.cassandra_table("data", "origination_1000")
+.group_by(
+[F("duration")],
+[	Max(F("origination_date")), 
+Avg(F("interest_rate")), 
+Min(F("amount"))
+]
+).evaluate()
+	\end{python}
+	\caption{Cluster Processor - Group By Complex}
+	\label{fig:cluster-group-by-complex}
+\end{figure}
