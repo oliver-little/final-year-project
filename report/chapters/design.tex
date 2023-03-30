@@ -109,13 +109,13 @@ Cassandra allows token ranges to be provided as filters in queries, which will a
 
 There are also some Scala specific frameworks for executing Cassandra queries, including Phantom and Quill \todo{Reference}. For the same reason as the optional modules above, these were not chosen for the system.
 
-\section{Architecture}
-
-Based on the above design choices, a high level diagram was produced, detailing each of the components of the system and the interaction between them. 
+\section{Architecture}\label{sec:architecture}
+Based on the above design choices, a high level diagram was produced, detailing each of the components of the system and the interaction between them, shown in Figure \ref{fig:overall-architecture}. The user will be able to define queries using the Python frontend, which are then sent using gRPC to the orchestrator. It will break the full query up into partial queries, which will be computed on the worker nodes. When the computation is completed, the workers will return the result data to the orchestrator, which will then return the collated result to the frontend.
 
 \begin{figure}[h]
 	\centering
 	\includegraphics[width=0.5\textwidth]{chapters/diagrams/design/architecture-overall}
-	\caption{Overall Architecture Diagram for the Proposed Solution}
+	\caption{Proposed Solution - Overall Architecture}
+	\label{fig:overall-architecture}
 \end{figure}
 

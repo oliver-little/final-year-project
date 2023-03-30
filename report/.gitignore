@@ -287,3 +287,7 @@ TSWLatexianTemp*
 
 # Build
 build/
+
+# draw.io
+*.bkp
+*.dtmp
