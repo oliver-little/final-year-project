@@ -95,11 +95,18 @@ There are a wide range of options for persistent data storage. The first key dec
 \end{itemize}
 
 \subsection{Apache Cassandra} 
-In the end, Apache Cassandra \todo{Reference} was chosen for persistent storage. This has a number of benefits for the proposed solution. Firstly, the data model is tabular, and as such closely matches the format of the expected input data. Furthermore, Cassandra is a distributed database, so source data will be stored across a number of nodes, each on different computers. This will increase the effective read speed when retrieving data from the database, as the full load will be spread across all nodes.
+In the end, Apache Cassandra was chosen for persistent storage. This has a number of benefits for the proposed solution \cite{lakshman2010cassandra}. Firstly, the data model is tabular, and as such closely matches the format of the expected input data. Furthermore, Cassandra is a distributed database, so source data will be stored across a number of nodes, each on different computers. This will increase the effective read speed when retrieving data from the database, as the full load will be spread across all nodes.
 
-\paragraph{Partitioning} Cassandra's method of partitioning data is another key reason why it was selected. Each node in the database is assigned a token range, which determines what records it holds. When data is inserted into the database, Cassandra hashes the primary key of each record, producing a 64-bit token that maps it to a node. A diagram showing this process is included below:
-% This should be clear and detailed, it's important
-\missingfigure{Cassandra Hashing Process}
+\paragraph{Partitioning} Cassandra's method of partitioning data is another key reason why it was selected. Each node in the database is assigned part of the full token range, which determines what records it holds. When data is inserted into the database, Cassandra hashes the primary key of each record, producing a 64-bit token that maps it to a node. Section 5.1 of the Cassandra paper walks through the partitioning process in detail \cite{lakshman2010cassandra}.
+
+Figure \ref{fig:cassandra-token-distribution} demonstrates how the full range of tokens is distributed among a number of Cassandra nodes.
+
+\begin{figure}[h]
+	\centering
+	\includegraphics[width=0.5\textwidth]{chapters/diagrams/design/cassandra-token-distribution}
+	\caption{Cassandra Token Ring Distribution \protect\cite{khatibi2019dynamic}}
+	\label{fig:cassandra-token-distribution}
+\end{figure}
 
 Cassandra allows token ranges to be provided as filters in queries, which will allow the worker nodes to control what data is retrieved in each query.
 
