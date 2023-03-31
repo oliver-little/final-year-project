@@ -1,28 +1,21 @@
 \chapter{Implementation}
 
-A number of components were created to implement the proposed architecture. This chapter will provide a high level overview of each of the components in the system, then examine each in further detail.
+A number of components were created to implement the proposed architecture. This chapter will provide a high level overview of the system, then examine each component in further detail.
 
 \section{Overall Solution}
 As described in Section \ref{sec:architecture}, the frontend is the user's entrypoint to the system. It acts as a terminal, allowing the user to define queries using the Domain Specific Language (DSL), and receive results. Queries are sent to the orchestrator to generate these results, which acts as the central state management for the system. It has a number of tasks to complete to get from query to result. First, it generates a query plan which describes the steps for computing a result. The steps of the query plan are split up into a number of chunks of work (partitions), and the orchestrator delegates these partitions to the workers to execute the query plan. The workers are responsible for accepting these partitions, and performing the computation. Finally, when all query plan steps have been executed, the orchestrator fetches the partial results from all workers, collates them into a final result, and returns this to the frontend. 
 
-The system supports three types of queries: Select, Filter and Group By. Both Select and Filter are row-level operations, meaning the workers do not have to pass data to one another during computation. However, Group By does need the workers to communicate, which means they also require a temporary store to cache partial results.
+The system supports three types of queries: Select, Filter and Group By. Both Select and Filter are row-level operations, meaning the workers do not have to pass data to one another during computation. However, Group By does need the workers to cross-communicate, which means they also require a temporary store to cache partial results.
 
-Figure \todo{figure} shows the core modules and interactions between each of the components of the system.
+Figure \ref{fig:component-architecture-diagram} shows a component diagram for the core components, and their interactions.
 
-\missingfigure{Architecture}
-% Python frontend: DSL
-% - Send queries to orchestrator
-% - Receive results from orchestrator
+\begin{figure}[h]
+	\centering
+	\includegraphics[width=0.7\textwidth]{chapters/diagrams/implementation/component-architecture-diagram}
+	\caption{Solution Component Diagram}
+	\label{fig:component-architecture-diagram}
+\end{figure}
 
-% Orchestrator: query plan generation, query plan execution, worker state management
-% - Receive queries from frontend
-% - Send results to frontend
-% - Send query plan items to workers, receive confirmations
-% - Request results, receive partial results from workers
-
-% Worker: partial query plan item execution, data store, spill to disk
-% - Receive partition work from orchestrator, return confirmation
-% - Receive requests for results, return results
 
 
 \section{Type System}
@@ -58,7 +51,7 @@ Another possible approach to solving this problem is to create a lightweight con
 
 The container class could instead be defined as an interface, and each supported type provides an implementation of that interface, but this is not much better than the primitive type solution, as the runtime type check simply becomes a runtime pattern match on the class instance. A solution that exploits some kind of polymorphism is preferred.
 
-Scala provides an feature known as ClassTags \todo{reference}. These allow the erased type information to be recorded, and also allow equality checks to be performed between ClassTags. By storing a ClassTag instance, we can implement type equality checks between values in the system, to determine if they are of the same type. Furthermore, we can use this type information later to determine what types are accepted and returned by FieldExpressions.
+Scala provides an feature known as ClassTags \todo{reference}. These allow the erased type information to be recorded, and also allow equality checks to be performed between ClassTags. By storing a ClassTag instance, we can implement type equality checks between values in the system, to determine if they are of the same type. Furthermore, we can use this type information later to determine what types are accepted and returned by \textit{FieldExpressions}.
 
 This is defined in the system using a base interface \textit{ValueType}, which captures the ClassTag requirement. This interface is used as part of both \textit{TableField}, which captures field information (name and type), and \textit{TableValue}, which captures value information (value and type). Implementations for all the supported types are then provided for both \textit{TableField} and \textit{TableValue}. Figure \ref{fig:type-system-hierarchy} shows the hierarchy of these types. 
 
@@ -71,7 +64,7 @@ This is defined in the system using a base interface \textit{ValueType}, which c
 
 
 \subsection{Result Model}
-This hierarchy of classes provides everything needed to define the result of a computations, known as a \textit{TableResult}. Headers are defined as a sequence of TableFields, a \textit{TableResultHeader}, and result rows are stored as a two-dimensional array of \texttt{Option[TableValue]}. As defined in the requirements, null values must be supported, but the use of nulls in Scala is discouraged. Instead, Option is preferred as it is supported by all the typical functional methods. In this model, values are represented by \texttt{Some(TableValue())}, and null values are represented by \texttt{Nothing}. Figure \ref{fig:example-table-result} shows what an example result looks like using this definition.
+This hierarchy of classes provides everything needed to define the result of a computations, known as a \textit{TableResult}. Headers are defined as a sequence of \textit{TableFields} and result rows are stored as a two-dimensional array of \texttt{Option[TableValue]}. As defined in the requirements, null values must be supported, but the use of nulls in Scala is discouraged. Instead, Option is preferred as it is supported by all the typical functional methods. In this model, values are represented by \texttt{Some(TableValue())}, and null values are represented by \texttt{Nothing}. Figure \ref{fig:example-table-result} shows what an example result looks like using this definition.
 
 \begin{figure}[h]
 	\centering
@@ -92,7 +85,7 @@ This hierarchy of classes provides everything needed to define the result of a c
 The user's interaction with the framework is driven entirely by the Domain Specific Language (DSL). The language allows the user to define expressions, comparisons, aggregates, and then use these to define computations like Select, Filter and Group By. As per the requirements, the DSL has been modelled with SQL-like syntax.
 
 \subsection{FieldExpressions}
-FieldExpressions are the key building block of the DSL. They allow the user to define arbitrary row-level calculations to be used as part of more complex operations. FieldExpressions are defined as an interface, which provides a standard set of methods, and there are three subclasses that provide implementations:
+\textit{FieldExpressions} are the key building block of the DSL. They allow the user to define arbitrary row-level calculations to be used as part of more complex operations. \textit{FieldExpressions} are defined as an interface, which provides a standard set of methods, and there are three subclasses that provide implementations:
 
 \begin{itemize}
 	\item Values: define literal values which never change across all rows
@@ -100,24 +93,24 @@ FieldExpressions are the key building block of the DSL. They allow the user to d
 	\item FunctionCalls: perform arbitrary function calls using further FieldExpressions as arguments.
 \end{itemize}
 
-Examples of FieldExpressions are shown in Figure \ref{fig:field-expressions-examples}.
+Examples of \textit{FieldExpressions} in Python are shown in Figure \ref{fig:field-expressions-examples}.
 
 \begin{figure}[h]
 	\centering
 	\includegraphics[width=0.8\textwidth]{chapters/diagrams/implementation/field-expressions-examples}
-	\caption{Examples of FieldExpressions}
+	\caption{Examples of \textit{FieldExpressions}}
 	\label{fig:field-expressions-examples}
 \end{figure}
 
-Many basic functions have been implemented, including arithmetic, string and cast operations. However, the function system is designed to be extensible. A number of helper classes are defined to allow the creation of basic unary, binary and ternary functions, but FunctionCall is itself an interface which can be given completely custom implementations if required. The main constraints on the functions that can be defined are that only the 5 primitive input types are supported.
+Many basic functions have been implemented, including arithmetic, string and cast operations. However, the function system is designed to be extensible. A number of helper classes are defined to allow the creation of basic unary, binary and ternary functions, but \textit{FunctionCall} is itself an interface which can be given completely custom implementations if required. The main constraint on the functions that can be defined are that only the 5 primitive input types are supported.
 
 \paragraph{Type Resolution} 
-Type Resolution on FieldExpressions is performed in two stages: a resolution step, and an evaluation step. The resolution step takes in type information from the header of the input result, and verifies that the FieldExpression is well typed with regards to that result. This is necessary for Fields, which may be valid for one result but invalid for another, for example if the field name is missing from the result. The evaluation step performs the computation on a row from that result without any type checking. 
+Type Resolution on FieldExpressions is performed in two stages: a resolution step, and an evaluation step. The resolution step takes in type information from the header of the input result, and verifies that the \textit{FieldExpression} is well typed with regards to that result. This is necessary for Fields, which may be valid for one result but invalid for another, for example if the field name is missing from the result. The evaluation step performs the computation on a row from that result without any type checking. 
 
-This two-step process has a number of benefits. The resolution step enables a form of polymorphism on some functions like arithmetic operations. At the resolution step, these functions determine what types are returned by their sub-expressions, and resolve to the correct version for evaluation. For example, the add function can resolve to AddInt, AddDouble, or Concat for strings. Also, there is reduced overhead at runtime as type checking does not need to be performed for each row - unchecked casts are used here instead.
+This two-step process has a number of benefits. The resolution step enables a form of polymorphism on some functions like arithmetic operations. At the resolution step, these functions determine what types are returned by their sub-expressions, and resolve to the correct version for evaluation. For example, the add function can resolve to \textit{AddInt}, \textit{AddDouble}, or \textit{Concat}. Also, there is reduced overhead at runtime as type checking does not need to be performed for each row - unchecked casts are used here instead.
 
 \paragraph{Named Expressions}
-When performing a Select operation, the output fields are all expected to be named. This allows the user to repeatedly chain operations by referencing fields from the input. Therefore, FieldExpressions have a method to allow them to be named. When this method is called, the FieldExpression is wrapped as a tuple with the name into a NamedFieldExpression. Field references are able to reuse their previous name automatically to reduce the need for repeated naming calls. 
+When performing a Select operation, the output fields are all expected to be named. This allows the user to repeatedly chain operations by referencing fields from the input. Therefore, \textit{FieldExpressions} have a method to allow them to be named. When this method is called, the \textit{FieldExpression} is wrapped as a tuple with the name into a \textit{NamedFieldExpression}. Field references are able to reuse their previous name automatically to reduce the need for repeated naming calls. 
 
 % Abstract class implementation
 % - isWellTyped
@@ -126,27 +119,27 @@ When performing a Select operation, the output fields are all expected to be nam
 % - named/unnamed
 
 \subsection{FieldComparisons}
-FieldComparisons are another key building block of the DSL. They allow the user to define arbitrary row-level comparisons. FieldComparisons use a two-step resolution-evaluation process. This is in place to accommodate the two-step process that already exists for FieldExpressions. They are defined as an interface, and there are four subclasses that provide implementations:
+\textit{FieldComparisons} are another key building block of the DSL. They allow the user to define arbitrary row-level comparisons. \textit{FieldComparisons} use a two-step resolution-evaluation process. This is in place to accommodate the two-step process that already exists for \textit{FieldExpressions}. They are defined as an interface, and there are four subclasses that provide implementations:
 
 \begin{itemize}
-	\item Null Checks: takes a single FieldExpression as input, and filters out rows where it is null/not null.
-	\item Equality Checks: performs an equal/not equal check on two FieldExpressions.
-	\item Ordering Checks: applies an ordering comparator to two FieldExpressions.
+	\item Null Checks: takes a single \textit{FieldExpression} as input, and filters out rows where it is null/not null.
+	\item Equality Checks: performs an equal/not equal check on two \textit{FieldExpressions}.
+	\item Ordering Checks: applies an ordering comparator to two \textit{FieldExpressions}.
 	\begin{itemize}
 		\item Supports $<$, $<=$, $>$, $>=$.
 	\end{itemize}
-	\item String Checks: applies a string comparator to two FieldExpressions
+	\item String Checks: applies a string comparator to two \textit{FieldExpressions}.
 	\begin{itemize}
 		\item Supports contains, starts with and ends with (both case sensitive and insensitive versions).
 	\end{itemize}
 \end{itemize}
 
-Examples of FieldComparisons are shown in Figure \ref{fig:field-comparisons-examples}.
+Examples of \textit{FieldComparisons} are shown in Figure \ref{fig:field-comparisons-examples}.
 
 \begin{figure}[h]
 	\centering
 	\includegraphics[width=0.8\textwidth]{chapters/diagrams/implementation/field-comparisons-examples}
-	\caption{Examples of FieldComparisons}
+	\caption{Examples of \textit{FieldComparisons}}
 	\label{fig:field-comparisons-examples}
 \end{figure}
 
@@ -154,7 +147,7 @@ Examples of FieldComparisons are shown in Figure \ref{fig:field-comparisons-exam
 The user is able to combine multiple FieldComparisons using AND/OR operators. This is a lightweight wrapper around Scala's own AND (\texttt{\&\&}) and OR (\texttt{||}) boolean operators, meaning optimisations like short circuiting operate as normal with no extra work.
 
 \subsection{Aggregate Expressions}
-Aggregate Expressions are the final part of the DSL. These are used only as part of Group Bys, and allow the user to define methods of aggregating all rows of a result. Aggregate Expressions take a NamedFieldExpression as an argument, and compute a single row output from any number of input result rows.
+Aggregate Expressions are the final part of the DSL. These are used only as part of Group Bys, and allow the user to define methods of aggregating all rows of a result. Aggregate Expressions take a \textit{NamedFieldExpression} as an argument, and compute a single row output from any number of input result rows.
 
 The system supports Minimum, Maximum, Sum, Average, Count, and String Concatenation operations. These aggregates are polymorphic where possible. For example, minimum and maximum handle numeric types by ordering numerically and string types lexicographically.
 
@@ -165,9 +158,9 @@ All components of the DSL have been designed to be serialised to protobuf format
 \subsection{Python Implementation}
 The Python frontend is designed to be straightforward to use, hiding the complexities of the computation being performed in the backend. A number of Python-specific features were used to help with this.
 
-Python allows developers to override common operators, including arithmetic ($+$, $-$, $*$, $/$) and comparison ($<$, $>$) with custom definitions. These are known as double underscore \textit{(dunder)} methods. The Python implementation of FieldExpression overrides the arithmetic operators, as well as comparison operators to allow the user to automatically generate function calls and FieldComparisons, without having to write the full, verbose definition.
+Python allows developers to override common operators, including arithmetic ($+$, $-$, $*$, $/$) and comparison ($<$, $>$) with custom definitions. These are known as double underscore \textit{(dunder)} methods. The Python implementation of \textit{FieldExpression} overrides the arithmetic operators, as well as comparison operators to allow the user to automatically generate function calls and FieldComparisons, without having to write the full, verbose definition.
 
-Furthermore, query results can be converted from their protobuf definition as received from the server to a pandas DataFrame \cite{reback2020pandas}. This decision was made because pandas is one of the most commonly used frameworks for data analysis in Python. In the 2022 Stack Overflow Developer Survey, it was the third most popular non-web framework \cite{stackoverflowsurvey2022}. Therefore, it is likely that the intended users of the system will have prior experience performing data processing using DataFrames.
+Furthermore, as discussed in \ref{subsec:frontend-design}, pandas is widely used for data analysis in Python \cite{reback2020pandas}. The frontend is able to convert query results from their protobuf definition to a pandas DataFrame to allow further analysis to be performed immediately.
 
 
 
@@ -175,11 +168,11 @@ Furthermore, query results can be converted from their protobuf definition as re
 % This section should be clear and understandable, as much of the rest refers to partial and full versions
 The data model is split into two key components: \textit{DataSource} and \textit{Table}. 
 
-\textit{DataSource} is an interface, representing any part of the query where data must be rearranged into new partitions. This includes Cassandra source data, and Group By operations. \textit{Table} is a class, representing any part of the query that contains purely row-level computations, including Select and Filter operations. A \textit{Table} is made up of a \textit{DataSource} and a list of \textit{TableTransformations}, and to compute its output, the DataSource is computed first, then all transformations are applied sequentially.
+\textit{DataSource} is an interface, representing any part of the query where data must be rearranged into new partitions, including Cassandra source data, and Group By operations. \textit{Table} is a class, representing any part of the query that contains purely row-level computations, including Select and Filter operations. A \textit{Table} is made up of a \textit{DataSource} and a list of \textit{TableTransformations}, and to compute its output, the \textit{DataSource} is computed first, then all transformations are applied sequentially.
 
 Optionally, \textit{DataSources} can have dependent \textit{Tables} which must be calculated first. For example, a Group By \textit{DataSource} requires a single \textit{Table} to be fully computed before it can be generated. A Cassandra \textit{DataSource} will always act as the terminal component for a query, as it has no dependencies.
 
-For demonstration purposes, Figure \ref{fig:filter-select-query} shows a Filter and Select query in the DSL, and the data model.Note that any number of Select and Filter operations can be placed in the Table component, as no new partitions are required to produce the result.
+For demonstration purposes, Figure \ref{fig:filter-select-query} shows a Filter and Select query in the DSL, and the data model. Note that any number of Select and Filter operations can be placed in the Table component, as no new partitions are required to produce the result.
 
 \begin{figure}[h]
 	\centering
@@ -212,7 +205,7 @@ ClusterManager("orchestrator-service")
 	\label{fig:group-by-query}
 \end{figure}
 
-A Table or DataSource cannot be computed directly, but must first be split into partitions, which are provided by the DataSource. These partitions are represented by the interface \textit{PartialDataSource}, with the partitioning method being specific to each implementation. The \textit{Table} class has a similar partial form, \textit{PartialTable}, which references a \textit{PartialDataSource} and can be computed directly. Both \textit{PartialDataSource} and \textit{PartialTable} always hold a reference to the complete version of themselves. To demonstrate how to produce a final result from a set of partial results, Figure \ref{fig:partial-filter-select-query} shows a high level example of one possible way of partitioning and computing the previous Filter and Select query.
+A \textit{Table} or \textit{DataSource} cannot be computed directly, but must first be split into partitions, which are provided by the \textit{DataSource}. These partitions are represented by the interface \textit{PartialDataSource}, with the partitioning method being specific to each implementation. The \textit{Table} class has a similar partial form, \textit{PartialTable}, which references a \textit{PartialDataSource} and can be computed directly. Both \textit{PartialDataSource} and \textit{PartialTable} always hold a reference to the complete version of themselves. To demonstrate how to produce a final result from a set of partial results, Figure \ref{fig:partial-filter-select-query} shows a high level example of one possible way of partitioning and computing the previous Filter and Select query.
 
 \begin{figure}[h]
 	\centering
@@ -229,7 +222,7 @@ The data store is the most important component for the worker implementation. It
 The approach taken to solve this uses the actor model, first introduced in 1973 by Carl Hewitt \cite{hewitt1973session}. Specifically, the Akka Actors framework was chosen, as it is one of the most widely supported implementations of this model for Scala \todo{reference docs}. The actor model abstracts away the complexity of synchronisation and thread management. Instead, components of the system become actors. Each actor defines a set of messages that it accepts, and the response to each message, and the framework provides a guarantee that an actor will only ever process one message at a time.
 
 The data store is modelled as an actor which stores results as key-value pairs. Three kinds of data can be used as keys for storage:
-provides a set of create, read and delete operations on three kinds of data: Table computation results, DataSource computation  results and hashed data results, which are used in the process of computing a Group By partition. 
+provides a set of create, read and delete operations on three kinds of data: \textit{Table} computation results, \textit{DataSource} computation  results and hashed data results, which are used in the process of computing a Group By partition. 
 
 For each supported type of data, the data store uses a two-stage lookup, internally implemented using nested HashMaps. First, the full version of the data (\textit{Table}, \textit{DataSource}) is looked up, then the partial version (\textit{PartialTable}, \textit{PartialDataSource}). Partial forms of \textit{Tables} and \textit{DataSources} always contain a reference to the full version, but not the other way around. Therefore, this decision does not increase the time taken to insert new data significantly, but it is particularly useful when fetching the results for a \textit{Table}, or removing a \textit{Table} or \textit{DataSource}. Without this approach, completing these operations would require searching the entire Map to find any matches, turning the O(1) lookup time into O(n).
 
@@ -239,9 +232,9 @@ In situations with very large datasets, the amount of memory available to the wo
 \paragraph{Storage Interface}
 To implement the spill process, an interface \textit{StoredTableResult} is defined. This interface holds a key which corresponds to that result, and a \textit{get} operation to retrieve the result data. There are two main subclasses that implement this interface: \textit{InMemoryTableResult} and \textit{ProtobufTableResult}. 
 
-InMemoryTableResult is a simple wrapper for the interface, which simply contains the result and holds it in memory. It also features a \textit{spillToDisk} method which moves the data onto disk by creating a file under a randomised folder name for that execution, with the name set to the hashcode of the key. 
+\textit{InMemoryTableResult} is a simple wrapper for the interface, which simply contains the result and holds it in memory. It also features a \textit{spillToDisk} method which moves the data onto disk by creating a file under a randomised folder name for that execution, with the name set to the hashcode of the key. 
 
-ProtobufTableResult only holds a pointer to the data on disk, and reads the data from there when the \textit{get} operation is called. It also features a cleanup method which removes the stored data from disk.
+\textit{ProtobufTableResult} only holds a pointer to the data on disk, and reads the data from there when the \textit{get} operation is called. It also features a cleanup method which removes the stored data from disk.
 
 \paragraph{Spill Process}
 The data store is responsible for managing in-memory and on-disk data. Before almost every operation on the data store, it makes a check for the current memory utilisation, which is calculated using a set of methods on the \textit{Runtime} class \todo{reference javadocs}. If the memory utilisation is over a given threshold, the data store attempts to spill at least the amount of bytes over the utilisation threshold. Figure \ref{fig:bytes-over-memory-threshold} shows how the amount of bytes over a percentage threshold is calculated.
@@ -262,12 +255,12 @@ To perform the spill, the data store will follow the decision tree shown in Figu
 	\label{fig:spill-to-disk-process}
 \end{figure}
 
-This process is not without flaws. It relies on no other class in the current JVM instance  holding references to any of the results being spilled. In the controlled worker environment, it is possible to ensure this is the case, meaning the spill works reliably, but this approach would not work more generally. Also, this approach is reliant on size estimates, meaning the actual amount of memory freed will not be the same as the estimated memory freed. With a suitably low threshold for spilling (60-70\% of maximum memory) and regular checks of memory utilisation, this risk does not become a real problem.
+This process is not without flaws. It relies on no other class in the current JVM instance holding references to any of the results being spilled. In the controlled worker environment, it is possible to ensure this is the case, meaning the spill works reliably, but this approach would not work more generally. Also, this approach is reliant on size estimates, meaning the actual amount of memory freed will not be the same as the estimated memory freed. With a suitably low threshold for spilling (60-70\% of maximum memory) and regular checks of memory utilisation, this risk does not become a real problem.
 
 \paragraph{Eviction Policy}
 Finally, the policy for determining results to spill is important. A policy that does not fit the way the results are being used could result in large performance impacts, as it could cause antipatterns like the data store spilling a result, then immediately reading it back to memory.
 
-The data store makes use of a least-recently-used (LRU) policy to determine the next result to spill to disk. This policy is implemented using an ordered list containing all in-memory results. When results are inserted into the data store, they are added to the end of the list. When results are read from the data store, they are moved to the end of the list. Then, when a result must be selected for spill, the item at the head of the list is chosen and removed.
+The data store makes use of a least-recently-used (LRU) policy to determine the next result to spill to disk, implemented using an ordered list containing all in-memory results. When results are inserted into the data store, they are added to the end of the list. When results are read from the data store, they are moved to the end of the list. Then, when a result must be selected for spill, the item at the head of the list is chosen and removed.
 
 
 
@@ -333,11 +326,12 @@ To do this, each worker first calculates its closest Cassandra node. This is don
 \end{figure}
 
 \subsection{Group By}\label{subsec:group-by}
-The Group By operation takes any number of NamedFieldExpressions to act as unique keys, as well as any number of aggregate expressions which will be computed for each combination of unique keys. As with pulling source data from Cassandra, the goal when computing a Group By is for the partitions generated to be roughly equal chunks of a manageable size. As before, to do this, two things are needed: an estimate of the full size of the dataset, and a way of splitting the dataset up to keep unique keys together.
+The Group By operation takes any number of \textit{NamedFieldExpressions} to act as unique keys, as well as any number of aggregate expressions which will be computed for each combination of unique keys. As with pulling source data from Cassandra, the goal when computing a Group By is for the partitions generated to be roughly equal chunks of a manageable size. To do this, two things are needed: an estimate of the full size of the dataset, and a way of splitting the dataset up to keep unique keys together. 
 
-The four-step process of calculating hashes, shuffling data, computing the result and deleting the original hashes is all controlled by the orchestrator during Query Plan Execution.
+The process of calculating partitions and hashes, shuffling data, computing the result and deleting the original hashes is all controlled by the orchestrator during Query Plan Execution.
 
-\paragraph{Hashing} To estimate the size of the full dataset, an existing class, \textit{SizeEstimator}, from Apache Spark was used, with a small number of changes for compatibility with Scala 3 \todo{reference}. This class provides a static method \textit{estimate} which accepts any Scala object and produces an estimate, in bytes, of the size of the object. This can be called on all partial results across all workers, and the results totalled to calculate the total size of all data for a Table. Figure \ref{fig:group-by-num-partitions} shows how the size estimate can be used to derive the total number of partitions to generate for a Table.
+\paragraph{Partitions}
+The first step is to compute the number of partitions that the Group By will be made up of, which is based on the size of the full dataset. To estimate this, an existing class, \textit{SizeEstimator}, from Apache Spark was used, with a small number of changes for compatibility with Scala 3 \todo{reference}. This class provides a static method \textit{estimate} which accepts any Scala object and produces an estimate, in bytes, of the size of the object. This can be called on all partial results across all workers, and the results totalled to calculate the total size of all data for a Table. Figure \ref{fig:group-by-num-partitions} shows how the size estimate can be used to derive the total number of partitions to generate for a Table.
 
 \begin{figure}[h]
 	\centering
@@ -346,7 +340,10 @@ The four-step process of calculating hashes, shuffling data, computing the resul
 	\label{fig:group-by-num-partitions}
 \end{figure}
 
-Hashing, combined with the modulo operation, is used to determine which partition each row should be assigned to. In particular, Murmur3Hash is used as the hashing algorithm, which is the same as in Cassandra and is provided natively by Scala. Figure \ref{fig:group-by-partition-assign} shows the high level equation for assigning rows to partitions. This process ensures that the new partitions will be roughly equal in size, and all rows with the same values for the unique keys will be mapped to the same partition.
+
+
+\paragraph{Hashing} 
+A unique partition is then defined as the tuple of the total number of partitions, and the partition number of this partition. Hashing, combined with the modulo operation, is used to determine which partition each row should be assigned to. In particular, Murmur3Hash is used as the hashing algorithm, which is used in Cassandra and is provided natively by Scala. Figure \ref{fig:group-by-partition-assign} shows the high level equation for assigning rows to partitions. This process ensures that the new partitions will be roughly equal in size, and all rows with the same values for the unique keys will be mapped to the same partition.
 
 \begin{figure}[h]
 	\centering
@@ -355,27 +352,27 @@ Hashing, combined with the modulo operation, is used to determine which partitio
 	\label{fig:group-by-partition-assign}
 \end{figure} 
 
-\paragraph{Shuffling}
+\paragraph{Computation}
 After the hashes are computed and a worker is assigned a particular partition, it must communicate with all other workers in the cluster to get any data that relates to that partition.This ensures that the partition data is complete, and it is much the same as when the orchestrator requests query result data from the workers. The worker makes a request to all other workers, and they stream the header and rows of their partial data back to the worker that made the request. When a Group By is being computed, it's likely that a worker will be simultaneously receiving data from another worker, and sending a different set of data to it. This makes the actor system driving the data store in each worker particularly valuable, as it provides thread-safe concurrent access to the data store.
 
-\paragraph{Computation}
 Once a worker has collected all data relating to a particular partition, it must compute the Group By result. Scala features a built-in Group By function, which this operation uses. The values for the unique keys of the Group By are calculated for each row, and the rows are placed into groups based on those values. Then, the aggregate functions are computed for each of the groups, resulting in one output row for each combination of unique keys. 
 
-
+\paragraph{Deletion}
+Finally, the last step of computing a Group By is to remove the hashed partition data stored on each worker, as it is no longer needed. This is handled by the orchestrator automatically during the process of computing the Group By \textit{DataSource.}
 
 \section{Row-Level Computations}
 Once partitions have been delegated to the workers, performing the computation is relatively straightforward. Included below are descriptions of how the Select and Filter operations are performed.
 
 \subsection{Select} 
-This operation takes any number of NamedFieldExpressions. To compute a result, each NamedFieldExpression is applied to each row of the input result. The output result has the same number of rows as the input, and fields equal to the number of NamedFieldExpressions. 
+This operation takes any number of \textit{NamedFieldExpressions}. To compute a result, each \textit{NamedFieldExpression} is applied to each row of the input result. The output result has the same number of rows as the input, and fields equal to the number of \textit{NamedFieldExpressions}. 
 
 \subsection{Filter}
-This operation takes a single FieldComparison, or a number of FieldComparisons combined using boolean operators. To compute, each comparison is applied to each row of the input result, removing any rows where the comparison returns \texttt{false}.
+This operation takes a single \textit{FieldComparison}, or a number of \textit{FieldComparisons} combined using boolean operators. To compute, each comparison is applied to each row of the input result, removing any rows where the comparison returns \texttt{false}.
 
 
 
 \section{Query Plan}
-Query plans are the process through which the orchestrator can calculate how to get from a query written by the user, to a result which it can return. A Query Plan is made up of a sequence of \textit{QueryPlanItems}, which is an interface defining one part of a query plan. Each QueryPlanItem has an \textit{execute} method, which will make some change to the state of all workers in the cluster when called. There are four main QueryPlanItem implementations, which allow \textit{DataSources} and \textit{Tables} to be calculated and deleted.
+Query plans are the process through which the orchestrator can calculate how to get from a query written by the user, to a result which it can return. A Query Plan is made up of a sequence of \textit{QueryPlanItems}, which is an interface defining one part of a query plan. Each \textit{QueryPlanItem} has an \textit{execute} method, which will make some change to the state of all workers in the cluster when called. There are four main QueryPlanItem implementations, which allow \textit{DataSources} and \textit{Tables} to be calculated and deleted.
 
 Both \textit{DataSource} and \textit{Table} have a function that generates the full Query Plan to compute their output from scratch, as well as a second Query Plan to clean any result in the data store. 
 
@@ -391,9 +388,9 @@ Figure \ref{fig:filter-group-by-query-plan} shows the query plans for the Filter
 \end{figure}
 
 \subsection{GetPartition}
-This is the most complex QueryPlanItem, encapsulating a number of steps in order to compute and store the partitions of a DataSource. There are two main flows depending on if the DataSource has dependent Tables.
+This is the most complex \textit{QueryPlanItem}, encapsulating a number of steps in order to compute and store the partitions of a \textit{DataSource}. There are two main flows depending on if the \textit{DataSource} has dependent Tables.
 
-If the DataSource has no dependencies, for example when pulling data from Cassandra, then Figure \ref{fig:get-partition-no-dependencies} shows the process for this item. 
+If the \textit{DataSource} has no dependencies, for example when pulling data from Cassandra, then Figure \ref{fig:get-partition-no-dependencies} shows the process for this item. 
 
 \begin{figure}[h]
 	\centering
@@ -402,7 +399,7 @@ If the DataSource has no dependencies, for example when pulling data from Cassan
 	\label{fig:get-partition-no-dependencies}
 \end{figure}
 
-If the DataSource has dependencies which have been calculated first, for example when computing a Group By operation, then Figure \todo{insert figure here} shows the process for this item. The details of the hashing process are abstracted behind the \textit{DataSource} interface from the perspective of GetPartition, but further details of how this is implemented for Group By can be found in \ref{subsec:group-by}.
+If the \textit{DataSource} has dependencies which have been calculated first, for example when computing a Group By operation, then Figure \ref{fig:get-partition-dependencies} shows the process for this item. 
 
 \begin{figure}[h]
 	\centering
@@ -430,11 +427,11 @@ Figure \ref{fig:producer-consumer-model-example} provides the initial state of t
 \end{figure}
 
 \subsection{PrepareResult}
-This QueryPlanItem computes a Table from the partitions of a DataSource that are already stored on the workers. Therefore, it will always be called after GetPartition, with the partitions generated by GetPartition as an argument. The implementation uses a modified version of GetPartition's actor system, which iterates through all partitions on each worker, sending a request for each partition to perform the Table computation.
+This \textit{QueryPlanItem} computes a Table from the partitions of a \textit{DataSource} that are already stored on the workers. Therefore, it will always be called after GetPartition, with the partitions generated by \textit{GetPartition} as an argument. The implementation uses a modified version of \textit{GetPartition}'s actor system, which iterates through all partitions on each worker, sending a request for each partition to perform the \textit{Table} computation.
 
 \subsection{DeleteResult and DeletePartition}
 
-\textit{DeletePartition} and \textit{DeleteResult} are QueryPlanItems for removing the results of a GetPartition and PrepareResult operation, respectively. These will send a single request to each worker, and they will remove all results that relate to a Table or DataSource, and respond with a confirmation.
+\textit{DeletePartition} and \textit{DeleteResult} are \textit{QueryPlanItems} for removing the results of a \textit{GetPartition} and \textit{PrepareResult} operation, respectively. These will send a single request to each worker, and they will remove all results that relate to a \textit{Table} or \textit{DataSource}, and respond with a confirmation.
 
 \subsection{Result Collation}
 After all the steps of a query are completed, the final results are stored across all the workers. The orchestrator makes a request to all workers to return the computed results, and each worker iterates over all partial results in the data store, streaming the data back to the orchestrator. An actor system is used to pipe the concurrent responses from all workers into a single thread, which combines the results and streams them to the frontend of the system.
@@ -451,5 +448,5 @@ As previously described in \ref{subsec:colocation}, worker nodes will determine 
 The scheduling rules are expressed as preferences rather than requirements, Kubernetes is still able to schedule the nodes if there are more workers than Cassandra nodes.
 
 \subsection{CI/CD}
-To aid in deploying to Kubernetes, continuous integration/continuous deployment (CI/CD) pipelines are used for each of the components of the system, specifically using GitHub Actions \todo{reference}. Each pipeline runs all unit tests for the component, and provided they succeed, builds a docker container and pushes it to a container registry, ready for use in the Kubernetes cluster. For evaluating the system, Azure Container Registry and Azure Kubernetes Service are used \todo{reference}.
+To aid in deploying to Kubernetes, continuous integration/continuous deployment (CI/CD) pipelines are used for each of the components of the system, specifically using GitHub Actions \todo{reference}. Each pipeline runs all unit tests for the component, and provided they succeed, builds a docker container and pushes it to a container registry, ready for use in the Kubernetes cluster.
 

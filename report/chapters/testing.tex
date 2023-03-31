@@ -4,12 +4,12 @@
 
 As discussed in Chapter \ref{cha:intro}, the high level aim of this system is to improve the speed of data processing for large datasets. Therefore, it is important to conduct performance testing of the overall system. This section aims to cover a number of methods in which the performance of the completed solution is evaluated.
 
-Firstly, raw performance testing is conducted against a typical data processing solution, Microsoft SQL Server. Then, a number of alternative approaches are assessed for determining how well the cluster leverages the parallelisation of running the computation over multiple nodes. This includes
+Firstly, raw performance testing is conducted against a typical data processing solution, Microsoft SQL Server. Then, a number of alternative approaches are assessed for determining how well the cluster leverages the parallelisation of running the computation over multiple nodes.
 
 \section{Unit Tests}
 Thorough unit testing is important for any software engineering focused project. By writing tests throughout development, the expected behaviour of individual components in the system can be validated. Through the use of continuous integration/continuous deployment (CI/CD) pipelines, this behaviour can continue to be validated as other parts of the system are improved, to ensure changes do not break the behaviour of the component. 
 
-Scalatest was chosen as the unit test framework \todo{reference}. Furthermore, both gRPC and Akka Actors provide classes for writing unit tests around the frameworks, and this is combined with Mockito to mock any dependencies that cannot be run during testing - for example, Cassandra \todo{reference}. Using these tools and frameworks, unit tests have been written for the majority of core code; this includes the DSL, query model and partitioning code among other classes. In total, more than 350 individual tests were written for this project, split across the Python frontend, core code, orchestrator and worker code.
+Scalatest was chosen as the unit test framework \todo{reference}. Furthermore, both gRPC and Akka Actors provide classes for writing unit tests around the frameworks, and this is combined with Mockito to mock any dependencies that cannot be run during testing like the Cassandra Driver \todo{reference}. Using these tools and frameworks, unit tests have been written for the majority of core code; this includes the DSL, query model and partitioning code among other classes. In total, more than 350 individual tests were written for this project, split across the Python frontend, core code, orchestrator and worker code.
 
 \section{Test Data}
 To conduct the performance testing, fake data is created to test the different operations of the system. As the intended users of this system are of a financial background, fake loan origination (loan creation) data is generated. This uses a short Python script which provides the following data, randomised between specified bounds.
@@ -22,7 +22,7 @@ To conduct the performance testing, fake data is created to test the different o
 
 Figure \ref{fig:fake-loan-data} shows ten example records of fake loan origination data.
 
-\begin{figure}[h]
+\begin{figure}[ht]
 	\centering
 	\begin{tabular}{| l | l | l | l | l |}
 		\hline
@@ -76,7 +76,7 @@ The first query is a pure select, which essentially tests how fast both solution
 
 However, the data that is available shows that the Cluster Processor is more than 10x slower at performing Select queries than SQL. This is most likely related to the format used to send the result data, which requires serialising both the type and value of each cell in the data for transmission. For both SQL and the Cluster Processor, there is no significant difference between the raw Select, and the Select with operations. The largest difference is at 100k rows for Cluster Processor, where there is a 0.3s increase when computing the operations compared to a raw Select.
 
-\begin{figure}[h]
+\begin{figure}[ht]
 	\centering
 	\includegraphics[width=0.8\linewidth]{chapters/diagrams/testing/select-simple-1k-1m}
 	\caption{SQL vs Cluster Processor - Select Query Results}
@@ -92,7 +92,7 @@ The results for this query are shown in Figure \ref{fig:filter-graph}, where tes
 
 Another relevant insight from this data is that the complex filter reliably executes faster than the simple filter across all results. For the Cluster Processor, it is nearly 2 seconds faster on average at 10 million rows, and for SQL it is almost 6 seconds faster at 100 million rows. This is to be expected, since the complex filter is  more restrictive in the results that it returns, so there is less data to transfer over the network.
 
-\begin{figure}[h]
+\begin{figure}[ht]
 	\centering
 	\includegraphics[width=0.8\linewidth]{chapters/diagrams/testing/filter-1k-100m}
 	\caption{SQL vs Cluster Processor - Filter Query Results}
@@ -106,9 +106,9 @@ The first query is a simple group by, essentially acting as a \texttt{DISTINCT} 
 \paragraph{Results}
 The results for this query are shown in Figure \ref{fig:group-by-graph}, where again testing was performed for the full range of datasets in both solutions. SQL is significantly faster, and scales much better as the data sizes increase. For the Cluster Processor, the aggregate group by is over twice as fast on average than the simple version at 10 million records. The testing was performed sequentially, with no break between tests, so it is unclear why this result is so much faster Furthermore, the same difference in computation time is not present at smaller data volumes. This could be caused by the less controlled cloud environment, meaning perhaps some unexpected load was present during the simple test which resulted in slower computation. Another round of testing would need to be performed to determine if this was the case.
 
-Despite this unexpected difference in computation times between the queries at 10 million rows, there is still a significant performance drop-off when compared to the results at 1 million records. Analysing the outputs from the workers at this data volume, the results could not be stored entirely in-memory, resulting in a large amount of computation time being spent swapping partial results to and from disk. Group By operations suffer from memory shortages worse than other types of queries, as it's possible that around twice the normal data volume is stored at one time; the source data for the Group By, data for the new hashes, and the newly computed group by partitions are all kept in the data store at the same time.
+Despite this unexpected difference in computation times between the queries at 10 million rows, there is still a significant performance drop-off when compared to the results at 1 million records. Analysing the outputs from the workers at this data volume, the results could not be stored entirely in-memory, resulting in a large amount of computation time being spent swapping partial results to and from disk. Group By operations suffer from memory shortages worse than other types of queries, as around twice the normal data volume is stored at one time; the source data for the Group By, data for the new hashes, and the newly computed group by partitions are all kept in the data store at the same time.
 
-\begin{figure}[h]
+\begin{figure}[ht]
 	\centering
 	\includegraphics[width=0.8\linewidth]{chapters/diagrams/testing/group-by-1k-100m}
 	\caption{SQL vs Cluster Processor - Group By Query Results}
@@ -129,7 +129,7 @@ In these tests the simple versions of the Select, Filter and Group By queries we
 
 Throughout all of these tests, the number of Cassandra nodes in the cluster remained consistent: 3 nodes, one placed on each Kubernetes node.
 
-\begin{figure}[h]
+\begin{figure}[ht]
 	\centering
 	\begin{tabular}{| c | c | c | c | c |}
 		\hline
@@ -149,7 +149,7 @@ The results of this test are shown in Figure \ref{fig:select-simple-parallelisat
 
 Interestingly, the 2 node cluster also performed slower than the 3 node cluster. This is likely to be because there was one less worker node than Cassandra node in this case, meaning some amount of latency was added to retrieve data from the Cassandra node without a co-located worker.
 
-\begin{figure}[h]
+\begin{figure}[ht]
 	\centering
 	\includegraphics[width=0.8\linewidth]{chapters/diagrams/testing/select-simple-parallelisation-test}
 	\caption{Parallelisation - Select Query Results}
@@ -161,14 +161,14 @@ The results of this test are shown in Figure \ref{fig:filter-simple-parallelisat
 
 To investigate this trend further, the test was also run for all cluster layouts at 10 million rows, shown in Figure \ref{fig:filter-simple-parallelisation-10m}. At this number of rows, the layouts with 6, 9 and 12 nodes are all faster than the 3 node cluster, with 9 nodes appearing to be the optimal level of parallelisation. This shows that as the amount of work to perform increases, the increased level of parallelisation becomes a benefit, resulting in faster computation times. The fact that 12 nodes is slower than 9 nodes at 10 million rows suggests that there is an optimal point in terms of maximising parallelisation, without introducing too much overhead from the number of nodes.
 
-\begin{figure}[h]
+\begin{figure}[ht]
 	\centering
 	\includegraphics[width=0.8\linewidth]{chapters/diagrams/testing/filter-simple-parallelisation-test}
 	\caption{Parallelisation - Filter Query Results}
 	\label{fig:filter-simple-parallelisation-test}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[ht]
 	\centering
 	\includegraphics[width=0.4\linewidth]{chapters/diagrams/testing/filter-simple-parallelisation-10m}
 	\caption{Parallelisation - Filter Query Results, 10 Million Rows}
@@ -180,7 +180,7 @@ The results of this test are shown in Figure \ref{fig:group-by-simple-parallelis
 
 Interestingly, the 2 node cluster is second fastest until 1 million rows, when its performance significantly reduces. This is likely to be because the increased memory demands on each node caused by having fewer worker nodes resulted in some data being spilled to disk, which results in reduced query performance.
 
-\begin{figure}[h]
+\begin{figure}[ht]
 	\centering
 	\includegraphics[width=0.8\linewidth]{chapters/diagrams/testing/group-by-simple-parallelisation-test}
 	\caption{Parallelisation - Group By Query Results}
@@ -191,13 +191,13 @@ Interestingly, the 2 node cluster is second fastest until 1 million rows, when i
 Overall, the outcomes of this test show that there is no clear solution to the number of nodes in the cluster. As a general rule, matching the number of workers to the number of Cassandra nodes in the cluster will result in good performance, but the Filter test also shows that increasing the level of parallelisation can result in better performance for the same resources at larger query sizes. Solutions to this problem depend entirely on the queries being run, and the data volumes the queries are applied to. There is an opportunity for further research designing a system that can analyse the queries being executed, and adjust the cluster layout to match the requirements of those queries.
 
 \section{Autoscaling}
-This section will compare computation speed of the Cluster Processor when the overall performance is reduced. This test is motivated by the autoscaling feature present in many managed Kubernetes services, including Azure Kubernetes Service \todo{reference}. This feature continually analyses the load of the Kubernetes cluster, and increases or decreases the number of physical nodes based on current demand. By doing this, applications with fluctating levels of demand are able to save costs by reducing the number of machines they pay for in periods of low demand.
+This section will compare computation speed of the Cluster Processor when the overall performance is reduced. The motivation for the test is the autoscaling feature present in many managed Kubernetes services, including Azure Kubernetes Service \todo{reference}, which continually analyses the load of the Kubernetes cluster, and increases or decreases the number of physical nodes based on current demand. By doing this, applications with fluctating levels of demand are able to save costs by reducing the number of machines they pay for in periods of low demand.
 
 While the Cluster Processor is not currently implemented in a way that supports autoscaling, this test is performed to identify how effective autoscaling would be on this solution. In these tests the simple versions of the Select, Filter and Group By queries were executed, with a different range of rows depending on the test. Figure \ref{fig:autoscale-test-workers} shows the cluster layouts for each test case; the number of workers, and the resources available to each worker. Each cluster layout has one less worker, and 33\% less resources available.
 
 Throughout all of these tests, the number of Cassandra nodes in the cluster remained consistent: 3 nodes, one placed on each Kubernetes node.
 
-\begin{figure}[h]
+\begin{figure}[ht]
 	\centering
 	\begin{tabular}{| c | c | c | c | c |}
 		\hline
@@ -213,7 +213,7 @@ Throughout all of these tests, the number of Cassandra nodes in the cluster rema
 \subsection{Select Query}
 The results of this test are shown in Figure \ref{fig:select-simple-autoscale-test}. As expected, the query performance decreases as the number of workers decreases. However, at 1000 rows the difference between 3 workers and 1 worker is around 0.3s, and at 10000 rows it is 0.9s
 
-\begin{figure}[h]
+\begin{figure}[ht]
 	\centering
 	\includegraphics[width=0.8\linewidth]{chapters/diagrams/testing/select-simple-autoscale-test}
 	\caption{Autoscaling - Select Query Results}
@@ -223,7 +223,7 @@ The results of this test are shown in Figure \ref{fig:select-simple-autoscale-te
 \subsection{Filter Query}
 The results of this test are shown in Figure \ref{fig:filter-simple-autoscale-test}. As before, the query performance decreases as the number of workers decreases. However, at small data volumes the difference between 1 and 3 workers is even smaller than in the Select test. The difference between 1 and 3 workers is 0.08s at 1000 rows, 0.2s at 10000 rows, and 1.1s at 100,000 rows.
 
-\begin{figure}[h]
+\begin{figure}[ht]
 	\centering
 	\includegraphics[width=0.8\linewidth]{chapters/diagrams/testing/filter-simple-autoscale-test}
 	\caption{Autoscaling - Filter Query Results}
@@ -233,7 +233,7 @@ The results of this test are shown in Figure \ref{fig:filter-simple-autoscale-te
 \subsection{Group By Query}
 The results of this test are shown in Figure \ref{fig:group-by-simple-autoscale-test}. At 1000 and 10000 rows, there is effectively no difference between the three cluster layouts, and at 100000 rows the 1 node cluster is the fastest by 0.5s on average. Once the data volume increases to 1 million rows, the 3 node cluster is significantly faster than the other two layouts. However, these results suggest that, at very small data volumes, it is faster to perform all of the computation on a single node. This is because it prevents the need for the workers to cross-communicate, and if all data can be kept in memory, the computation will be performed significantly faster.
 
-\begin{figure}[h]
+\begin{figure}[ht]
 	\centering
 	\includegraphics[width=0.8\linewidth]{chapters/diagrams/testing/group-by-simple-autoscale-test}
 	\caption{Autoscaling - Group By Query Results}

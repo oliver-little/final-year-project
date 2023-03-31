@@ -1,8 +1,9 @@
 \chapter{Design}\label{cha:design}
-After conducting my review of previous work, an analysis of the high-level design of the solution was conducted, in particular focusing on the following areas:
+This chapter will cover the design of the solution, in particular focusing on the following areas:
+
 \begin{itemize}
 	\item Required Features
-	\item Technologies and Frameworks
+	\item Languages, Technologies and Frameworks
 	\item Architecture
 \end{itemize}
 
@@ -58,14 +59,16 @@ Before considering specific technologies and frameworks, a list of MoSCoW requir
 		F & M & The worker nodes must report any computation errors to the orchestrator. \\ \hline
 		F & S & The worker nodes should cache results for reuse in later queries. \\ \hline
 		F & S & The worker nodes should spill data to disk storage when available memory is low. \\ \hline
+		NF & S & The permanent data store should be chosen to provide performance benefits when importing source data. \\ \hline
 	\end{xltabular}
 \end{center}
 
 \section{Language}
+The first key design decision was to determine what languages would be used to implement the system. A decision was made to use more than one language for the framework, because the requirements for the user interface suit an entirely different type of language to the requirements of the components performing the computation.
 
-\subsection{Frontend} 
-Python \todo{Reference} was selected as the language of choice for the frontend. This is because the intended users of my solution are most experienced with Python and SQL, which should make adopting the solution faster and easier.
-\todo{Expand upon this choice}
+\subsection{Frontend}\label{subsec:frontend-design}
+The most important requirement for the front-end was to use SQL-like syntax. Pure SQL requires a parser in order to derive the actual query from the text, which would add a significant amount of development time to implement correctly, so a language which would be able to encode queries as classes and functions was preferred.
+Therefore, Python \todo{Reference} was selected as the language of choice for the frontend, as according to the 2022 StackOverflow Developer Survey, it is the fourth most popular language \cite{stackoverflowsurvey2022}. Python also supports the second and third most popular non-web frameworks, NumPy and pandas, both designed for data processing and analysis  \cite{reback2020pandas} \todo{reference numpy}. This choice means that it is likely the widest range of users will have prior experience with Python, and there is the possibility of integrating with these frameworks to make the system even easier to use. Furthermore, Python is much more lightweight than many typical object-oriented languages, which would make developing and iterating upon the frontend much faster.
 
 \subsection{Orchestrator and Worker Nodes}
 Both the orchestrator and worker nodes would use the same language, which would reduce overhead as the same codebase could be used for both parts of the system. When selecting a language, a decision had to be made to use a language with either automatic or manual garbage collection (GC). Choosing a manually GC language would theoretically allow for higher  performance due to more granular control over memory allocation and release. However, this could result in slower development, as time would have to be spent writing code to perform this process. Therefore, manually GC languages were ruled out.
@@ -110,7 +113,7 @@ Figure \ref{fig:cassandra-token-distribution} demonstrates how the full range of
 
 Cassandra allows token ranges to be provided as filters in queries, which will allow the worker nodes to control what data is retrieved in each query.
 
-\paragraph{Kubernetes Support} Cassandra can be run on Kubernetes using K8ssandra \cite{k8ssandra}. This is a tool which can be used to initialise, configure and manage Cassandra clusters. This is particularly useful because the Cassandra cluster can be configured to run on the same machines as the worker nodes, enabling the source data to be co-located with the workers that will actually perform the computation, reducing network latency when transferring the source data.
+\paragraph{Data Co-Location} Cassandra can be run on Kubernetes using K8ssandra \cite{k8ssandra}, a tool which can be used to initialise, configure and manage Cassandra clusters. It is particularly useful because the Cassandra cluster can be configured to run on the same machines as the worker nodes, enabling the source data to be co-located with the workers that will actually perform the computation. This decision meets the requirement to exploit the integration between the storage mechanism and the rest of the system, as data co-location will reduce the network latency when importing the source data, and increase transfer speed as the data never leaves the same physical machine. 
 
 \paragraph{Language-Specific Drivers} In terms of interfacing with the rest of the system, there are drivers for both Python and Java \todo{Reference}, which are maintained by one of the largest contributors to Apache Cassandra. The Java driver has a core module which provides basic functionality for making queries and receiving results from the database. There are optional modules for these drivers with more complex functionality including query builders, but these were not included in the solution as the extra functionality was not required, and the added complexity had the potential to cause problems. 
 
