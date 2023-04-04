@@ -43,7 +43,7 @@ manager.cassandra_table("data", "origination_1000").select(
 (F("loan_id") + 1).as_name("loan_id_inc"), 
 (F("interest_rate") + 1).as_name("interest_rate_inc"),
 Function.Pow(Function.ToDouble(F("duration")), 2.0).as_name("duration_pow"),
-Function.Substring(Function.ToString(F("origination_date")), 0, 10).as_name("orignation_date_str")
+Function.Substring(Function.ToString(F("origination_date")), 0, 10).as_name("origination_date_str")
 ).evaluate()
 	\end{python}
 	\caption{Cluster Processor - Select Complex}
