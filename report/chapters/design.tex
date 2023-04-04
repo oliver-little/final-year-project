@@ -11,7 +11,7 @@ The aim of this process was to ensure that the limited development time for this
 
 \section{MoSCoW Requirements}
 
-Before considering specific technologies and frameworks, a list of MoSCoW requirements is produced. Each requirement in the table below has two extra columns. The first column represents whether the requirement is Functional (F) or Non-Functional (NF), and the second column represents requirements that Must (M), Should (S) or Could (C) be completed.
+Before considering specific technologies and frameworks, a list of MoSCoW requirements is produced, and is shown in the table below. The first column represents whether the requirement is Functional (F) or Non-Functional (NF), and the second column represents requirements that Must (M), Should (S) or Could (C) be completed.
 
 \begin{center}
 	\begin{xltabular}{0.82\paperwidth}{ | p{1.5cm} | p{1.5cm} | X | } 
@@ -75,7 +75,7 @@ Both the orchestrator and worker nodes would use the same language, which would 
 
 The remaining options were a range of object-oriented and functional languages. Due to the nature of the project, much of the implementation would be CPU intensive, requiring iterating over large lists of items, so a language with strong support for parallelisation was preferable. This also ruled out languages like Python and JavaScript where parallelisation requires manual implementation by the developer \cite{pythonmultiprocessing, nodeworkerthreads}.
 
-Functional languages are strong at this because of their use of operations like $map$ and $reduce$, which can be easily parallelised, which resulted in Scala being chosen \cite{scaladocs}. It features a mix of both object-oriented and functional paradigms, and the ability to use both paradigms would allow for the best option to be selected for each task. Scala has built-in support for parallelised operations and threading through the use of asynchronous operations like Futures and Promises. Furthermore, it is built on top of, and compiles into Java. This means that packages originally written for Java can be executed in Scala, which proved useful for later design decisions \cite{scalaforjavadevs}.
+In the end, Scala was chosen \cite{scaladocs}. It features a mix of both object-oriented and functional paradigms, and the ability to use both paradigms would allow for the best option to be selected for each task. Furthermore, Scala has built-in support for parallelised operations through operations like $map$ and $reduce$, which is particularly helpful for iterating or combining the rows of a dataset. Furthermore, it is built on top of, and compiles into Java. This means that packages originally written for Java can be executed in Scala, which proved useful for later design decisions \cite{scalaforjavadevs}.
  
 \section{Runtime}
 \subsection{Containerisation}

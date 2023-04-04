@@ -3,12 +3,6 @@
 A number of components were created to implement the proposed architecture. This chapter will provide a high level overview of the system, then examine each component in further detail.
 
 \section{Overall Solution}
-As described in Section \ref{sec:architecture}, the frontend is the user's entrypoint to the system. It acts as a terminal, allowing the user to define queries using the Domain Specific Language (DSL), and receive results. Queries are sent to the orchestrator to generate these results, which acts as the central state management for the system. It has a number of tasks to complete to get from query to result. First, it generates a query plan which describes the steps for computing a result. The steps of the query plan are split up into a number of chunks of work (partitions), and the orchestrator delegates these partitions to the workers to execute the query plan. The workers are responsible for accepting these partitions, and performing the computation. Finally, when all query plan steps have been executed, the orchestrator fetches the partial results from all workers, collates them into a final result, and returns this to the frontend. 
-
-The system supports three types of queries: Select, Filter and Group By. Both Select and Filter are row-level operations, meaning the workers do not have to pass data to one another during computation. However, Group By does need the workers to cross-communicate, which means they also require a temporary store to cache partial results.
-
-Figure \ref{fig:component-architecture-diagram} shows a component diagram for the core components, and their interactions.
-
 \begin{figure}[h]
 	\centering
 	\includegraphics[width=0.7\textwidth]{chapters/diagrams/implementation/component-architecture-diagram}
@@ -16,9 +10,13 @@ Figure \ref{fig:component-architecture-diagram} shows a component diagram for th
 	\label{fig:component-architecture-diagram}
 \end{figure}
 
+Figure \ref{fig:component-architecture-diagram} shows a component diagram for the core components, and their interactions. As described in Section \ref{sec:architecture}, the frontend is the user's entrypoint to the system. It acts as a terminal, allowing the user to define queries using the Python Domain Specific Language (DSL), and receive results. Queries are sent to the orchestrator, which acts as the central state management for the system. A number of components are used to get from query to result. First, it generates a query plan which describes the steps for computing a result. Then, the query plan is executed step-by-step, with the data used in each step being split up into a number of chunks of work (partitions) before being delegated to the workers. The workers are responsible for accepting these partitions, and performing the computation. Finally, when all query plan steps have been executed, the orchestrator fetches partial results from all workers, collates them into a final result, and returns this to the frontend. gRPC is used anywhere where network communication is required between the frontend, orchestrator and worker nodes.
 
+The system supports three types of queries: Select, Filter and Group By. Both Select and Filter are row-level operations, meaning the workers do not have to pass data to one another during computation. However, Group By does need the workers to cross-communicate, which means they also require a temporary store to cache partial results.
 
 \section{Type System}
+\todo{Illustrative example - motivation: want to store table data, but need to know the type information of all values in the table}
+
 The type system for the DSL is built using a subset of Scala, Python, and Cassandra's type systems. These types are shown in Figure \ref{fig:datatypes}.
 
 \begin{figure}[h]
@@ -36,9 +34,9 @@ The type system for the DSL is built using a subset of Scala, Python, and Cassan
 	\label{fig:datatypes}
 \end{figure}
 
-There were two main goals when selecting these primitive types. Firstly, every type should be able to be represented without data loss in all parts of the system. Secondly, it should be possible to represent the types in protobuf format, as this would allow for easy serialisation of result data. All types except DateTime are can be converted to protobuf natively, and DateTimes are supported by serialising as an ISO8601 formatted string \cite{iso_8601}.
+There were two main goals when selecting these primitive types. Firstly, every type should be able to be represented without data loss in all parts of the system. Secondly, it should be possible to represent the types in protobuf format, as this would allow for easy serialisation of result data. All types except DateTime can be converted to protobuf natively, and DateTimes are supported by serialising as an ISO8601 formatted string \cite{iso_8601}.
 
-Designing the actual interfaces to represent these values presents a challenge. To be able to read and manipulate these types in Scala at runtime, the raw primitive types cannot be used. This is because the only common supertype of all primitive types is \textit{Any}, as shown in Figure \ref{fig:scala-unified-types}. There is effectively no information shared between all supported types in the system. To discover which type a given value is (or if the type is even supported), the system would have to perform runtime type checks against all possible supported types. These checks would add a significant amount of overhead, and as a result this approach was not selected.
+Designing the interfaces to represent these values presents a challenge. To be able to read and manipulate these types in Scala at runtime, the raw primitive types cannot be used. This is because the only common supertype of all primitive types is \textit{Any}, as shown in Figure \ref{fig:scala-unified-types}. There is effectively no information shared between all supported types in the system. To discover which type a given value is (or if the type is even supported), the system would have to perform runtime type checks against all possible supported types. These checks would add a significant amount of overhead, and as a result this approach was not selected.
 
 \begin{figure}[h]
 	\centering
@@ -51,7 +49,7 @@ Another possible approach to solving this problem is to create a lightweight con
 
 The container class could instead be defined as an interface, and each supported type provides an implementation of that interface, but this is not much better than the primitive type solution, as the runtime type check simply becomes a runtime pattern match on the class instance. A solution that exploits some kind of polymorphism is preferred.
 
-Scala provides an feature known as ClassTags \cite{scalaclasstags}. These allow the erased type information to be recorded, and also allow equality checks to be performed between ClassTags. By storing a ClassTag instance, we can implement type equality checks between values in the system, to determine if they are of the same type. Furthermore, we can use this type information later to determine what types are accepted and returned by \textit{FieldExpressions}.
+Scala provides a feature known as ClassTags \cite{scalaclasstags}. These allow the erased type information to be recorded, and also allow equality checks to be performed between ClassTags. By storing a ClassTag instance, we can implement type equality checks between values in the system, to determine if they are of the same type. Furthermore, we can use this type information later to determine what types are accepted and returned by \textit{FieldExpressions}; see Section \ref{subsec:fieldexpressions} for further information.
 
 This is defined in the system using a base interface \textit{ValueType}, which captures the ClassTag requirement. This interface is used as part of both \textit{TableField}, which captures field information (name and type), and \textit{TableValue}, which captures value information (value and type). Implementations for all the supported types are then provided for both \textit{TableField} and \textit{TableValue}. Figure \ref{fig:type-system-hierarchy} shows the hierarchy of these types. 
 
@@ -64,7 +62,7 @@ This is defined in the system using a base interface \textit{ValueType}, which c
 
 
 \subsection{Result Model}
-This hierarchy of classes provides everything needed to define the result of a computations, known as a \textit{TableResult}. Headers are defined as a sequence of \textit{TableFields} and result rows are stored as a two-dimensional array of \texttt{Option[TableValue]}. As defined in the requirements, null values must be supported, but the use of nulls in Scala is discouraged. Instead, Option is preferred as it is supported by all the typical functional methods. In this model, values are represented by \texttt{Some(TableValue())}, and null values are represented by \texttt{Nothing}. Figure \ref{fig:example-table-result} shows what an example result looks like using this definition.
+This hierarchy of classes provides everything needed to define the result of a computation, known as a \textit{TableResult}. Headers are defined as a sequence of \textit{TableFields} and result rows are stored as a two-dimensional array of \texttt{Option[TableValue]}. As defined in the requirements, null values must be supported, but the use of nulls in Scala is discouraged. Instead, Option is preferred as it is supported by all the typical functional methods. In this model, values are represented by \texttt{Some(TableValue())}, and null values are represented by \texttt{Nothing}. Figure \ref{fig:example-table-result} shows what an example result looks like using this definition.
 
 \begin{figure}[h]
 	\centering
@@ -84,8 +82,10 @@ This hierarchy of classes provides everything needed to define the result of a c
 \section{Domain Specific Language}
 The user's interaction with the framework is driven entirely by the Domain Specific Language (DSL). The language allows the user to define expressions, comparisons, aggregates, and then use these to define computations like Select, Filter and Group By. As per the requirements, the DSL has been modelled with SQL-like syntax.
 
-\subsection{FieldExpressions}
-\textit{FieldExpressions} are the key building block of the DSL. They allow the user to define arbitrary row-level calculations to be used as part of more complex operations. \textit{FieldExpressions} are defined as an interface, which provides a standard set of methods, and there are three subclasses that provide implementations:
+\todo{high level figures showing example select, filter, group by with reference to section}
+
+\subsection{FieldExpressions}\label{subsec:fieldexpressions}
+\textit{FieldExpressions} are a key part of the DSL, allowing the user to define arbitrary row-level calculations to be used as part of more complex operations. \textit{FieldExpressions} are defined as an interface, and there are three subclasses:
 
 \begin{itemize}
 	\item Values: define literal values which never change across all rows
@@ -93,30 +93,67 @@ The user's interaction with the framework is driven entirely by the Domain Speci
 	\item FunctionCalls: perform arbitrary function calls using further FieldExpressions as arguments.
 \end{itemize}
 
-Examples of \textit{FieldExpressions} in Python are shown in Figure \ref{fig:field-expressions-examples}.
+Figure \ref{fig:field-expressions-examples} provides examples for each type of \textit{FieldExpression}.
 
-\begin{figure}[h]
-	\centering
-	\includegraphics[width=0.8\textwidth]{chapters/diagrams/implementation/field-expressions-examples}
-	\caption{Examples of \textit{FieldExpressions}}
+\begin{figure}[ht]
+	Values reference the type and value (left to right): string "a", integer 1, double 1.5, boolean True, date 31/12/2021.
+	\begin{python}
+V("a") , V(1), V(1.5), V(True), V(datetime.date(2021, 12, 31))
+	\end{python}
+
+	Fields reference the field with name (left to right): fieldName, duration, id, creationDate.
+	\begin{python}
+F("fieldName"), F("duration"), F("id"), F("creationDate")
+	\end{python}
+
+	Top Function: convert "field1" to a string, then take the left 10 characters of each row.
+	Bottom Function: multiply "field2" by 2, then divide by "field3"
+	\begin{python}
+Function.Left(Function.ToString(F("field1")), 10)
+(F("field2") * 2) / F("field3")
+	\end{python}
+	\caption{\textit{FieldExpressions} implementations and examples}
 	\label{fig:field-expressions-examples}
 \end{figure}
 
 Many basic functions have been implemented, including arithmetic, string and cast operations. However, the function system is designed to be extensible. A number of helper classes are defined to allow the creation of basic unary, binary and ternary functions, but \textit{FunctionCall} is itself an interface which can be given completely custom implementations if required. The main constraint on the functions that can be defined are that only the 5 primitive input types are supported.
 
 \paragraph{Type Resolution} 
-Type Resolution on FieldExpressions is performed in two stages: a resolution step, and an evaluation step. The resolution step takes in type information from the header of the input result, and verifies that the \textit{FieldExpression} is well typed with regards to that result. This is necessary for Fields, which may be valid for one result but invalid for another, for example if the field name is missing from the result. The evaluation step performs the computation on a row from that result without any type checking. 
+Type Resolution on FieldExpressions is performed in two stages: a resolution step, and an evaluation step. The resolution step takes in type information from the header of the input result, and verifies that the \textit{FieldExpression} is well typed with regards to that result. This is required for Fields, which can be valid for one result but invalid for another if the field name is not present in the result header; Figure \ref{fig:field-type-resolution} shows an example of this. The evaluation step performs the computation on a row from that result without any type checking. 
 
-This two-step process has a number of benefits. The resolution step enables a form of polymorphism on some functions like arithmetic operations. At the resolution step, these functions determine what types are returned by their sub-expressions, and resolve to the correct version for evaluation. For example, the add function can resolve to \textit{AddInt}, \textit{AddDouble}, or \textit{Concat}. Also, there is reduced overhead at runtime as type checking does not need to be performed for each row - unchecked casts are used here instead.
+\begin{figure}[ht]
+	\centering
+	\subfloat[\centering Valid - able to evaluate this result]{
+		\begin{tabular}{l c l}
+			\textbf{Header:} [& IntField(\textcolor{deepgreen}{"field"}) ] \\
+		\end{tabular}
+	}
+	\qquad
+	\subfloat[\centering Invalid - unable to evaluate this result]{
+		\begin{tabular}{l c l}
+			\textbf{Header:} [& StringField(\textcolor{deepgreen}{"differentField"}) ] \\
+		\end{tabular}
+	}
+	
+	\caption{Type Resolution of F(\textcolor{deepgreen}{"field"})}
+	\label{fig:field-type-resolution}
+\end{figure}
+
+This two-step process has a number of benefits. The resolution step enables a form of polymorphism on some functions like arithmetic operations. These functions determine what types are returned by their sub-expressions during resolution, and resolve to the correct version for evaluation. For example, the add function can resolve to \textit{AddInt}, \textit{AddDouble}, or \textit{Concat}. This reduces the overhead at runtime as type checking does not need to be performed for each row - unchecked casts are used here instead, as shown in Figure \ref{fig:fieldexpression-unchecked-casts}
+	
+\begin{figure}[ht]
+	\centering
+	% pull value out of TableValue instance without checking type (i.e.: its an any), then convert to the correct argument type using asinstanceof
+	% not sure if there's a good example of this
+	\caption{Runtime Evaluation of FieldExpressions}
+	\label{fig:fieldexpression-unchecked-casts}
+\end{figure}
+
 
 \paragraph{Named Expressions}
-When performing a Select operation, the output fields are all expected to be named. This allows the user to repeatedly chain operations by referencing fields from the input. Therefore, \textit{FieldExpressions} have a method to allow them to be named. When this method is called, the \textit{FieldExpression} is wrapped as a tuple with the name into a \textit{NamedFieldExpression}. Field references are able to reuse their previous name automatically to reduce the need for repeated naming calls. 
+When performing a Select operation, the output fields are all expected to be named. This allows the user to repeatedly chain operations by referencing fields from the input. Therefore, \textit{FieldExpressions} have a method to allow them to be named. When this method is called, the \textit{FieldExpression} is wrapped as a tuple with the name into a \textit{NamedFieldExpression}. Field references are able to reuse their previous name automatically to reduce the need for repeated naming calls.
+\todo{reword to mostly use a figure with example using asname, and example of F automatic resolution}
 
-% Abstract class implementation
-% - isWellTyped
-% - doesReturnType
-% - resolve/evaluate steps
-% - named/unnamed
 
 \subsection{FieldComparisons}
 \textit{FieldComparisons} are another key building block of the DSL. They allow the user to define arbitrary row-level comparisons. \textit{FieldComparisons} use a two-step resolution-evaluation process. This is in place to accommodate the two-step process that already exists for \textit{FieldExpressions}. They are defined as an interface, and there are four subclasses that provide implementations:
@@ -134,7 +171,7 @@ When performing a Select operation, the output fields are all expected to be nam
 	\end{itemize}
 \end{itemize}
 
-Examples of \textit{FieldComparisons} are shown in Figure \ref{fig:field-comparisons-examples}.
+Examples of \textit{FieldComparisons} are shown in Figure \ref{fig:field-comparisons-examples}. \todo{reword to explain with reference to this figure}
 
 \begin{figure}[h]
 	\centering
@@ -149,8 +186,7 @@ The user is able to combine multiple FieldComparisons using AND/OR operators. Th
 \subsection{Aggregate Expressions}
 Aggregate Expressions are the final part of the DSL. These are used only as part of Group Bys, and allow the user to define methods of aggregating all rows of a result. Aggregate Expressions take a \textit{NamedFieldExpression} as an argument, and compute a single row output from any number of input result rows.
 
-The system supports Minimum, Maximum, Sum, Average, Count, and String Concatenation operations. These aggregates are polymorphic where possible. For example, minimum and maximum handle numeric types by ordering numerically and string types lexicographically.
-
+The system supports Minimum, Maximum, Sum, Average, Count, and String Concatenation operations. These aggregates are polymorphic where possible. For example, minimum and maximum handle numeric types by ordering numerically and string types lexicographically. \todo{reword into a figure example}
 
 \subsection{Protocol Buffer Serialisation}
 All components of the DSL have been designed to be serialised to protobuf format. This allows any queries written by the user to be passed around the system using gRPC, and if required the query can also be serialised to a file. The results of a query are also serialisable, to allow the system to return query results to the user. gRPC has a size limit of 4MB for individual messages, so results are split up by row and streamed individually.
@@ -168,7 +204,7 @@ Furthermore, as discussed in \ref{subsec:frontend-design}, pandas is widely used
 % This section should be clear and understandable, as much of the rest refers to partial and full versions
 The data model is split into two key components: \textit{DataSource} and \textit{Table}. 
 
-\textit{DataSource} is an interface, representing any part of the query where data must be rearranged into new partitions, including Cassandra source data, and Group By operations. \textit{Table} is a class, representing any part of the query that contains purely row-level computations, including Select and Filter operations. A \textit{Table} is made up of a \textit{DataSource} and a list of \textit{TableTransformations}, and to compute its output, the \textit{DataSource} is computed first, then all transformations are applied sequentially.
+\textit{DataSource} is an interface, representing any part of the query where data must be rearranged into new partitions, including Cassandra source data, and Group By operations. \textit{Table} is a class, representing any part of the query containing purely row-level computations, including Select and Filter operations. It is composed of a \textit{DataSource} and a list of row-level computations, and to compute its output the \textit{DataSource} is computed first, then all computations are applied sequentially.
 
 Optionally, \textit{DataSources} can have dependent \textit{Tables} which must be calculated first. For example, a Group By \textit{DataSource} requires a single \textit{Table} to be fully computed before it can be generated. A Cassandra \textit{DataSource} will always act as the terminal component for a query, as it has no dependencies.
 
@@ -189,8 +225,7 @@ ClusterManager("orchestrator-service")
 \end{figure}
 
 
-Figure \ref{fig:group-by-query} shows a more complex query containing a Group By in the DSL, and the data model.
-
+Figure \ref{fig:group-by-query} shows a more complex query containing a Group By in the DSL, and the data model. \todo{change this diagram a bit or explain better, table 1 is the dependent table of the group by query}
 \begin{figure}[h]
 	\centering
 	\includegraphics[width=0.8\textwidth]{chapters/diagrams/implementation/group-by-query}
@@ -198,6 +233,8 @@ Figure \ref{fig:group-by-query} shows a more complex query containing a Group By
 	\begin{python}
 ClusterManager("orchestrator-service")
 .cassandra_table("data", "origination")
+.filter(F("duration") < 20)
+.select(F("id"))
 .group_by([F("duration")], [Max(F("amount"))])
 .evaluate()
 	\end{python}
@@ -221,10 +258,9 @@ The data store is the most important component for the worker implementation. It
 
 The approach taken to solve this uses the actor model, first introduced in 1973 by Carl Hewitt \cite{hewitt1973session}. Specifically, the Akka Actors framework was chosen as an implementation of the actor model in Scala \cite{akkaactors}. The actor model abstracts away the complexity of synchronisation and thread management. Instead, components of the system become actors. Each actor defines a set of messages that it accepts, and the response to each message, and the framework provides a guarantee that an actor will only ever process one message at a time.
 
-The data store is modelled as an actor which stores results as key-value pairs. Three kinds of data can be used as keys for storage:
-provides a set of create, read and delete operations on three kinds of data: \textit{Table} computation results, \textit{DataSource} computation  results and hashed data results, which are used in the process of computing a Group By partition. 
+The data store is modelled as an actor which stores results as key-value pairs. Three kinds of data can be used as keys for storage: \textit{Table} computation results, \textit{DataSource} computation results and hashed data results, which are used in the process of computing a Group By partition. 
 
-For each supported type of data, the data store uses a two-stage lookup, internally implemented using nested HashMaps. First, the full version of the data (\textit{Table}, \textit{DataSource}) is looked up, then the partial version (\textit{PartialTable}, \textit{PartialDataSource}). Partial forms of \textit{Tables} and \textit{DataSources} always contain a reference to the full version, but not the other way around. Therefore, this decision does not increase the time taken to insert new data significantly, but it is particularly useful when fetching the results for a \textit{Table}, or removing a \textit{Table} or \textit{DataSource}. Without this approach, completing these operations would require searching the entire Map to find any matches, turning the O(1) lookup time into O(n).
+For each supported type of data, the data store uses a two-stage lookup, internally implemented using nested HashMaps. First, the full version of the data (\textit{Table} or \textit{DataSource}) is looked up, then the partial version (\textit{PartialTable} or \textit{PartialDataSource}). Partial forms of \textit{Tables} and \textit{DataSources} always contain a reference to the full version, but not the other way around. Therefore, this decision does not increase the time taken to insert new data significantly, but it is particularly useful when fetching the results for a \textit{Table}, or removing a \textit{Table} or \textit{DataSource}. Without this approach, completing these operations would require searching the entire Map to find any matches, turning the O(1) lookup time into O(n).
 
 \subsection{Spill to Memory}
 In situations with very large datasets, the amount of memory available to the workers will be less than the amount of data the system attempts to load. In this case, it is likely that the JVM will run out of heap space, causing a crash when it attempts to allocate more memory to store data. Therefore, the system features a module which allows it to move cached data onto disk to free up heap space. This module is part of the data store, and functions transparently to the rest of the system - data store queries are the same whether the result is held in-memory or on-disk.
@@ -237,7 +273,7 @@ To implement the spill process, an interface \textit{StoredTableResult} is defin
 \textit{ProtobufTableResult} only holds a pointer to the data on disk, and reads the data from there when the \textit{get} operation is called. It also features a cleanup method which removes the stored data from disk.
 
 \paragraph{Spill Process}
-The data store is responsible for managing in-memory and on-disk data. Before almost every operation on the data store, it makes a check for the current memory utilisation, which is calculated using a set of methods on the \textit{Runtime} class \cite{javaruntimeclass}. If the memory utilisation is over a given threshold, the data store attempts to spill at least the amount of bytes over the utilisation threshold. Figure \ref{fig:bytes-over-memory-threshold} shows how the amount of bytes over a percentage threshold is calculated.
+The data store is responsible for managing in-memory and on-disk data. Before almost every operation on the data store, it makes a check for the current memory utilisation, which is calculated using a set of methods on the \textit{Runtime} class \cite{javaruntimeclass}. If the memory utilisation is over a given threshold, the data store attempts to spill at least the amount of bytes over the utilisation threshold. Figure \ref{fig:bytes-over-memory-threshold} shows how the amount of bytes over a percentage threshold is calculated. \todo{explain better}
 
 \begin{figure}[h]
 	\centering
@@ -265,7 +301,7 @@ The data store makes use of a least-recently-used (LRU) policy to determine the 
 
 
 \section{Partitioning}
-One of the most important jobs of the orchestrator at the during a computation is to calculate partitions. There are two situations where partitions need to be calculated: when pulling source data from Cassandra, and when computing a Group By. The overall goal is to split the dataset into roughly equal chunks of a manageable size. 
+One of the most important jobs of the orchestrator during a computation is to calculate partitions. There are two situations where partitions need to be calculated: when pulling source data from Cassandra, and when computing a Group By. The overall goal is to split the dataset into roughly equal chunks of a manageable size. 
 
 \subsection{Cassandra}
 As described in the Design Chapter, Cassandra was selected as the persistent storage module because its storage model closely matches the type of partitioning the system requires. The Cassandra \textit{DataSource} getPartitions method investigates the source data in the database, and generates an appropriate number of partitions. This process is described below.
@@ -281,7 +317,7 @@ From a size estimate of the full table, estimates can be calculated for any give
 	\label{fig:token-range-estimation}
 \end{figure}
 
-Using this equation, it first gathers the token ranges which each node is responsible for storing. Then, it performs a joining and splitting process over each node, depending on the size of the token ranges, and the new token ranges after this process become the generated partitions. The flowchart in Figure \ref{fig:cassandra-partitioning-decision-tree} shows the full process for generating the output partitions, 
+Using this equation, it first gathers the token ranges which each node is responsible for storing. Then, it performs a joining and splitting process over each node, depending on the size of the token ranges. The set of token ranges produced after this process are the partitions used during the computation. The flowchart in Figure \ref{fig:cassandra-partitioning-decision-tree} shows the full process for generating the output partitions, 
 
 \begin{figure}[h]
 	\centering
@@ -306,7 +342,7 @@ Figure \ref{fig:cassandra-join-process} provides an example how the joining proc
 
 \begin{figure}[h]
 	\centering
-	\includegraphics[width=0.4\textwidth]{chapters/diagrams/implementation/cassandra-join-example}
+	\includegraphics[width=0.5\textwidth]{chapters/diagrams/implementation/cassandra-join-example}
 	\caption{Token Range Joining Example}
 	\label{fig:cassandra-join-process}
 \end{figure}
@@ -316,7 +352,7 @@ The Cassandra Java Driver provides a wide range of helper functions for performi
 \subsection{Cassandra Data Co-Location}\label{subsec:colocation}
 Once the list of partitions for each Cassandra node are generated, the system attempts to co-locate workers to Cassandra nodes. The goal of this process is to produce an \textit{optimal assignment} of partitions, where each partition is matched to one or more workers to minimise network latency when fetching the data from Cassandra.
 
-To do this, each worker first calculates its closest Cassandra node. This is done by opening a TCP connection multiple times with each Cassandra node, and averaging the time taken over multiple attempts. The node with the lowest average latency is selected as the closest node. The orchestrator uses this information to match each worker to a Cassandra node and its corresponding list of partitions. The output is an optimal assignment between workers and partitions. It's possible for more than one worker to be matched to the same set of partition, and it's also possible for a set of partitions to have no co-located worker nodes. In this case, they are kept as unassigned, and the work assignment algorithm handles their allocation. Figure \ref{fig:optimal-assignment-example} shows an example optimal assignment after this process is complete.
+To do this, each worker first calculates its closest Cassandra node. This is done by opening a TCP connection multiple times with each Cassandra node, and averaging the time taken over multiple attempts. The node with the lowest average latency is selected as the closest node. The orchestrator uses this information to match each worker to a Cassandra node and its corresponding list of partitions. The output is an optimal assignment between workers and partitions. It is possible for more than one worker to be matched to the same set of partitions, and it is also possible for a set of partitions to have no co-located worker nodes. In this case, they are kept as unassigned, and the work assignment algorithm handles their allocation. Figure \ref{fig:optimal-assignment-example} shows an example optimal assignment after this process is complete. \todo{show the cluster setup that would lead to these optimal assignments}
 
 \begin{figure}[h]
 	\centering
@@ -343,7 +379,7 @@ The first step is to compute the number of partitions that the Group By will be 
 
 
 \paragraph{Hashing} 
-A unique partition is then defined as the tuple of the total number of partitions, and the partition number of this partition. Hashing, combined with the modulo operation, is used to determine which partition each row should be assigned to. In particular, Murmur3Hash is used as the hashing algorithm, which is used in Cassandra and is provided natively by Scala. Figure \ref{fig:group-by-partition-assign} shows the high level equation for assigning rows to partitions. This process ensures that the new partitions will be roughly equal in size, and all rows with the same values for the unique keys will be mapped to the same partition.
+A unique partition is then defined as the tuple of the total number of partitions, and the partition number of this partition. Hashing, combined with the modulo operation, is used to determine which partition each row should be assigned to. In particular, Murmur3Hash is used as the hashing algorithm, which is used in Cassandra and is provided natively by Scala \cite{murmur3hash}. Figure \ref{fig:group-by-partition-assign} shows the high level equation for assigning rows to partitions. This process ensures that the new partitions will be roughly equal in size, and all rows with the same values for the unique keys will be mapped to the same partition.
 
 \begin{figure}[h]
 	\centering
