@@ -1,4 +1,4 @@
-\chapter{Implementation}
+\chapter{Implementation}\label{cha:implementation}
 
 A number of components were created to implement the proposed architecture. This chapter will provide a high level overview of the system, then examine each component in further detail.
 
@@ -14,32 +14,52 @@ Figure \ref{fig:component-architecture-diagram} shows a component diagram for th
 
 The system supports three types of queries: Select, Filter and Group By. Both Select and Filter are row-level operations, meaning the workers do not have to pass data to one another during computation. However, Group By does need the workers to cross-communicate, which means they also require a temporary store to cache partial results.
 
-\section{Type System}
-\todo{Illustrative example - motivation: want to store table data, but need to know the type information of all values in the table}
-\todo{Not super happy with this first sentence}
-Any primitive value within the framework falls under the type system. Values can be combined into rows by storing multiple values in a list, and rows can be combined into tables by storing multiple rows in a list with a header. However, designing the interfaces to represent these values presents a challenge. Figure \ref{fig:type-system-motivation} demonstrates the problem. 
+\section{Type System}\label{sec:type-system}
+The type system's role is to provide a representation for every type of value the user can store within a table. However, designing the interfaces to represent these values presents a challenge. Figure \ref{fig:type-system-motivation} demonstrates the problem. 
 
-On the left, an example is shown where the raw data is held in lists. Type information cannot be used to determine the table's contents, as there are no shared types between the stored values. Therefore, to discover the type of a value, the system would have to perform runtime type checks against all supported types, adding a significant amount of overhead. 
+On the left, an example is shown where the table is a 2D list of raw values. As multiple types are stored in the same list, there is no shared type information between the values, so types cannot be used to determine the table's contents. To discover a value's type, the system would have to perform runtime type checks against all supported types, adding a significant amount of overhead. 
 
-On the right, a conceptual model is shown, using a lightweight container class. This holds the raw value, and the type information about the value at runtime, meaning that the system only needs to perform the runtime type check once in order to create the correct class instance. 
+On the right, a conceptual model is shown, using a container class. The container holds a raw value with the type information about the value, and the table is a 2D list of containers. The system only needs to perform one runtime type check in order to instantiate the correct class instance. 
 
-\begin{figure}[h]
+\begin{figure}[htp]
 	\centering
 	% left - data stored in raw format - no information 
 	% right - data stored in containers with value and type information, can infer what type the value is from the stored type information
+	\centering
+	\subfloat[\centering Raw Data - No Type Information Available]{
+		\begin{tabular}{r c c l}
+			\textbf{Header:} [& id, & name & ] \\
+			\textbf{Row 1:} [& 1, & "Alice" & ] \\
+			\textbf{Row 2:} [& 2, & "Bob" & ] \\
+		\end{tabular}
+	}
+	\qquad
+	\subfloat[\centering Container Class - Value and Type Information Stored Together]{
+		\begin{tabular}{r c c l}
+			\textbf{Header:} [& (id, int), & (name, string) & ] \\
+			\textbf{Row 1:} [& (1, int), & ("Alice", string) & ] \\
+			\textbf{Row 2:} [& (2, int), & ("Bob", string) & ] \\
+		\end{tabular}
+	}
 	\caption{Type System - Motivating Example}
 	\label{fig:type-system-motivation}
 \end{figure}
 
-Due to Java limitations, this conceptual solution is not entirely straightforward to implement. The container class could use a generic type parameter which stores the type information of the value inside the container. A row of data needs to support multiple types stored together, and this is not possible using generics as their type information is erased at runtime \cite{ghosh2004generics}. The container class could instead be defined as an interface, and each supported type provides an implementation of that interface, but this is not much better than the primitive type solution, as the runtime type check simply becomes a pattern match on the class instance. A solution that exploits some kind of polymorphism is preferred.
+Due to Java limitations, this conceptual solution is not entirely straightforward to implement. The container class could use a generic type parameter which stores the type information of the value in the container, but generic type information is erased at runtime \cite{ghosh2004generics}. Instead, it could be defined as an interface, with each supported type providing an implementation of that interface, but this is not much better than the raw data solution, as the runtime type check simply becomes a pattern match on the class instance. A solution that exploits some kind of polymorphism is preferred. 
 
-Scala provides a feature known as ClassTags \cite{scalaclasstags}. These saved the erased type information and also permit equality checks between ClassTag instances, meaning the framework can use the ClassTag to compare the type of a value to an expected type. This is used by \textit{FieldExpressions} to determine return types and function argument types; see Section \ref{subsec:fieldexpressions} for further information.
+Scala provides a feature known as \textit{ClassTags} \cite{scalaclasstags}. These save the erased type information and also permit equality checks between \textit{ClassTag} instances, meaning the framework can use them to compare the type of a value to an expected type. The container class is therefore defined as an interface \textit{ValueType}, which holds a \textit{ClassTag} instance. This interface is implemented by \textit{TableField}, which holds field name and type, and \textit{TableValue}, which holds a value and its type. Concrete implementations for the 5 supported types, described in Section \ref{subsec:supported-types}, are provided for both subclasses. Figure \ref{fig:type-system-hierarchy} shows the class hierarchy.
 
-\todo{fix flow of these sections}
-\subsection{Supported Types}
+\begin{figure}[htp]
+	\centering
+	\includegraphics[width=0.7\textwidth]{chapters/diagrams/implementation/type-system-hierarchy}
+	\caption{Custom Type System Hierarchy}
+	\label{fig:type-system-hierarchy}
+\end{figure}
+
+\subsection{Supported Types}\label{subsec:supported-types}
 The type system supports a subset of Scala, Python, and Cassandra's types, shown in Figure \ref{fig:datatypes}.
 
-\begin{figure}[h]
+\begin{figure}[htp]
 	\centering
 	\begin{tabular}{| c | c | c | c |}
 		\hline
@@ -56,17 +76,6 @@ The type system supports a subset of Scala, Python, and Cassandra's types, shown
 
 There were two main goals when selecting these primitive types. Firstly, every type should be able to be represented without data loss in all parts of the system. Secondly, it should be possible to represent the types in protobuf format, as this would allow for easy serialisation of result data. All types except DateTime can be converted to protobuf natively, and DateTimes are supported by serialising as an ISO8601 formatted string \cite{iso_8601}.
 
-% does this flow
-\subsection{ValueType Container Class}
-The container class is defined using a base interface \textit{ValueType}, which captures the ClassTag requirement. This is used in both \textit{TableField}, which captures header field information (name and type), and \textit{TableValue}, which captures value information (value and type). By separating the ClassTag requirement from fields and values, \textit{TableFields} can be used to check the type of \textit{TableValues}, even though they hold different data. Concrete implementations for the 5 supported types are provided for both subclasses. Figure \ref{fig:type-system-hierarchy} shows the class hierarchy.
-
-\begin{figure}[h]
-	\centering
-	\includegraphics[width=0.7\textwidth]{chapters/diagrams/implementation/type-system-hierarchy}
-	\caption{Custom Type System Hierarchy}
-	\label{fig:type-system-hierarchy}
-\end{figure}
-
 \subsection{Result Model}
 The hierarchy of classes and supported types provide everything needed to define the result of a computation, known as a \textit{TableResult}. Headers are defined as a sequence of \textit{TableFields} and result rows are stored as a two-dimensional array of \texttt{Option[TableValue]}. As defined in the requirements, null values must be supported, but the use of nulls in Scala is discouraged. Instead, Option is preferred as it is supported by all the typical functional methods. In this model, values are represented by \texttt{Some(TableValue())}, and null values are represented by \texttt{Nothing}. Figure \ref{fig:example-table-result} shows what an example result looks like using this definition.
 
@@ -82,12 +91,10 @@ The hierarchy of classes and supported types provide everything needed to define
 	\label{fig:example-table-result}
 \end{figure}
 
-
-
 \section{Domain Specific Language}
 The user's interaction with the framework is driven entirely by the Domain Specific Language (DSL), which is modelled with SQL-like syntax. The language allows users to define expressions, then use these in computations like Select, Filter and Group By. Figure \ref{fig:dsl-high-level-example} provides a sample annotated DSL query, with links to the sections where each part is discussed.
 
-\begin{figure}[ht]
+\begin{figure}[htp]
 	Initialise cluster connection and select a Cassandra source table:
 	\begin{python}
 ClusterManager("orchestrator-url")
@@ -132,13 +139,13 @@ ClusterManager("orchestrator-url")
 
 \begin{itemize}
 	\item Values: define literal values which never change across all rows
-	\item Fields: when iterating over the rows of a result, gets the value from the named field in the current row.
+	\item Fields: get the value from the given field name in the current row.
 	\item FunctionCalls: perform arbitrary function calls using further FieldExpressions as arguments.
 \end{itemize}
 
 Figure \ref{fig:field-expressions-examples} provides examples for each type of \textit{FieldExpression}.
 
-\begin{figure}[ht]
+\begin{figure}[htp]
 	Values (from left to right): string "a", integer 1, double 1.5, boolean True, date 31/12/2021.
 	\begin{python}
 V("a") , V(1), V(1.5), V(True), V(datetime.date(2021, 12, 31))
@@ -163,40 +170,57 @@ Function.Left(Function.ToString(F("field1")), 10)
 Many basic functions have been implemented, including arithmetic, string and cast operations. ver, the function system is designed to be extensible. A number of helper classes are defined to allow the creation of basic unary, binary and ternary functions, but \textit{FunctionCall} is itself an interface which can be given completely custom implementations if required. The main constraint on the functions that can be defined are that only the 5 primitive input types are supported.
 
 \paragraph{Type Resolution} 
-Type Resolution on FieldExpressions is performed in two stages: a resolution step, and an evaluation step. The resolution step takes in type information from the header of the input result, and verifies that the \textit{FieldExpression} is well typed with regards to that result. This is required for Fields, which can be valid for one result but invalid for another if the field name is not present in the result header; Figure \ref{fig:field-type-resolution} shows an example of this. The evaluation step performs the computation on a row from that result without any type checking. \todo{edit this to include this example, and an example of a function being invalid if the type of the field is wrong}
+Type Resolution on FieldExpressions is performed in two stages: a resolution step, and an evaluation step. The resolution step takes in type information from a \textit{ClassTag} in the header of the input result, and verifies that the \textit{FieldExpression} is well-typed with regards to that result; see Section \ref{sec:type-system} for details. The evaluation step performs the computation on a row from that result without any type checking. Unchecked casts are used here instead, demonstrated for a binary function in Figure \ref{fig:fieldexpression-unchecked-casts}. 
 
-\begin{figure}[ht]
-	\centering
-	\subfloat[\centering Valid - able to evaluate this result]{
-		\begin{tabular}{l c l}
-			\textbf{Header:} [& IntField(\textcolor{deepgreen}{"field"}) ] \\
-		\end{tabular}
-	}
-	\qquad
-	\subfloat[\centering Invalid - unable to evaluate this result]{
-		\begin{tabular}{l c l}
-			\textbf{Header:} [& StringField(\textcolor{deepgreen}{"differentField"}) ] \\
-		\end{tabular}
-	}
-	
-	\caption{Type Resolution of F(\textcolor{deepgreen}{"field"})}
-	\label{fig:field-type-resolution}
-\end{figure}
-
-This two-step process has a number of benefits. The resolution step enables a form of polymorphism on some functions like arithmetic operations. These functions determine what types are returned by their sub-expressions during resolution, and resolve to the correct version for evaluation. For example, the add function can resolve to \textit{AddInt}, \textit{AddDouble}, or \textit{Concat}. This reduces the overhead at runtime as type checking does not need to be performed for each row when making a function call. Unchecked casts are used here instead, demonstrated for a binary function in Figure \ref{fig:fieldexpression-unchecked-casts}
-	
-\begin{figure}[ht]
+\begin{figure}[htp]
 	\centering
 	\includegraphics[width=\textwidth]{chapters/diagrams/implementation/type-resolution-unchecked-casts}
 	\caption{Runtime Evaluation of Functions}
 	\label{fig:fieldexpression-unchecked-casts}
 \end{figure}
 
+There are two main situations where the resolution step catches errors. Firstly, a Field reference is invalid if the field name is not present in the table header, shown in Figure \ref{fig:field-type-resolution}. Secondly, a Function call is invalid if an argument returns an invalid type, shown in Figure \ref{fig:function-type-resolution}.
+
+\begin{figure}[htp]
+	\centering
+	For the expression F(\textcolor{deepgreen}{"field"}):
+	
+	\subfloat[\centering Valid - \textcolor{deepgreen}{"field"} is present in the header]{
+		\begin{tabular}{l c l}
+			\textbf{Header:} [& IntField(\textcolor{deepgreen}{"field"}) ] \\
+		\end{tabular}
+	}
+	\qquad
+	\subfloat[\centering Invalid - \textcolor{deepgreen}{"field"} not present in the header]{
+		\begin{tabular}{l c l}
+			\textbf{Header:} [& StringField(\textcolor{deepgreen}{"differentField"}) ] \\
+		\end{tabular}
+	}
+	\caption{Type Resolution of Fields}
+	\label{fig:field-type-resolution}
+\end{figure}
+
+\begin{figure}[htp]
+	Valid - both arguments to \textit{Concat} are strings:
+	\begin{python}
+Function.Concat(V("hello"), V("Alice"))
+	\end{python}
+	
+	Invalid - \textit{V(1)} is not a string:
+	\begin{python}
+Function.Concat(V("hello"), V(1))
+	\end{python}
+	\caption{Type Resolution of Functions}
+	\label{fig:function-type-resolution}
+\end{figure}
+
+
+A two-step process has a number of benefits. The resolution step enables a form of polymorphism on some functions like arithmetic operations. These determine what types are returned by their sub-expressions during resolution, resolving to the correct version for evaluation. For example, the add function resolves to \textit{AddInt}, \textit{AddDouble}, or \textit{Concat}. It also reduces the overhead at runtime as type checking does not need to be performed for each row.
 
 \paragraph{Named Expressions}
 When performing a Select operation, the output fields are all expected to be named. This allows the user to chain operations by referencing fields from the previous input. Figure \ref{fig:namedfieldexpression-examples} shows the two ways of naming a field: \textit{FieldExpressions} can be assigned a user-defined name, or \textit{F()} expressions will also keep their name automatically.
 
-\begin{figure}[ht]
+\begin{figure}[htp]
 	Top Expression Name: 'twice\textunderscore duration'
 	
 	Bottom Expression Name: 'creation\textunderscore date'
