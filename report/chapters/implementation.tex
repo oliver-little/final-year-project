@@ -1,6 +1,6 @@
 \chapter{Implementation}\label{cha:implementation}
 
-A number of components were created to implement the proposed architecture. This chapter will provide a high level overview of the system, then examine each component in further detail.
+A number of components were created to implement the proposed architecture. This chapter will provide a high level overview of the solution, then examine each component in further detail.
 
 \section{Overall Solution}
 \begin{figure}[h]
@@ -10,16 +10,16 @@ A number of components were created to implement the proposed architecture. This
 	\label{fig:component-architecture-diagram}
 \end{figure}
 
-Figure \ref{fig:component-architecture-diagram} shows a component diagram for the core components, and their interactions. As described in Section \ref{sec:architecture}, the frontend is the user's entrypoint to the system. It acts as a terminal, allowing the user to define queries using the Python Domain Specific Language (DSL), and receive results. Queries are sent to the orchestrator, which acts as the central state management for the system. A number of components are used to get from query to result. First, it generates a query plan which describes the steps for computing a result. Then, the query plan is executed step-by-step, with the data used in each step being split up into a number of chunks of work (partitions) before being delegated to the workers. The workers are responsible for accepting these partitions, and performing the computation. Finally, when all query plan steps have been executed, the orchestrator fetches partial results from all workers, collates them into a final result, and returns this to the frontend. gRPC is used anywhere where network communication is required between the frontend, orchestrator and worker nodes.
+Figure \ref{fig:component-architecture-diagram} shows a component diagram for the core components, and their interactions. As described in Section \ref{sec:architecture}, the frontend is the user's entrypoint to the system. It acts as a terminal, allowing the user to define queries using the Python Domain Specific Language (DSL), and receive results. Queries are sent to the orchestrator, which acts as the central state management for the system. First, it generates a query plan which describes the steps for computing a result. Then, the query plan is executed step-by-step, with the data used in each step being split up into a number of chunks of work (partitions) before being delegated to the workers. The workers are responsible for accepting these partitions, and performing the computation. Finally, when all query plan steps have been executed, the orchestrator fetches partial results from all workers, collates them into a final result, and returns this to the frontend. gRPC is used anywhere where network communication is required between the frontend, orchestrator and worker nodes.
 
 The system supports three types of queries: Select, Filter and Group By. Both Select and Filter are row-level operations, meaning the workers do not have to pass data to one another during computation. However, Group By does need the workers to cross-communicate, which means they also require a temporary store to cache partial results.
 
 \section{Type System}\label{sec:type-system}
 The type system's role is to provide a representation for every type of value the user can store within a table. However, designing the interfaces to represent these values presents a challenge. Figure \ref{fig:type-system-motivation} demonstrates the problem. 
 
-On the left, an example is shown where the table is a 2D list of raw values. As multiple types are stored in the same list, there is no shared type information between the values, so types cannot be used to determine the table's contents. To discover a value's type, the system would have to perform runtime type checks against all supported types, adding a significant amount of overhead. 
+On the left, an example is shown where a table is a 2D list of raw values. As multiple types are stored in the same list, there is no shared type information between the values, they cannot be used to determine the table's contents. To discover a value's type, the system would have to perform runtime type checks against all supported types, adding a significant amount of overhead. 
 
-On the right, a conceptual model is shown, using a container class. The container holds a raw value with the type information about the value, and the table is a 2D list of containers. The system only needs to perform one runtime type check in order to instantiate the correct class instance. 
+On the right, a conceptual model using a container class is shown. The container stored a raw value with the type information about the value, and the table is a 2D list of containers. The system only needs to perform one runtime type check in order to instantiate the correct container instance. 
 
 \begin{figure}[htp]
 	\centering
@@ -45,9 +45,9 @@ On the right, a conceptual model is shown, using a container class. The containe
 	\label{fig:type-system-motivation}
 \end{figure}
 
-Due to Java limitations, this conceptual solution is not entirely straightforward to implement. The container class could use a generic type parameter which stores the type information of the value in the container, but generic type information is erased at runtime \cite{ghosh2004generics}. Instead, it could be defined as an interface, with each supported type providing an implementation of that interface, but this is not much better than the raw data solution, as the runtime type check simply becomes a pattern match on the class instance. A solution that exploits some kind of polymorphism is preferred. 
+Due to Java limitations, this conceptual solution is not straightforward to implement. The container class could use a generic type parameter which stores the type information of the value, but generic type information is erased at runtime \cite{ghosh2004generics}. Instead, it could be defined as an interface, with subclass implementations for each supported type, but this is not much better than the raw data solution, as the runtime type check simply becomes a pattern match on the class type. A solution that exploits some kind of polymorphism is preferred. 
 
-Scala provides a feature known as \textit{ClassTags} \cite{scalaclasstags}. These save the erased type information and also permit equality checks between \textit{ClassTag} instances, meaning the framework can use them to compare the type of a value to an expected type. The container class is therefore defined as an interface \textit{ValueType}, which holds a \textit{ClassTag} instance. This interface is implemented by \textit{TableField}, which holds field name and type, and \textit{TableValue}, which holds a value and its type. Concrete implementations for the 5 supported types, described in Section \ref{subsec:supported-types}, are provided for both subclasses. Figure \ref{fig:type-system-hierarchy} shows the class hierarchy.
+Scala provides a feature known as \textit{ClassTags} \cite{scalaclasstags}. These save erased type information and permit equality checks between \textit{ClassTag} instances, meaning the framework can use them to compare the type of a value to an expected type. The conceptual container class is therefore defined as an interface \textit{ValueType}, which holds a \textit{ClassTag} instance. This interface is implemented by \textit{TableField}, which holds a field name and its type, and \textit{TableValue}, which holds a value and its type. Concrete implementations for the 5 supported types described in Section \ref{subsec:supported-types} are provided for both subclasses. Figure \ref{fig:type-system-hierarchy} shows the class hierarchy.
 
 \begin{figure}[htp]
 	\centering
@@ -74,10 +74,10 @@ The type system supports a subset of Scala, Python, and Cassandra's types, shown
 	\label{fig:datatypes}
 \end{figure}
 
-There were two main goals when selecting these primitive types. Firstly, every type should be able to be represented without data loss in all parts of the system. Secondly, it should be possible to represent the types in protobuf format, as this would allow for easy serialisation of result data. All types except DateTime can be converted to protobuf natively, and DateTimes are supported by serialising as an ISO8601 formatted string \cite{iso_8601}.
+The main goal when selecting these primitive types was to ensure all types could be represented in all parts of the system. This includes protobuf format, which would allow for easy serialisation of result data. All types except DateTime can be converted to protobuf natively, and DateTimes are supported by serialising as an ISO8601 formatted string \cite{iso_8601}.
 
 \subsection{Result Model}
-The hierarchy of classes and supported types provide everything needed to define the result of a computation, known as a \textit{TableResult}. Headers are defined as a sequence of \textit{TableFields} and result rows are stored as a two-dimensional array of \texttt{Option[TableValue]}. As defined in the requirements, null values must be supported, but the use of nulls in Scala is discouraged. Instead, Option is preferred as it is supported by all the typical functional methods. In this model, values are represented by \texttt{Some(TableValue())}, and null values are represented by \texttt{Nothing}. Figure \ref{fig:example-table-result} shows what an example result looks like using this definition.
+The hierarchy of classes and supported types provide everything needed to define a table of result data, known as a \textit{TableResult}. Headers are a sequence of \textit{TableFields} and result rows are a two-dimensional array of \texttt{Option[TableValue]}. As defined in the requirements, null values must be supported, but this is discouraged in Scala. Instead, Option is preferred as it is supported by all the typical functional methods. In this model, values are represented by \texttt{Some(TableValue())}, and null values are represented by \texttt{None}. Figure \ref{fig:example-table-result} shows an example \textit{TableResult}.
 
 \begin{figure}[h]
 	\centering
@@ -87,12 +87,12 @@ The hierarchy of classes and supported types provide everything needed to define
 		\textbf{Row 2:}  [ & Some(IntValue(2)), & None, & None & ], \\
 		\textbf{Row 3:}  [ & Some(IntValue(3)), & Some(StringValue(\textcolor{deepgreen}{"Bob"})), & None & ]] \\
 	\end{tabular}
-	\caption{Example Table Result}
+	\caption{\textit{TableResult} example}
 	\label{fig:example-table-result}
 \end{figure}
 
 \section{Domain Specific Language}
-The user's interaction with the framework is driven entirely by the Domain Specific Language (DSL), which is modelled with SQL-like syntax. The language allows users to define expressions, then use these in computations like Select, Filter and Group By. Figure \ref{fig:dsl-high-level-example} provides a sample annotated DSL query, with links to the sections where each part is discussed.
+The user's interaction with the framework is driven entirely by the Domain Specific Language (DSL), which is modelled with SQL-like syntax. It allows users to define expressions, then use these in computations like Select, Filter and Group By. Figure \ref{fig:dsl-high-level-example} shows a DSL query, with links to the sections where each part is discussed further
 
 \begin{figure}[htp]
 	Initialise cluster connection and select a Cassandra source table:
@@ -135,12 +135,12 @@ ClusterManager("orchestrator-url")
 
 
 \subsection{FieldExpressions}\label{subsec:fieldexpressions}
-\textit{FieldExpressions} are a key part of the DSL, allowing the user to define arbitrary row-level calculations to be used as part of more complex operations. They are defined as an interface, with three subclasses:
+\textit{FieldExpressions} are a key part of the DSL, allowing the user to define arbitrary row-level calculations. They are defined as an interface, with three subclasses:
 
 \begin{itemize}
 	\item Values: define literal values which never change across all rows
-	\item Fields: get the value from the given field name in the current row.
-	\item FunctionCalls: perform arbitrary function calls using further FieldExpressions as arguments.
+	\item Fields: get the value at the current row for the given field name.
+	\item FunctionCalls: perform arbitrary function calls using \textit{FieldExpressions} as arguments.
 \end{itemize}
 
 Figure \ref{fig:field-expressions-examples} provides examples for each type of \textit{FieldExpression}.
@@ -167,10 +167,10 @@ Function.Left(Function.ToString(F("field1")), 10)
 	\label{fig:field-expressions-examples}
 \end{figure}
 
-Many basic functions have been implemented, including arithmetic, string and cast operations. ver, the function system is designed to be extensible. A number of helper classes are defined to allow the creation of basic unary, binary and ternary functions, but \textit{FunctionCall} is itself an interface which can be given completely custom implementations if required. The main constraint on the functions that can be defined are that only the 5 primitive input types are supported.
+Many basic functions have been implemented, including arithmetic, string and cast operations. However, the function system is designed to be extensible. A number of helper classes are provided to allow the creation of unary, binary and ternary functions, but \textit{FunctionCall} is itself an interface which can be given custom implementations if required, with the main constraint being that functions can only take the 5 primitive types as arguments.
 
 \paragraph{Type Resolution} 
-Type Resolution on FieldExpressions is performed in two stages: a resolution step, and an evaluation step. The resolution step takes in type information from a \textit{ClassTag} in the header of the input result, and verifies that the \textit{FieldExpression} is well-typed with regards to that result; see Section \ref{sec:type-system} for details. The evaluation step performs the computation on a row from that result without any type checking. Unchecked casts are used here instead, demonstrated for a binary function in Figure \ref{fig:fieldexpression-unchecked-casts}. 
+Type Resolution is performed in two stages: resolution, and evaluation. The resolution step takes in type information from \textit{ClassTags} in the input result header, and verifies that the \textit{FieldExpression} is well-typed with regards to that result by comparing \textit{ClassTags}; see Section \ref{sec:type-system} for details. The evaluation step performs the computation on a \textit{TableResult} row without any type checking. Unchecked casts are used here instead, demonstrated for a binary function in Figure \ref{fig:fieldexpression-unchecked-casts}. 
 
 \begin{figure}[htp]
 	\centering
@@ -179,7 +179,7 @@ Type Resolution on FieldExpressions is performed in two stages: a resolution ste
 	\label{fig:fieldexpression-unchecked-casts}
 \end{figure}
 
-There are two main situations where the resolution step catches errors. Firstly, a Field reference is invalid if the field name is not present in the table header, shown in Figure \ref{fig:field-type-resolution}. Secondly, a Function call is invalid if an argument returns an invalid type, shown in Figure \ref{fig:function-type-resolution}.
+There are two key errors the resolution step is designed to catch. Firstly, a Field reference is invalid if the field name is not present in the table header, shown in Figure \ref{fig:field-type-resolution}. Secondly, a Function call is invalid if an argument returns an invalid type, shown in Figure \ref{fig:function-type-resolution}.
 
 \begin{figure}[htp]
 	\centering
@@ -215,10 +215,10 @@ Function.Concat(V("hello"), V(1))
 \end{figure}
 
 
-A two-step process has a number of benefits. The resolution step enables a form of polymorphism on some functions like arithmetic operations. These determine what types are returned by their sub-expressions during resolution, resolving to the correct version for evaluation. For example, the add function resolves to \textit{AddInt}, \textit{AddDouble}, or \textit{Concat}. It also reduces the overhead at runtime as type checking does not need to be performed for each row.
+A two-step process has a number of benefits. The resolution step enables a form of polymorphism on some functions like arithmetic operations. These determine what types are returned by their sub-expressions during resolution, and change their behaviour for evaluation. For example, the add function resolves to \textit{AddInt}, \textit{AddDouble}, or \textit{Concat}. It also reduces the overhead at runtime as type checking does not need to be performed for each row.
 
 \paragraph{Named Expressions}
-When performing a Select operation, the output fields are all expected to be named. This allows the user to chain operations by referencing fields from the previous input. Figure \ref{fig:namedfieldexpression-examples} shows the two ways of naming a field: \textit{FieldExpressions} can be assigned a user-defined name, or \textit{F()} expressions will also keep their name automatically.
+When performing a Select operation, the output fields are all expected to be named to allow the user to chain operations by referencing fields from the previous input. Figure \ref{fig:namedfieldexpression-examples} shows the two ways of naming a field: \textit{FieldExpressions} can be assigned a name, and single Field references will keep their previous name.
 
 \begin{figure}[htp]
 	Top Expression Name: 'twice\textunderscore duration'
@@ -233,7 +233,7 @@ F("creation_date")
 \end{figure}
 
 \subsection{FieldComparisons}\label{subsec:fieldcomparisons}
-\textit{FieldComparisons} are another key building block of the DSL, allowing the user to define arbitrary row-level comparisons. \textit{FieldComparisons} use a two-step resolution-evaluation process to accommodate the same process as \textit{FieldExpressions}. They are defined as an interface, with a number of comparison types implemented already, including null, equality, numerical and string comparisons. Examples of each are shown in Figure \ref{fig:field-comparisons-examples}.
+\textit{FieldComparisons} are another key part of the DSL, allowing the user to define arbitrary row-level comparisons. They are defined as an interface, with a number of comparison types already implemented, including null, equality, numerical and string comparisons. Examples of each are shown in Figure \ref{fig:field-comparisons-examples}.
 
 \begin{figure}[htp]
 	Null checks: verify whether an expression is null or not null.
@@ -267,7 +267,7 @@ F("name").ends_with("Smith")
 \end{figure}
 
 \paragraph{Combined Comparisons}
-The user is able to combine multiple FieldComparisons using AND/OR operators, shown in Figure \ref{fig:field-comparisons-combiners}. This is a lightweight wrapper around Scala's own AND (\texttt{\&\&}) and OR (\texttt{||}) boolean operators, meaning optimisations like short circuiting operate as normal.
+The user can combine multiple FieldComparisons using AND/OR operators, shown in Figure \ref{fig:field-comparisons-combiners}. This is a lightweight wrapper around Scala's own boolean operators, meaning optimisations like short circuiting operate as normal.
 
 \begin{figure}[htp]
 	\begin{python}
@@ -282,7 +282,7 @@ The user is able to combine multiple FieldComparisons using AND/OR operators, sh
 \end{figure}
 
 \subsection{Aggregate Expressions}\label{subsec:aggregateexpressions}
-\textit{AggregateExpressions} are the final part of the DSL. These are used only as part of Group Bys, and allow the user to define methods of aggregating all rows of a result. They take a \textit{NamedFieldExpression} as an argument, and compute a single row output from any number of input result rows.
+\textit{AggregateExpressions} are the final part of the DSL. These are used only as part of Group Bys, allowing the user to aggregate all rows of a result. They take a \textit{NamedFieldExpression} as an argument, and compute a single row output from any number of input result rows.
 
 The supported operations are Minimum, Maximum, Sum, Average, Count, and String Concatenation, and they are polymorphic where possible. For example, minimum and maximum handle numeric types by ordering numerically and string types lexicographically. Figure \ref{fig:aggregate-expressions-examples} shows examples of \textit{AggregateExpressions}.
 
@@ -298,14 +298,14 @@ Count(F("id"))
 \end{figure}
 
 \subsection{Protocol Buffer Serialisation}
-All components of the DSL have been designed to be serialised to protobuf format. This allows any queries written by the user to be passed around the system using gRPC, and if required the query can also be serialised to a file. The results of a query are also serialisable, to allow the system to return query results to the user. gRPC has a size limit of 4MB for individual messages, so results are split up by row and streamed individually.
+All components of the DSL are designed to be serialised to protobuf format, allowing any queries written by the user to be sent using gRPC. The results of a query are also serialisable, to allow the system to return query results to the user. gRPC has a size limit of 4MB for individual messages, so \textit{TableResults} are streamed row-by-row.
 
 \subsection{Python Implementation}\label{subsec:dsl-python}
 The Python frontend is designed to be straightforward to use, hiding the complexities of the computation being performed in the backend. A number of Python-specific features were used to help with this.
 
-Python allows developers to override common operators, including arithmetic and comparison, with custom definitions. The Python implementation of \textit{FieldExpression} overrides the arithmetic operators, as well as comparison operators to allow the user to automatically generate functions and \textit{FieldComparisons}, without having to write the full definition.
+Python allows developers to override common operators with custom definitions. The Python implementation of \textit{FieldExpression} overrides the arithmetic operators, as well as comparison operators to allow the user to automatically generate functions and \textit{FieldComparisons}, without having to write the full definition. % example?
 
-Furthermore, as discussed in \ref{subsec:frontend-design}, pandas is widely used for data analysis in Python \cite{reback2020pandas}. The frontend is able to convert query results from their protobuf definition to a pandas DataFrame to allow further analysis to be performed immediately.
+Furthermore, as discussed in \ref{subsec:frontend-design}, pandas is widely used for Python data analysis \cite{reback2020pandas}. The frontend is able to convert query results from protobuf to a pandas DataFrame to aid further analysis.
 
 
 
@@ -313,11 +313,11 @@ Furthermore, as discussed in \ref{subsec:frontend-design}, pandas is widely used
 % This section should be clear and understandable, as much of the rest refers to partial and full versions
 The data model is split into two key components: \textit{DataSource} and \textit{Table}. 
 
-\textit{DataSource} is an interface, representing any part of the query where data must be rearranged into new partitions, including Cassandra source data, and Group By operations. \textit{Table} is a class, representing any part of the query containing purely row-level computations, including Select and Filter operations. It is composed of a \textit{DataSource} and a list of row-level computations known as \textit{TableTransformations}. To compute its output, the \textit{DataSource} is computed first, then all transformations are applied sequentially.
+\textit{DataSource} is an interface, representing any part of the query where data must be rearranged into new partitions, including Cassandra source data, and Group By operations. \textit{Table} is a class, representing any part of the query containing purely row-level computations, like Select and Filter, which must implement the \textit{TableTransformation} interface. It is composed of a \textit{DataSource} and a list of row-level computations known as \textit{TableTransformations}. To compute its output, the \textit{DataSource} is computed first, then all transformations are applied sequentially.
 
-Optionally, \textit{DataSources} can have dependent \textit{Tables} which must be calculated first. For example, a Group By \textit{DataSource} requires a single \textit{Table} to be fully computed before it can be generated. A Cassandra \textit{DataSource} will always act as the terminal component for a query, as it has no dependencies.
+Optionally, \textit{DataSources} can have dependent \textit{Tables} which must be calculated first. For example, a Group By \textit{DataSource} requires a single \textit{Table} to be computed before it can be generated. A Cassandra \textit{DataSource} will always act as the terminal component for a query, as it has no dependencies.
 
-For demonstration purposes, Figure \ref{fig:filter-select-query} shows a Filter and Select query in the DSL, and the data model. Note that any number of Select and Filter operations can be placed in the Table component, as no new partitions are required to produce the result.
+Figure \ref{fig:filter-select-query} shows a Filter and Select query in the DSL, and the data model representation. Note that any number of Select and Filter operations can be added to the Table component, as no new partitions are required to generate the result.
 
 \begin{figure}[htp]
 	\centering
@@ -334,7 +334,7 @@ ClusterManager("orchestrator-service")
 \end{figure}
 
 
-Figure \ref{fig:group-by-query} shows a more complex query containing a Group By in the DSL, and the data model. The dependent table (bottom left) is calculated first, and its output is used to compute the Group By, in \textit{GroupByDataSource}. The final output is then generated in the output table.
+Figure \ref{fig:group-by-query} shows a query containing a Group By in the DSL, and the data model representation. The dependent table (bottom left) is calculated first, and its output is used to compute the Group By, in \textit{GroupByDataSource}. The final output is then generated in the output table.
 
 \begin{figure}[htp]
 	\centering
@@ -352,7 +352,7 @@ ClusterManager("orchestrator-service")
 	\label{fig:group-by-query}
 \end{figure}
 
-A \textit{Table} or \textit{DataSource} cannot be computed directly, but must first be split into partitions, which are provided by the \textit{DataSource}. These partitions are represented by the interface \textit{PartialDataSource}, with the partitioning method being specific to each implementation. The \textit{Table} class has a similar partial form, \textit{PartialTable}, which references a \textit{PartialDataSource} and can be computed directly. Both \textit{PartialDataSource} and \textit{PartialTable} always hold a reference to the complete version of themselves. To demonstrate how to produce a final result from a set of partial results, Figure \ref{fig:partial-filter-select-query} shows a high level example of one possible way of partitioning and computing the previous Filter and Select query.
+A \textit{Table} or \textit{DataSource} cannot be computed directly, but must first be split into partitions, which are provided by the \textit{DataSource}. These partitions are represented by the interface \textit{PartialDataSource}, with the partitioning method being specific to each implementation. The \textit{Table} class has a similar partial form, \textit{PartialTable}, which references a \textit{PartialDataSource} and can be computed directly. To demonstrate how to produce a final result from a set of partial results, Figure \ref{fig:partial-filter-select-query} shows a high level example of one possible way of partitioning and computing the previous Filter and Select query.
 
 \begin{figure}[h]
 	\centering
@@ -364,28 +364,28 @@ A \textit{Table} or \textit{DataSource} cannot be computed directly, but must fi
 
 
 \section{Data Store}
-The data store is the most important component for the worker implementation. It allows the workers to store partially computed data, which can be reused in later parts of the query execution. In particular when workers are communicating with one another, it is likely that the worker will be processing more than one request at the same time, which presents issues with handling concurrency and synchronisation.
+The data store is the most important component of the worker. It allows the workers to store partially computed data, which can be reused in later parts of the query execution. In particular when workers are communicating with one another, it is likely that the worker will be processing more than one request at the same time, which presents issues with handling concurrency and synchronisation.
 
 The approach taken to solve this uses the actor model, first introduced in 1973 by Carl Hewitt \cite{hewitt1973session}. Specifically, the Akka Actors framework was chosen as an implementation of the actor model in Scala \cite{akkaactors}. The actor model abstracts away the complexity of synchronisation and thread management. Instead, components of the system become actors. Each actor defines a set of messages that it accepts, and the response to each message, and the framework provides a guarantee that an actor will only ever process one message at a time.
 
 The data store is modelled as an actor which stores results as key-value pairs. Three kinds of data can be used as keys for storage: \textit{Table} computation results, \textit{DataSource} computation results and hashed data results, which are used in the process of computing a Group By partition. 
 
-For each supported type of data, the data store uses a two-stage lookup, internally implemented using nested HashMaps. First, the full version of the data (\textit{Table} or \textit{DataSource}) is looked up, then the partial version (\textit{PartialTable} or \textit{PartialDataSource}). Partial forms of \textit{Tables} and \textit{DataSources} always contain a reference to the full version, but not the other way around. Therefore, this decision does not increase the time taken to insert new data significantly, but it is particularly useful when fetching the results for a \textit{Table}, or removing a \textit{Table} or \textit{DataSource}. Without this approach, completing these operations would require searching the entire Map to find any matches, turning the O(1) lookup time into O(n).
+For each supported type of data, the data store uses a two-stage lookup, internally implemented using nested HashMaps. First, the full version of the data (\textit{Table} or \textit{DataSource}) is looked up, then the partial version (\textit{PartialTable} or \textit{PartialDataSource}). Partial forms always contain a reference to the full version, but not the other way around. Therefore, this decision does not increase the time taken to insert new data significantly, but it is particularly useful when fetching the results for a \textit{Table}, or removing a \textit{Table} or \textit{DataSource}. Without this approach, completing these operations would require searching the entire HashMap to find any matches, turning the O(1) lookup time into O(n).
 
 \subsection{Spill to Memory}
-In situations with very large datasets, the amount of memory available to the workers will be less than the amount of data the system attempts to load. In this case, it is likely that the JVM will run out of heap space, causing a crash when it attempts to allocate more memory to store data. Therefore, the system features a module which allows it to move cached data onto disk to free up heap space. This module is part of the data store, and functions transparently to the rest of the system - data store queries are the same whether the result is held in-memory or on-disk.
+When operating over very large datasets, the workers will have less memory available than is required by to load the dataset. In this case, it is likely that the JVM will run out of heap space, causing a crash when it attempts to allocate more memory. Therefore, workers have a module which allows them to move cached data onto disk to free up heap space. This module is part of the data store, and functions transparently for the other worker components - data store queries operate identically whether the result is in-memory or on-disk.
 
 \paragraph{Storage Interface}
-To implement the spill process, an interface \textit{StoredTableResult} is defined. This interface holds a key which corresponds to that result, and a \textit{get} operation to retrieve the result data. There are two main subclasses that implement this interface: \textit{InMemoryTableResult} and \textit{ProtobufTableResult}. 
+To implement the spill process, an interface, \textit{StoredTableResult}, is defined. This interface holds a key which corresponds to a result, and a \textit{get} operation to retrieve the result data. There are two main subclasses with implementations: \textit{InMemoryTableResult} and \textit{ProtobufTableResult}. 
 
-\textit{InMemoryTableResult} is a simple wrapper for the interface, which simply contains the result and holds it in memory. It also features a \textit{spillToDisk} method which moves the data onto disk by creating a file under a randomised folder name for that execution, with the name set to the hashcode of the key. 
+\textit{InMemoryTableResult} simply contains the result and holds it in memory. It also features a \textit{spillToDisk} method which moves the data onto disk by creating a file under a randomised folder name for each execution, with the name set to the key's hashcode.
 
-\textit{ProtobufTableResult} only holds a pointer to the data on disk, and reads the data from there when the \textit{get} operation is called. It also features a cleanup method which removes the stored data from disk.
+\textit{ProtobufTableResult} only holds a pointer to the data on disk, and reads the data from there when the \textit{get} operation is called. A cleanup method removes the stored data from disk when called.
 
 \paragraph{Spill Process}
-The data store is responsible for managing in-memory and on-disk data. Before almost every operation on the data store, it makes a check for the current memory utilisation, which is calculated using a set of methods on the \textit{Runtime} class \cite{javaruntimeclass}. If the memory utilisation is over a given threshold, the data store attempts to spill at least the amount of bytes over the utilisation threshold. 
+The data store is responsible for managing in-memory and on-disk data. Before almost every operation on the data store, it checks current memory utilisation, which is calculated using a set of methods on Java's \textit{Runtime} class \cite{javaruntimeclass}. If the memory utilisation is over a given threshold, the data store attempts to spill data to get below the threshold.
 
-Figure \ref{fig:bytes-over-memory-threshold} shows how the amount of bytes over a percentage threshold is calculated. The division on the left calculates the current memory utilisation percentage, then the threshold is subtracted to get the percentage amount over it. This is multiplied by the total number of bytes to get the number of bytes that the percentage represents.
+Figure \ref{fig:bytes-over-memory-threshold} shows how the amount of bytes over a percentage threshold is calculated. The division calculates the current memory utilisation percentage, then the threshold is subtracted to get the percentage amount over the threshold. This is multiplied by the total number of bytes to get the result.
 
 \begin{figure}[h]
 	\centering
@@ -394,7 +394,7 @@ Figure \ref{fig:bytes-over-memory-threshold} shows how the amount of bytes over 
 	\label{fig:bytes-over-memory-threshold}
 \end{figure}
 
-To perform the spill, the data store will follow the decision tree shown in Figure \ref{fig:spill-to-disk-process} After the process is completed, the data store forces the JVM to perform Garbage Collection to immediately free the relevant amount of memory.
+To perform the spill, the data store will follow the decision tree shown in Figure \ref{fig:spill-to-disk-process}. Afterwards, the data store forces the JVM to perform Garbage Collection to immediately free the spilled memory.
 
 \begin{figure}[h]
 	\centering
@@ -403,12 +403,12 @@ To perform the spill, the data store will follow the decision tree shown in Figu
 	\label{fig:spill-to-disk-process}
 \end{figure}
 
-This process is not without flaws. It relies on no other class in the current JVM instance holding references to any of the results being spilled. In the controlled worker environment, it is possible to ensure this is the case, meaning the spill works reliably, but this approach would not work more generally. Also, this approach is reliant on size estimates, meaning the actual amount of memory freed will not be the same as the estimated memory freed. With a suitably low threshold for spilling (60-70\% of maximum memory) and regular checks of memory utilisation, this risk does not become a real problem.
+This process is not without flaws. It relies on no other classes in the current JVM instance holding references to any spilled results. In the controlled worker environment, it is possible to guarantee this, meaning the spill works reliably, but this approach would not work more generally. Furthermore, this approach is reliant on size estimates, meaning the actual amount of memory freed is not equal to the estimated memory freed. With a suitably low spill threshold (60-70\% of maximum memory) and regular checks of memory utilisation, this approach works successfully.
 
 \paragraph{Eviction Policy}
-Finally, the policy for determining results to spill is important. A policy that does not fit the way the results are being used could result in large performance impacts, as it could cause antipatterns like the data store spilling a result, then immediately reading it back to memory.
+Finally, the policy for determining results to spill is important. A policy that does not fit the data store's access patterns could result in large performance impacts, as it could cause antipatterns like the data store spilling a result, then immediately reading it back to memory.
 
-The data store makes use of a least-recently-used (LRU) policy to determine the next result to spill to disk, implemented using an ordered list containing all in-memory results. When results are inserted into the data store, they are added to the end of the list. When results are read from the data store, they are moved to the end of the list. Then, when a result must be selected for spill, the item at the head of the list is chosen and removed.
+The data store uses a least-recently-used (LRU) policy to select a result to spill, implemented using an ordered list containing all in-memory results. When results are inserted into the data store, they are appended to the list. When results are read from the data store, they are moved to the end of the list. When a result must be selected for spill, the head of the list is chosen and removed.
 
 
 
