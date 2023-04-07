@@ -92,7 +92,7 @@ The hierarchy of classes and supported types provide everything needed to define
 \end{figure}
 
 \section{Domain Specific Language}
-The user's interaction with the framework is driven entirely by the Domain Specific Language (DSL), which is modelled with SQL-like syntax. It allows users to define expressions, then use these in computations like Select, Filter and Group By. Figure \ref{fig:dsl-high-level-example} shows a DSL query, with links to the sections where each part is discussed further
+The user's interaction with the framework is driven entirely by the Domain Specific Language (DSL), which is modelled with SQL-like syntax. It allows users to define expressions, then use these in computations like Select, Filter and Group By. Figure \ref{fig:dsl-high-level-example} shows a DSL query, with links to the sections where each part is discussed further.
 
 \begin{figure}[htp]
 	Initialise cluster connection and select a Cassandra source table:
@@ -413,14 +413,14 @@ The data store uses a least-recently-used (LRU) policy to select a result to spi
 
 
 \section{Partitioning}
-One of the most important jobs of the orchestrator during a computation is to calculate partitions. There are two situations where partitions need to be calculated: when pulling source data from Cassandra, and when computing a Group By. The overall goal is to split the dataset into roughly equal chunks of a manageable size. 
+One of the most important roles of the orchestrator during a computation is to calculate partitions. There are two situations where this is required: when pulling source data from Cassandra, and when computing a Group By. The \textit{DataSource} interface is the representation for computations that require new partitions. The goal of partitioning is to split the dataset into roughly equal chunks of a manageable size, two things are required to do this: an estimate of the full size of the dataset, and a way of splitting the dataset up to keep unique keys together. These are referred to as the partitioning requirements.
 
 \subsection{Cassandra}
-As described in the Design Chapter, Cassandra was selected as the persistent storage module because its storage model closely matches the type of partitioning the system requires. The Cassandra \textit{DataSource} getPartitions method investigates the source data in the database, and generates an appropriate number of partitions. This process is described below.
+Cassandra was selected for persistent storage because its features already meet the partitioning requirements. As discussed in Section \ref{subsec:cassandra-design}, Cassandra natively provides a way of splitting the source dataset through its token range system. Furthermore, Cassandra provides size estimates for the full size of any table automatically in the \texttt{system.size\char`_estimates} table.
 
-When data is stored in Cassandra, the primary key of each row already has a 64-bit token assigned to it. Cassandra allows queries to filter on ranges of these tokens, meaning the data can be split up and read from the database in chunks. To be able to ensure the partitions are a manageable, defined size, an estimate of the size of the full source data is required. Cassandra provides this information in the \texttt{system.size\char`_estimates} table. This table provides an estimate of the size of each table in the database, and these are generated automatically every 5 minutes.
+%Cassandra was selected for persistent storage because the distributed storage model matches the type of partitioning the system requires. When generating new partitions, The Cassandra \textit{DataSource} investigates the source data in the database, and generates an appropriate number of partitions. This process is described below.
 
-From a size estimate of the full table, estimates can be calculated for any given token range using the equation in Figure \ref{fig:token-range-estimation}. The fraction calculates the percentage of all tokens that the given token range represents.
+A table size estimate can be used to derive the size estimate of a token range using the equation in Figure \ref{fig:token-range-estimation}. The division calculates the percentage of the full token range that the given token range represents.
 
 \begin{figure}[h]
 	\centering
@@ -429,7 +429,7 @@ From a size estimate of the full table, estimates can be calculated for any give
 	\label{fig:token-range-estimation}
 \end{figure}
 
-Using this equation, it first gathers the token ranges which each node is responsible for storing. Then, it performs a joining and splitting process over each node, depending on the size of the token ranges. The set of token ranges produced after this process are the partitions used during the computation. The flowchart in Figure \ref{fig:cassandra-partitioning-decision-tree} shows the full process for generating the output partitions, 
+Using this equation, the token ranges which each node is responsible for storing are collected. Then, the orchestrator performs a joining and splitting process over each node, depending on the size of the token ranges. The set of token ranges produced by this process are the partitions used during the computation. Figure \ref{fig:cassandra-partitioning-decision-tree} shows the full process for generating the output partitions.
 
 \begin{figure}[h]
 	\centering
@@ -439,7 +439,7 @@ Using this equation, it first gathers the token ranges which each node is respon
 \end{figure}
 
 
-Figure \ref{fig:cassandra-split-process} demonstrates how the splitting process works. The system calculates how much times larger the token range currently is than the goal partition size, then divides the token range evenly by that amount.
+Figure \ref{fig:cassandra-split-process} demonstrates the token splitting process. The system calculates how many times larger the token range is than the goal partition size, then splits the token range evenly by that amount.
 
 \begin{figure}[h]
 	\centering
@@ -450,7 +450,7 @@ Figure \ref{fig:cassandra-split-process} demonstrates how the splitting process 
 	\label{fig:cassandra-split-process}
 \end{figure}
 
-Figure \ref{fig:cassandra-join-process} provides an example how the joining process works. Given a sorted list of token ranges, the system repeatedly adds sequential elements to a partition until it is larger than the goal partition size. Then, the partition is marked as completed. The list is sorted by size ascending to ensure the smallest number of partitions are created - if there are a large number of very small token ranges, these will be combined into a single large partition together.
+Figure \ref{fig:cassandra-join-process} provides an example of the joining process. Given a list of token ranges, the orchestrator combines sequential elements until they are larger than the goal partition size, then it marks this as a new partition. The list is sorted by size ascending to ensure the smallest number of partitions are created - if there are a large number of very small token ranges, these will be combined into a single large partition.
 
 \begin{figure}[h]
 	\centering
@@ -459,12 +459,12 @@ Figure \ref{fig:cassandra-join-process} provides an example how the joining proc
 	\label{fig:cassandra-join-process}
 \end{figure}
 
-The Cassandra Java Driver provides a wide range of helper functions for performing the joining and splitting of token ranges accurately to produce new token ranges. The system simply calculates how much joining or splitting is required based on the size of the token ranges and the table size estimate. It then uses the driver to perform the calculations.
+The Cassandra Java Driver provides helper functions to perform the joining and splitting of token ranges; the system simply calculates how much joining or splitting is required.
 
 \subsection{Cassandra Data Co-Location}\label{subsec:colocation}
-Once the list of partitions for each Cassandra node are generated, the system attempts to co-locate workers to Cassandra nodes. The goal of this process is to produce an \textit{optimal assignment} of partitions, where each partition is matched to one or more workers to minimise network latency when fetching the data from Cassandra.
+From a list of partitions for each Cassandra node, the system attempts to co-locate workers to Cassandra nodes. The goal of this process is to produce an \textit{optimal assignment}, where each partition is matched to one or more workers to minimise network latency when fetching the data from Cassandra.
 
-To do this, each worker first calculates its closest Cassandra node. This is done by opening a TCP connection multiple times with each Cassandra node, and averaging the time taken over multiple attempts. The node with the lowest average latency is selected as the closest node. The orchestrator uses this information to match each worker to a Cassandra node and its corresponding list of partitions. The output is an optimal assignment between workers and partitions. It is possible for more than one worker to be matched to the same set of partitions, and it is also possible for a set of partitions to have no co-located worker nodes. In this case, they are kept as unassigned, and the work assignment algorithm handles their allocation. Figure \ref{fig:optimal-assignment-example} shows an example cluster setup with three physical nodes, and the optimal assignment after this process is complete.
+To do this, each worker first calculates its closest Cassandra node by opening a TCP connection with each Cassandra node, and averaging the latency over multiple attempts. The node with the lowest latency is selected. The orchestrator uses this information to match each worker to a Cassandra node and its corresponding list of partitions, producing an optimal assignment between workers and partitions. More than one worker can match with the same set of partitions, and a set of partitions can have no co-located worker nodes. In this case, the partitions are unassigned, and the work assignment algorithm handles their allocation. Figure \ref{fig:optimal-assignment-example} shows an example cluster with three physical nodes, and the resulting optimal assignment.
 
 \begin{figure}[h]
 	\centering
@@ -474,12 +474,12 @@ To do this, each worker first calculates its closest Cassandra node. This is don
 \end{figure}
 
 \subsection{Group By}\label{subsec:group-by}
-The Group By operation takes any number of \textit{NamedFieldExpressions} to act as unique keys, as well as any number of \textit{AggregateExpressions} which will be computed for each combination of unique keys. As with pulling source data from Cassandra, the goal when computing a Group By is for the partitions generated to be roughly equal chunks of a manageable size. To do this, two things are needed: an estimate of the full size of the dataset, and a way of splitting the dataset up to keep unique keys together. 
+The Group By operation takes any number of \textit{NamedFieldExpressions} for unique keys, and any number of \textit{AggregateExpressions} to calculate for each combination of unique keys. This operation is not reliant on external components, so custom implementations must be used to meet the partitioning requirements.
 
-The process of calculating partitions and hashes, shuffling data, computing the result and deleting the original hashes is all controlled by the orchestrator during Query Plan Execution.
+The process of calculating a Group By is described below. These steps are  controlled by the orchestrator during the execution of \textit{GetPartition}; see Section \ref{subsec:get-partition} for details.
 
 \paragraph{Partitions}
-The first step is to compute the number of partitions that the Group By will be made up of, which is based on the size of the full dataset. To estimate this, an existing class, \textit{SizeEstimator}, was reused from Apache Spark, with some changes for compatibility with Scala 3 \cite{zaharia2016spark}. This class provides a static method \textit{estimate} which accepts any Scala object and produces an estimate, in bytes, of the size of the object. This can be called on all partial results across all workers, and the results totalled to calculate the total size of all data for a Table. Figure \ref{fig:group-by-num-partitions} shows how the size estimate can be used to derive the total number of partitions to generate for a Table.
+The first step is to compute the number of output partitions for the Group By, which is based on a size estimate of the dependent \textit{Table}. To generate this, a class from Apache Spark was reused, with some changes for compatibility with Scala 3 \cite{zaharia2016spark}. This class provides a static method \textit{estimate} which produces a size estimate, in bytes, for any Scala object. The orchestrator calls this on all partial results across all workers, and the estimates are totalled to calculate the total size of all data for a \textit{Table}. Figure \ref{fig:group-by-num-partitions} shows how the size estimate can be used to derive the total number of partitions to generate for a \textit{Table}.
 
 \begin{figure}[h]
 	\centering
@@ -491,7 +491,14 @@ The first step is to compute the number of partitions that the Group By will be 
 
 
 \paragraph{Hashing} 
-A unique partition is then defined as the tuple of the total number of partitions, and the partition number of this partition. Hashing, combined with the modulo operation, is used to determine which partition each row should be assigned to. In particular, Murmur3Hash is used as the hashing algorithm, which is used in Cassandra and is provided natively by Scala \cite{murmur3hash}. Figure \ref{fig:group-by-partition-assign} shows the high level equation for assigning rows to partitions. This process ensures that the new partitions will be roughly equal in size, and all rows with the same values for the unique keys will be mapped to the same partition.
+A unique partition is defined as a tuple, shown in Figure \ref{fig:group-by-unique-partition}. Hashing, combined with the modulo operation, is used to assign rows of data to partitions. In particular, Murmur3Hash is used as the hashing algorithm, used in Cassandra and provided natively by Scala \cite{murmur3hash}. Figure \ref{fig:group-by-partition-assign} shows the high level equation for assigning rows to partitions. This equation maps all rows with the same combination of unique keys to the same partition.
+
+\begin{figure}[h]
+	\centering
+	\[ (\text{Total Number of Partitions}, \text{Partition Number for this Partition}) \]
+	\caption{Group By - Unique Partition Definition}
+	\label{fig:group-by-unique-partition}
+\end{figure} 
 
 \begin{figure}[h]
 	\centering
@@ -501,41 +508,42 @@ A unique partition is then defined as the tuple of the total number of partition
 \end{figure} 
 
 \paragraph{Computation}
-After the hashes are computed and a worker is assigned a particular partition, it must communicate with all other workers in the cluster to get any data that relates to that partition.This ensures that the partition data is complete, and it is much the same as when the orchestrator requests query result data from the workers. The worker makes a request to all other workers, and they stream the header and rows of their partial data back to the worker that made the request. When a Group By is being computed, it's likely that a worker will be simultaneously receiving data from another worker, and sending a different set of data to it. This makes the actor system driving the data store in each worker particularly valuable, as it provides thread-safe concurrent access to the data store.
+After the hashes are computed and a worker is assigned a particular partition, it must cross-communicate with all other workers to fetch any data relating to that partition to ensure that the partition data is complete. To do this, the worker makes requests to all other workers, and they stream the header and rows of their partial data back to the worker. When a Group By is being computed, a worker will likely be simultaneously receiving data from another worker, and sending a different set of data to it. This makes the actor system driving the data store in each worker particularly valuable, as it provides thread-safe concurrent access to the data store.
 
-Once a worker has collected all data relating to a particular partition, it must compute the Group By result. Scala features a built-in Group By function, which this operation uses. The values for the unique keys of the Group By are calculated for each row, and the rows are placed into groups based on those values. Then, the aggregate functions are computed for each of the groups, resulting in one output row for each combination of unique keys. 
+% Can possibly cut this to a sentence or two
+Once a worker has collected all data for a partition, it must compute the Group By. Scala features a built-in Group By function, which this operation uses. The values for the unique keys of the Group By are calculated for each row, and the rows are placed into groups based on those values. Then, the aggregate functions are computed for each of the groups, resulting in one output row for each combination of unique keys. 
 
 \paragraph{Deletion}
-Finally, the last step of computing a Group By is to remove the hashed partition data stored on each worker, as it is no longer needed. This is handled by the orchestrator automatically during the process of computing the Group By \textit{DataSource.}
+The last step of computing a Group By is to remove the hashed partition data stored on each worker, which is handled by the orchestrator automatically.
+
+
 
 \section{Row-Level Computations}
-Once partitions have been delegated to the workers, performing the computation is relatively straightforward. Included below are descriptions of how the Select and Filter operations are performed.
+Once partitions have been delegated to the workers, performing the computation is straightforward. Included below are descriptions of calculating the Select and Filter operations.
 
 \subsection{Select} 
-This operation takes any number of \textit{NamedFieldExpressions}. To compute a result, each \textit{NamedFieldExpression} is applied to each row of the input result. The output result has the same number of rows as the input, and fields equal to the number of \textit{NamedFieldExpressions}. 
+This operation takes any number of \textit{NamedFieldExpressions}. To compute a result, each \textit{NamedFieldExpression} is applied to each row of the input result. 
 
 \subsection{Filter}
-This operation takes a single \textit{FieldComparison}, or a number of \textit{FieldComparisons} combined using boolean operators. To compute, each comparison is applied to each row of the input result, removing any rows where the comparison returns \texttt{false}.
+This operation takes a single \textit{FieldComparison}, or \textit{FieldComparisons} combined using boolean operators. To compute, each comparison is applied to each row of the input result, removing any rows where the comparison returns \texttt{false}.
 
 
 
 \section{Query Plan}
-Query plans are the process through which the orchestrator can calculate how to get from a query written by the user, to a result which it can return. A Query Plan is made up of a sequence of \textit{QueryPlanItems}, which is an interface defining one part of a query plan. Each \textit{QueryPlanItem} has an \textit{execute} method, which will make some change to the state of all workers in the cluster when called. There are four main QueryPlanItem implementations, which allow \textit{DataSources} and \textit{Tables} to be calculated and deleted.
-
-Both \textit{DataSource} and \textit{Table} have a function that generates the full Query Plan to compute their output from scratch, as well as a second Query Plan to clean any result in the data store. 
+Query plans are the process through which the orchestrator can get from a user-defined query, to a computed result. A Query Plan is made up of a sequence of \textit{QueryPlanItems}, which define one query plan step. Each \textit{QueryPlanItem} has an \textit{execute} method, which will make some change to the state of all workers in the cluster when called. There are four main QueryPlanItem implementations to calculate and delete  \textit{DataSources} and \textit{Tables}. Both \textit{DataSource} and \textit{Table} have a function that generates the full Query Plan to compute their output from scratch, as well as a second Query Plan to clean any result in the data store. 
 
 Figure \ref{fig:filter-group-by-query-plan} shows the query plans for the Filter and Select query (\ref{fig:filter-select-query}) and Group By Query (\ref{fig:group-by-query}).
 
 \begin{figure}
 	\centering
-	\subfloat[\centering Filter and Select Query]{{\includegraphics[width=0.3\textwidth]{chapters/diagrams/implementation/filter-select-query-plan}}}
+	\subfloat[\centering Filter and Select Query]{{\includegraphics[width=0.35\textwidth]{chapters/diagrams/implementation/filter-select-query-plan}}}
 	\qquad
-	\subfloat[\centering Group By Query]{{\includegraphics[width=0.3\textwidth]{chapters/diagrams/implementation/group-by-query-plan}}}
+	\subfloat[\centering Group By Query]{{\includegraphics[width=0.35\textwidth]{chapters/diagrams/implementation/group-by-query-plan}}}
 	\caption{Query Plans - Filter-Select and Group By Query}%
 	\label{fig:filter-group-by-query-plan}
 \end{figure}
 
-\subsection{GetPartition}
+\subsection{GetPartition}\label{subsec:get-partition}
 This is the most complex \textit{QueryPlanItem}, encapsulating a number of steps in order to compute and store the partitions of a \textit{DataSource}. There are two main flows depending on if the \textit{DataSource} has dependent Tables.
 
 If the \textit{DataSource} has no dependencies, for example when pulling data from Cassandra, then Figure \ref{fig:get-partition-no-dependencies} shows the process for this item. 
@@ -547,7 +555,9 @@ If the \textit{DataSource} has no dependencies, for example when pulling data fr
 	\label{fig:get-partition-no-dependencies}
 \end{figure}
 
-If the \textit{DataSource} has dependencies, then Figure \ref{fig:get-partition-dependencies} shows the process for this item. First, the partitions and optimal assignments are generated, then the dependency data is hashed based on the number of partitions to generate. Both of these steps are implementation-specific, and are therefore abstracted behind the \textit{DataSource} interface. The work assignment algorithm is then run to delegate partitions to the workers, followed by deleting the hashed dependency data. These steps do not change based on the \textit{DataSource}, so are handled exclusively by \textit{GetPartition}. These steps are the same as when calculating a Group By (Section \ref{subsec:group-by}), which is an implementation of \textit{DataSource}.
+If the \textit{DataSource} has dependencies, then Figure \ref{fig:get-partition-dependencies} shows the process for this item. First, the partitions and optimal assignments are generated, then the dependency data is hashed based on the number of partitions to generate. Both of these steps are implementation-specific, and are therefore abstracted behind the \textit{DataSource} interface. 
+
+The work assignment algorithm is then run to delegate partitions to the workers, followed by deleting the hashed dependency data. These steps do not change based on the \textit{DataSource}, so are handled exclusively by \textit{GetPartition}. These steps are the same as when calculating a Group By (Section \ref{subsec:group-by}).
 
 \begin{figure}[h]
 	\centering
@@ -556,18 +566,18 @@ If the \textit{DataSource} has dependencies, then Figure \ref{fig:get-partition-
 	\label{fig:get-partition-dependencies}
 \end{figure}
 
-\paragraph{Work Assignment Algorithm}
-The details of how the partitions are actually computed are abstracted behind the \textit{DataSource} interface as they are implementation specific, but GetPartition always needs to manage the process of sending requests to the workers to compute the partitions. This is done using the Work Assignment Algorithm. 
+\paragraph{Work Assignment Algorithm} % can probably cut some here
+The details of how the partitions are actually computed are abstracted behind the \textit{DataSource} interface as they are implementation specific, but GetPartition always manages the process of sending requests to the workers to compute the partitions using the Work Assignment Algorithm. 
 
-A simple solution would be to use a round-robin process to match optimal assignments to their workers, delegating work when a request finishes and stopping when the assignment list is empty. However, this can result in idle workers, for example if one worker's list of optimal assignments is shorter than the others, or if one worker takes unexpectedly long to complete their work.
+A simple solution would be to use a round-robin process to match optimal assignments to their workers, delegating work when a request finishes and stopping when the assignments are empty. However, this can result in idle workers, for example if one worker's list of optimal assignments is shorter than the others, or if one worker is unexpectedly slow.
 
-The ideal solution would ensure a worker computes all of its own optimal partitions first and, once these are complete, computes the partitions that were originally assigned to other workers. This implements a form of dynamic load balancing, because a faster-running worker is able to take on more requests than a slower worker, and no worker will be idle unless there are no partitions left to compute. However, this presents concurrency challenges, including preventing race conditions like the same partition being delegated twice to different workers.
+Ideally, workers would compute all of their own optimal partitions first, then compute the partitions that were originally assigned to other workers. This implements a form of dynamic load balancing: a faster-running worker can take on proportionally more requests, and no worker will be idle unless all partitions are computed. However, race conditions need to be avoided, like delegating same partition twice to different workers.
 
-The actor model, used previously in the data store, is ideal for this situation. Sets of optimal partitions are modelled as \textit{producer} actors, and the workers as \textit{consumers}. Producers respond to requests for work with partitions to be computed. Consumers are provided with an ordered list of producers, then repeatedly request and compute work from each in order. Each consumer is given a differently ordered list, with the producer of that consumer's optimal partitions placed first in the list. When all assigned producers for a consumer are empty, the consumer will shut down. The final part of the system is a counter, which tracks the number of completed partitions, sending a signal when all partitions have been computed, or an error if any worker fails.
+The actor model, used previously in the data store, is ideal for this situation. Sets of optimal partitions are modelled as \textit{producer} actors, and the workers as \textit{consumers}. Producers respond to requests for work with partitions to be computed. Consumers are provided with an ordered list of producers, then repeatedly request and compute work from each in order. Each consumer is given a differently ordered list, with the producer of that consumer's optimal partitions placed first in the list. A counter actor tracks the number of completed partitions, sending a signal when all partitions have been computed, or an error if any worker fails.
 
-This solution also handles the case where no worker is co-located with a set of partitions; this producer will simply be placed last in the list of producers for each consumer, resulting in these partitions eventually being processed.
+This solution also handles unassigned partitions with no co-located workers; this producer is placed last in the list of producers for each consumer, where they will eventually be processed.
 
-Figure \ref{fig:producer-consumer-model-example} provides the initial state of this model, using the example optimal assignment in Figure \ref{fig:optimal-assignment-example}. Dark arrows represent the producer which the consumer will empty first, containing its optimal assignments. Light grey arrows represent the other producers which the consumer can access. Note that Producer 3 is not the first producer for any worker, but will eventually be checked by the workers when all other producers are exhausted.
+Figure \ref{fig:producer-consumer-model-example} provides the initial state of this model, using the example optimal assignment from Figure \ref{fig:optimal-assignment-example}. Dark arrows represent the producer which the consumer will empty first, containing its optimal assignments. Light grey arrows represent the other producers which the consumer can access. Note that Producer 3 is not first for any worker, but will eventually be checked by the workers when all others are exhausted.
 
 \begin{figure}[h]
 	\centering
@@ -577,28 +587,25 @@ Figure \ref{fig:producer-consumer-model-example} provides the initial state of t
 \end{figure}
 
 \subsection{PrepareResult}
-This \textit{QueryPlanItem} computes a Table from the partitions of a \textit{DataSource} that are already stored on the workers. Therefore, it will always be called after GetPartition, with the partitions generated by \textit{GetPartition} as an argument. The implementation uses a modified version of \textit{GetPartition}'s actor system, which iterates through all partitions on each worker, sending a request for each partition to perform the \textit{Table} computation.
+This \textit{QueryPlanItem} computes a \textit{Table} from the partitions of a \textit{DataSource} that are already stored on the workers. Therefore, it will always be called after \textit{GetPartition}, with the new partitions as an argument. A modified version of \textit{GetPartition}'s actor system is used to iterate through all partitions on each worker, sending a request to perform the \textit{Table} computation for each.
 
 \subsection{DeleteResult and DeletePartition}
-
-\textit{DeletePartition} and \textit{DeleteResult} are \textit{QueryPlanItems} for removing the results of a \textit{GetPartition} and \textit{PrepareResult} operation, respectively. These will send a single request to each worker, and they will remove all results that relate to a \textit{Table} or \textit{DataSource}, and respond with a confirmation.
+\textit{DeletePartition} and \textit{DeleteResult} are \textit{QueryPlanItems} for removing the results of a \textit{GetPartition} and \textit{PrepareResult} operation, respectively. They send a single request to each worker, which will remove all results that relate to a \textit{Table} or \textit{DataSource}, and respond with a confirmation.
 
 \subsection{Result Collation}
-After all the steps of a query are completed, the final results are stored across all the workers. The orchestrator makes a request to all workers to return the computed results, and each worker iterates over all partial results in the data store, streaming the data back to the orchestrator. An actor system is used to pipe the concurrent responses from all workers into a single thread, which combines the results and streams them to the frontend. 
-
-The request is initiated by the orchestrator, rather than the workers pushing data to the orchestrator, because gRPC requires that one system act as a server, and another as a client. For the query plan model, it makes most sense for the workers to be servers, so this much also be the case for result collation.
+After all the steps of a query are completed, the final results are stored across all the workers. The orchestrator makes a request to all workers to return the computed results, and each worker iterates over all partial results in the data store, streaming the data back to the orchestrator. An actor system pipes the concurrent responses into a single thread, which combines the results and streams them to the frontend. The request is initiated by the orchestrator because gRPC requires that one system act as a server, and another as a client. For the query plan model, it makes most sense for the workers to be servers, so this model is also used for result collation.
 
 \section{Deployment}
-As discussed in Chapter \ref{cha:design}, Kubernetes was chosen to manage all nodes in the cluster. One of the key features that makes it useful for the system are scheduling rules, which provide Kubernetes with information about how containers should be assigned to physical nodes.
+As discussed in Chapter \ref{cha:design}, Kubernetes was chosen to manage all nodes in the cluster. One feature that makes it useful for the system is scheduling rules, which provide Kubernetes with information about how containers should be assigned to physical nodes.
 
-As previously described in \ref{subsec:colocation}, worker nodes will determine their closest Cassandra node automatically based on latency. To make the best use of the cluster, workers should be distributed evenly across all nodes that have a Cassandra node, and the following two scheduling rules will provide this:
+As previously described in \ref{subsec:colocation}, workers determine their closest Cassandra node automatically based on latency. To make the best use of the cluster, workers should be distributed evenly across all nodes that have a Cassandra node. This is implemented by these scheduling rules:
 \begin{enumerate}
-	\item Workers should be placed on the same Kubernetes node as a Cassandra node if possible.
-	\item Workers should not be placed on the same node as other worker nodes.
+	\item If possible, workers should be placed on the same Kubernetes node as a Cassandra node.
+	\item Workers should not be placed on the same node as other workers.
 \end{enumerate}
 
-The scheduling rules are expressed as preferences rather than requirements, Kubernetes is still able to schedule the nodes if there are more workers than Cassandra nodes.
+The scheduling rules are preferences rather than requirements, meaning Kubernetes is still able to schedule the nodes if there are more workers than Cassandra nodes.
 
 \subsection{CI/CD}
-To aid in deploying to Kubernetes, continuous integration/continuous deployment (CI/CD) pipelines are used for each of the components of the system, specifically using GitHub Actions \cite{githubactions}. Each pipeline runs all unit tests for the component, and provided they succeed, builds a docker container and pushes it to a container registry, ready for use in the Kubernetes cluster.
+To aid in deploying to Kubernetes, continuous integration/continuous deployment (CI/CD) pipelines are used for each major system component, specifically using GitHub Actions \cite{githubactions}. Each pipeline runs all unit tests for the component, and provided they succeed, builds a docker container and pushes it to a container registry, ready for use in the Kubernetes cluster.
 

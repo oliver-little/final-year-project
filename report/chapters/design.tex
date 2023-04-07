@@ -94,10 +94,11 @@ There are a wide range of options for persistent data storage. The first key dec
 	\item Distributed NoSQL Databases \textit{(MongoDB, CouchDB)}: these spread the load of reading the data across a number of machines. However, the expected input data is tabular, meaning the features of a NoSQL architecture are not required. This is likely to result in added complexity when importing data, and increased development time.
 \end{itemize}
 
-\subsection{Apache Cassandra} 
+\subsection{Apache Cassandra}\label{subsec:cassandra-design}
 Apache Cassandra was chosen as the persistent storage mechanism for a number of reasons \cite{lakshman2010cassandra}. Firstly, the data model is tabular, as is the expected input data. Furthermore, Cassandra is a distributed database, so the source data will be stored across a number of nodes. This will increase the effective read speed when retrieving data, as the full load will be spread between the nodes.
 
-\paragraph{Partitioning} Cassandra's method of partitioning data is another key reason why it was selected. When data is inserted into the database, Cassandra hashes the primary key of each record, producing a 64-bit token that maps it to a node. Each node in the database is assigned part of the full token range, which determines what records it holds \cite{lakshman2010cassandra}. Figure \ref{fig:cassandra-token-distribution} demonstrates how the full range of tokens is distributed among a number of Cassandra nodes.
+\paragraph{Partitioning}
+Cassandra's method of partitioning data is another key reason why it was selected. When data is inserted into the database, Cassandra hashes the primary key of each record, producing a 64-bit token that maps it to a node. Each node in the database is assigned part of the full token range, which determines what records it holds \cite{lakshman2010cassandra}. Figure \ref{fig:cassandra-token-distribution} demonstrates how the full range of tokens is distributed among a number of Cassandra nodes.
 
 \begin{figure}[h]
 	\centering
@@ -106,7 +107,7 @@ Apache Cassandra was chosen as the persistent storage mechanism for a number of 
 	\label{fig:cassandra-token-distribution}
 \end{figure}
 
-Cassandra allows token ranges to be provided as filters in queries, which will allow the worker nodes to control what data is retrieved.
+Cassandra allows token ranges to be provided as filters in queries,  meaning the worker nodes can split up and control the data they read from the database, to read smaller chunks. 
 
 \paragraph{Data Co-Location} Cassandra can be run on Kubernetes using K8ssandra \cite{k8ssandra}. This is particularly useful because the Cassandra cluster can be configured to run on the same machines as the worker nodes, enabling the source data to be co-located with the workers that will actually perform the computation. This decision meets the requirement to exploit the integration between the storage mechanism and cluster nodes, as data co-location will reduce the network latency when importing the source data, and increase transfer speed if the data never leaves the same physical machine. 
 
