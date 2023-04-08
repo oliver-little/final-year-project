@@ -34,7 +34,7 @@
 		breaklines=true,
 		morekeywords={self, cassandra_table, evaluate, Pow, Concat, ToDouble, Substring, ToString, select, filter, group_by, as_name, datetime},              % Add keywords here
 		keywordstyle=\color{blue},
-		emph={ClusterManager, Max, Avg, Min, Sum, Count, F, V, Function, date, __init__},          % Custom highlighting
+		emph={ClusterManager, Max, Avg, Min, Sum, Count, DistinctCount, StringConcat, DistinctStringConcat, F, V, Function, date, __init__},          % Custom highlighting
 		emphstyle=\color{deepred},    % Custom highlighting style
 		stringstyle=\color{deepgreen},
 		frame=tb,                         % Any extra options here
@@ -80,6 +80,8 @@
 	\lstset{#1}
 }
 {}
+
+
 
 
 \begin{document}

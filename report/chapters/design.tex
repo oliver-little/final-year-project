@@ -7,16 +7,16 @@ This chapter will cover the design of the solution, in particular focusing on th
 	\item Architecture
 \end{itemize}
 
-The aim of this process was to ensure that the limited development time for this project was spent developing the most effective features.
+The design phase aims to ensure that the limited development time available prioritises the most effective features.
 
 \section{MoSCoW Requirements}
 
-Before considering specific technologies and frameworks, a list of MoSCoW requirements is produced, and is shown in the table below. The first column represents whether the requirement is Functional (F) or Non-Functional (NF), and the second column represents requirements that Must (M), Should (S) or Could (C) be completed.
+Before considering specific technologies and frameworks, a list of MoSCoW requirements is produced, shown in the table below. The first column represents whether the requirement is \textbf{F}unctional or \textbf{N}on-\textbf{F}unctional, and the second column represents requirements that \textbf{M}ust, \textbf{S}hould or \textbf{C}ould be completed.
 
 \begin{center}
 	\begin{xltabular}{0.82\paperwidth}{ | p{1.5cm} | p{1.5cm} | X | } 
 		\hline
-		F / NF& Priority & Requirement Description \\ \hline
+		\textbf{F / NF} & \textbf{Priority} & \textbf{Requirement Description} \\ \hline
 		
  		\multicolumn{3}{|c|}{Domain Specific Language - Expressions} \\ \hline
 		F & M & The language must support 5 data types: integers, floats, booleans, strings and date-time objects. \\ \hline
@@ -38,13 +38,12 @@ Before considering specific technologies and frameworks, a list of MoSCoW requir
 		F & S & The language should allow the user to combine multiple comparison criteria using $AND$ and $OR$ operators. \\ \hline
 		
 		\multicolumn{3}{|c|}{Data Processing} \\ \hline
-		F & M & The system must allow the user to write queries in Python. \\ \hline
 		F & M & The system must allow users to apply Select operations on datasets, applying custom expressions to the input data. \\ \hline
 		F & M & The system must allow users to apply Filter operations on datasets, applying custom comparisons to the input data. \\ \hline
 		F & M & The system must allow users to apply Group By operations on datasets, which take a number of expressions as unique keys, and a number of aggregate. \\ \hline
 		F & M & The Group By operation must allow users to apply Minimum, Maximum, Sum and Count aggregate functions to Group By operations. \\ \hline
-		F & C & The system could allow users to apply Distinct Count, String Aggregate, and Distinct String Aggregate aggregate functions to Group By operations. \\ \hline
-		F & S & The system should allow users to join two datasets together according to custom criteria. \\ \hline
+		F & C & The system could allow users to apply Distinct Count, String Concatenation, and Distinct String Concatenation aggregate functions to Group By operations. \\ \hline
+		F & C & The system could allow users to join two datasets together according to custom criteria. \\ \hline
 		NF & S & The complexities of the system should be hidden from the user; from their perspective the operation should be identical whether the user is running the code locally or over a cluster. \\ \hline
 		
 		\multicolumn{3}{|c|}{Cluster} \\ \hline
@@ -64,41 +63,39 @@ Before considering specific technologies and frameworks, a list of MoSCoW requir
 \end{center}
 
 \section{Language}
-The first key design decision was to determine what languages would be used to implement the system. A decision was made to use more than one language, because the user interface requirements suit a different type of language to the rest of the system.
+The first key design decision was to determine what languages would be used to implement the system. A decision was made to use more than one language, because the requirements of the user interface suit a different type of language to the other components.
 
 \subsection{Frontend}\label{subsec:frontend-design}
-The most important requirement for the frontend was to use SQL-like syntax. Pure SQL requires a text parser to generate queries, which would add a significant amount of development time to implement, so a language which would be able to encode queries as classes and functions was preferred. Therefore, Python was selected for the frontend, as according to the 2022 StackOverflow Developer Survey, it is the fourth most popular programming language \cite{stackoverflowsurvey2022}. Python also supports some of the most popular data processing frameworks, NumPy and pandas \cite{reback2020pandas, harris2020array}. Due to Python's popularity, it is likely the widest range of users will have prior experience, and there is the possibility of integrating with these frameworks to further improve the system's usability. 
+The most important requirement for the frontend was to use SQL-like syntax. Pure SQL requires a text parser to generate queries, which would add a significant amount of development time to implement, so a language which would be able to encode queries as classes and functions was preferred. Therefore, Python was selected for the frontend, as according to the 2022 StackOverflow Developer Survey, it is the fourth most popular programming language \cite{stackoverflowsurvey2022}. Python also supports some of the most popular data processing frameworks, NumPy and pandas \cite{reback2020pandas, harris2020array}. Due to Python's popularity, it is likely the widest range of users will have prior experience with it, and there is the possibility of integrating with these frameworks to further improve the system's usability. 
 
 \subsection{Orchestrator and Worker Nodes}
 It was decided that the orchestrator and worker nodes will use the same language, as feature overlap between the two is likely. A language with either automatic or manual garbage collection (GC) had to be chosen. Choosing a manually GC language would theoretically allow for higher performance due to more granular control over memory allocation. However, this could slow development, as time would have to be spent writing code to perform this process. Therefore, manually GC languages were ruled out.
 
 The remaining options were a range of object-oriented and functional languages. Much of the project would be CPU intensive iteration over large lists of items, so a language with strong support for parallelisation was preferable. This ruled out languages like Python and JavaScript where parallelisation requires manual implementation by the developer \cite{pythonmultiprocessing, nodeworkerthreads}.
 
-In the end, Scala was chosen \cite{scaladocs}. It features a mix of both object-oriented and functional paradigms, which would allow the best option to be selected for each task. Furthermore, Scala has built-in support for parallelised operations through operations like $map$ and $reduce$, which is particularly helpful for iterating or combining the rows of a dataset. Furthermore, it is built on, and compiles into Java, meaning that packages originally written for Java can be executed in Scala, which proved useful for later design decisions \cite{scalaforjavadevs}.
+In the end, Scala was chosen \cite{scaladocs}. It features a mix of both object-oriented and functional paradigms, which would allow the best option to be selected for each task. Furthermore, Scala has built-in support for parallelisation through operations like $map$ and $reduce$, which is  helpful for iterating over or combining a dataset. It compiles into Java, meaning that Java packages can be executed in Scala, which proved useful for later design decisions \cite{scalaforjavadevs}.
  
 \section{Runtime}
 \subsection{Containerisation}
-With this being a distributed systems project, the clear choice for executing the code was within containers. Docker is one of the most popular options for creating and executing containers, but is not suitable for running and managing large numbers of containers \cite{orchestrationdockerdocs}. For this, a container orchestration tool is required, where there are two main options: Docker Swarm, and Kubernetes \cite{dockerswarm, k8sapi}. Docker Swarm is more closely integrated within the Docker ecosystem, with direct integration into the Docker engine. However, many cloud services feature managed Kubernetes services which handle the complexity of creating and managing a cluster, so Kubernetes was chosen.
+With this being a distributed systems project, the clear choice for executing the code was within containers. Docker is the best option for creating and executing containers, but is not suitable for running and managing large numbers of containers \cite{orchestrationdockerdocs}. For this, a container orchestration tool is required, where there are two main options: Docker Swarm, and Kubernetes \cite{dockerswarm, k8sapi}. Docker Swarm is more closely integrated within the Docker ecosystem, but many cloud providers feature fully managed Kubernetes services, so Kubernetes was chosen.
 
 \subsection{Network Communication} 
-A communication method had to be selected to allow the frontend, orchestrator and worker nodes to communicate. REST API frameworks initially appeared to be a suitable option, but upon further research, remote procedure call (RPC) frameworks would be more suitable. This is because REST is designed to be stateless, providing a standard set of operations, create, read, update, delete (CRUD) \cite{masse2011rest}, whereas the proposed solution is more focused on stateful operations.
-
-In contrast, RPC frameworks are designed to implement custom function calls over a remote network, and are not usually designed around a particular data model like REST, allowing for implementation of a custom query model \cite{srinivasan1995rpc}. The chosen framework was gRPC, designed and maintained by Google \cite{gRPCapi}. This is because there are well-maintained implementations for both Python and Scala, which would make using it in all parts of the solution straightforward \cite{scalapbdocs}. Also, gRPC uses protocol buffers (protobuf) as its message system, a serialisation format also maintained by Google \cite{protobufdocs}. Protocol buffers are designed to be more space efficient compared to a solution like XML or JSON, which is useful for transmitting large amounts of data.
+A framework had to be selected to allow the frontend, orchestrator and worker nodes to communicate. RPC frameworks are designed to implement custom function calls over a remote network, making them an excellent option to implement a custom query model \cite{srinivasan1995rpc}. The chosen framework was gRPC, designed and maintained by Google \cite{gRPCapi}. There are well-maintained implementations for both Python and Scala, and gRPC uses protocol buffers (protobuf) as its message system, which are designed to be more space efficient than XML or JSON \cite{scalapbdocs, protobufdocs}. This would be useful for transmitting large amounts of data. 
 
 
 \section{Persistent Storage}
-There are a wide range of options for persistent data storage. The first key decision was whether to design a custom solution, or use an existing solution. A custom implementation would come with the benefit of being more closely integrated with the rest of the system, at the cost of increased development time. A decision was made not to create a custom solution due to time constraints, and the amount of work required to achieve this. A number of types of existing file systems and databases were instead considered, but ultimately not selected:
+There are a wide range of options for persistent data storage. The first key decision was whether to design a custom solution, or use an existing solution. A custom implementation would come with the benefit of being more closely integrated with the rest of the system, at the cost of increased development time. A decision was made not to create a custom solution due to time constraints, so a number of types of existing file systems and databases were instead considered, but were also not selected:
 \begin{itemize}
 	\item Single System SQL Databases \textit{(Microsoft SQL Server, PostgreSQL, MySQL)}: while this option would be fastest to start using due to extensive industry support, the database would quickly become a bottleneck, as all nodes would import data from the same location.
-	\item Distributed File Systems \textit{(Hadoop Distributed File System)}: these provide a mechanism for storing files resiliently across a number of machines, removing the data import bottleneck. However, they provide no  way of querying the stored data, so this feature would have to be implemented manually.
-	\item Distributed NoSQL Databases \textit{(MongoDB, CouchDB)}: these spread the load of reading the data across a number of machines. However, the expected input data is tabular, meaning the features of a NoSQL architecture are not required. This is likely to result in added complexity when importing data, and increased development time.
+	\item Distributed File Systems \textit{(Hadoop Distributed File System)}: these provide a mechanism for storing files resiliently across a number of machines, removing the data import bottleneck. However, they provide no way of querying the stored data, so this feature would have to be implemented manually.
+	\item Distributed NoSQL Databases \textit{(MongoDB, CouchDB)}: these spread the load of reading the data across a number of machines. However, the expected input data is tabular, meaning the NoSQL architecture is likely to result in added complexity when importing data.
 \end{itemize}
 
 \subsection{Apache Cassandra}\label{subsec:cassandra-design}
 Apache Cassandra was chosen as the persistent storage mechanism for a number of reasons \cite{lakshman2010cassandra}. Firstly, the data model is tabular, as is the expected input data. Furthermore, Cassandra is a distributed database, so the source data will be stored across a number of nodes. This will increase the effective read speed when retrieving data, as the full load will be spread between the nodes.
 
 \paragraph{Partitioning}
-Cassandra's method of partitioning data is another key reason why it was selected. When data is inserted into the database, Cassandra hashes the primary key of each record, producing a 64-bit token that maps it to a node. Each node in the database is assigned part of the full token range, which determines what records it holds \cite{lakshman2010cassandra}. Figure \ref{fig:cassandra-token-distribution} demonstrates how the full range of tokens is distributed among a number of Cassandra nodes.
+Cassandra's method of partitioning data is another key reason why it was selected. When a record is inserted into the database, Cassandra hashes the primary key, producing a 64-bit token. Each node in the database is assigned part of the full token range, which determines what records it holds \cite{lakshman2010cassandra}. Figure \ref{fig:cassandra-token-distribution} demonstrates how the full range of tokens is distributed among a number of Cassandra nodes.
 
 \begin{figure}[h]
 	\centering
@@ -109,16 +106,16 @@ Cassandra's method of partitioning data is another key reason why it was selecte
 
 Cassandra allows token ranges to be provided as filters in queries,  meaning the worker nodes can split up and control the data they read from the database, to read smaller chunks. 
 
-\paragraph{Data Co-Location} Cassandra can be run on Kubernetes using K8ssandra \cite{k8ssandra}. This is particularly useful because the Cassandra cluster can be configured to run on the same machines as the worker nodes, enabling the source data to be co-located with the workers that will actually perform the computation. This decision meets the requirement to exploit the integration between the storage mechanism and cluster nodes, as data co-location will reduce the network latency when importing the source data, and increase transfer speed if the data never leaves the same physical machine. 
+\paragraph{Data Co-Location} Cassandra can be run on Kubernetes using K8ssandra \cite{k8ssandra}. This is particularly useful because the Cassandra cluster can be configured to run on the same machines as the worker nodes, enabling the source data to be co-located with the workers performing the computation. This decision meets the requirement to exploit the integration between the storage mechanism and cluster nodes, as data co-location will reduce the network latency when importing the source data, and increase transfer speed in some cases if the data never leaves the physical machine.
 
-\paragraph{Language-Specific Drivers} For interfacing with the other components, there are drivers for both Python and Java  which provide basic functionality for making queries and receiving results from the database \cite{datastaxjavadriver, datastaxpythondriver}. There are optional modules for these drivers, and Scala-specific frameworks with more complex features, but these were not included in the solution as the extra functionality was not required, and the added complexity had the potential to cause problems. 
+\paragraph{Language-Specific Drivers} Drivers for both Python and Java are available, which provide basic functionality for querying the database \cite{datastaxjavadriver, datastaxpythondriver}. There are optional modules for these drivers, and Scala-specific frameworks with more complex features, but these were not used as the extra functionality was not required, and the added complexity had the potential to cause problems. 
 
 \section{Architecture}\label{sec:architecture}
-Based on the above design choices, a high level diagram was produced, detailing each of the system's components and the interaction between them, shown in Figure \ref{fig:overall-architecture}. The user will be able to define queries using the Python frontend, which are then sent using gRPC to the orchestrator. It will break the full query up into partial queries, which will be computed on the worker nodes. When the computation is complete, the workers will return the result data to the orchestrator, which will then return the collated result to the frontend.
+Based on the above design choices, a high level diagram was produced, detailing each of the system's components and the interaction between them, shown in Figure \ref{fig:overall-architecture}. The user will be able to define queries using the Python frontend, which are then sent using gRPC to the orchestrator. It will break the full query up into partial queries, which will be computed on the worker nodes. When the computation is complete, the workers will return results to the orchestrator, which will combine the result and return it to the frontend.
 
 \begin{figure}[h]
 	\centering
-	\includegraphics[width=0.5\textwidth]{chapters/diagrams/design/architecture-overall}
+	\includegraphics[width=0.6\textwidth]{chapters/diagrams/design/architecture-overall}
 	\caption{Proposed Solution - Overall Architecture}
 	\label{fig:overall-architecture}
 \end{figure}

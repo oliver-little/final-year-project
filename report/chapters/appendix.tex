@@ -1,10 +1,14 @@
 \counterwithin{figure}{chapter}
 
-\chapter{Testing Figures}\label{cha:testing-figs}
+\chapter{Testing Queries and Controls}
 
-Included in this appendix are figures with the queries used for performance testing.
+This appendix provides details of the queries used for performance testing, and the controls used in the SQL test.
 
-\begin{figure}[h]
+\section{Performance Testing Queries} \label{sec:testing-figs}
+
+Included below are figures with the queries used for performance testing.
+
+\begin{figure}[htp]
 	\centering
 	\begin{SQL}
 SELECT * FROM data.origination_1000
@@ -13,7 +17,7 @@ SELECT * FROM data.origination_1000
 	\label{fig:sql-select-simple}
 \end{figure}
 	
-\begin{figure}[h]
+\begin{figure}[htp]
 	\begin{python}
 manager = ClusterManager("orchestrator-service")
 manager.cassandra_table("data", "origination_1000").evaluate()
@@ -22,7 +26,7 @@ manager.cassandra_table("data", "origination_1000").evaluate()
 	\label{fig:cluster-select-simple}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[htp]
 	\centering
 	\begin{SQL}
 SELECT 
@@ -32,11 +36,11 @@ power(duration, 2) as Duration_Pow,
 substring(cast(origination_date as nvarchar(300)), 0, 11) as origination_date_str 
 FROM data.origination_1000
 	\end{SQL}
-	\caption{SQL - Select Complex}
+	\caption{SQL - Select With Operations}
 	\label{fig:sql-select-complex}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[htp]
 	\begin{python}
 manager = ClusterManager("orchestrator-service")
 manager.cassandra_table("data", "origination_1000").select(
@@ -46,11 +50,11 @@ Function.Pow(Function.ToDouble(F("duration")), 2.0).as_name("duration_pow"),
 Function.Substring(Function.ToString(F("origination_date")), 0, 10).as_name("origination_date_str")
 ).evaluate()
 	\end{python}
-	\caption{Cluster Processor - Select Complex}
+	\caption{Cluster Processor - Select With Operations}
 	\label{fig:cluster-select-complex}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[htp]
 	\centering
 	\begin{SQL}
 SELECT *
@@ -61,7 +65,7 @@ WHERE duration = 30
 	\label{fig:sql-filter-simple}
 \end{figure}
 
-\begin{figure}[h]	
+\begin{figure}[htp]	
 	\begin{python}
 manager = ClusterManager("orchestrator-service")
 manager.cassandra_table("data", "origination_1000")
@@ -72,7 +76,7 @@ manager.cassandra_table("data", "origination_1000")
 	\label{fig:cluster-filter-simple}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[htp]
 	\centering
 	\begin{SQL}
 SELECT *
@@ -85,7 +89,7 @@ OR loan_id = 1
 	\label{fig:sql-filter-complex}
 \end{figure}
 	
-\begin{figure}[h]
+\begin{figure}[htp]
 	\begin{python}
 manager = ClusterManager("orchestrator-service")
 manager.cassandra_table("data", "origination_1000")
@@ -98,7 +102,7 @@ manager.cassandra_table("data", "origination_1000")
 	\label{fig:cluster-filter-complex}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[htp]
 	\centering
 	\begin{SQL}
 		SELECT duration
@@ -109,7 +113,7 @@ manager.cassandra_table("data", "origination_1000")
 	\label{fig:sql-group-by-simple}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[htp]
 	\begin{python}
 manager = ClusterManager("orchestrator-service")
 manager.cassandra_table("data", "origination_1000")
@@ -120,7 +124,7 @@ manager.cassandra_table("data", "origination_1000")
 	\label{fig:cluster-group-by-simple}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[htp]
 	\centering
 	\begin{SQL}
 SELECT 
@@ -131,11 +135,11 @@ Min(amount) as Min_amount
 FROM data.origination_1000 
 GROUP BY duration
 	\end{SQL}
-	\caption{SQL - Group By Complex}
+	\caption{SQL - Group By With Aggregates}
 	\label{fig:sql-group-by-complex}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[htp]
 	\begin{python}
 manager = ClusterManager("orchestrator-service")
 manager.cassandra_table("data", "origination_1000")
@@ -147,8 +151,174 @@ Min(F("amount"))
 ]
 ).evaluate()
 	\end{python}
-	\caption{Cluster Processor - Group By Complex}
+	\caption{Cluster Processor - Group By With Aggregates}
 	\label{fig:cluster-group-by-complex}
 \end{figure}
 
-\chapter{Test Controls}
+\pagebreak
+\section{Test Controls}\label{sec:test-controls}
+
+Included below are full details of the controls used in the SQL performance test.
+
+\subsection{CPU and Memory}
+At larger data volumes, CPU and Memory is the biggest contributing factor that will affect how quickly the computation is performed, both on SQL and the Cluster Processor. Ensuring these are comparable is essential for producing reliable test results. For Azure SQL Database, a slider can be used to set the maximum number of vCores available, and a set amount of memory is assigned based on the number of cores. In this case, a maximum of 6 vCores were used, which results in of 18GB memory accessible to the database.
+
+As the Cluster Processor is running on Kubernetes, granular control over the number of vCores and amount of memory available to each node is possible using resource limits \cite{k8sapi}. Workers were configured to have a maximum of 2 vCores, and 6GB memory available to each, with 3 workers in total. As a result, the cluster as a whole has 6 vCores and 18GB memory available, the same as the SQL database.
+
+\subsection{Network Latency}
+Controlling network latency is particularly important for small data volumes which resolve quickly. For a request that takes 0.5s to complete, 100ms of latency will make the completion 20\% slower. Testing was always performed on an instance of Azure Cloud Shell, which is a terminal running inside the same Azure datacenter as the test environment \cite{azurecloudshell}. This ensures the network latency is minimised and comparable between environments, with 16ms average round-trip time for a TCP ping to both SQL server, and the Cluster Processor.
+
+\subsection{Warm-Up}
+Both SQL and Cluster Processor have a warm-up periods when they are first started. Azure SQL Database is run using a serverless computation style, which means the server is scaled to 0 resources when it is unused. This has the disadvantage that when a query is first run, there is a short delay while the resources are provisioned again. Cluster Processor has a similar warm-up when it is first started, because the gRPC connections between the orchestrator and workers are not actually created until the first request is made. To overcome both of these warm-up periods, a number of queries are run just before testing begins, and the time taken to run these is not tracked.
+
+\chapter{Project Folder Structure and Execution Instructions}
+
+This appendix describes the folder structure of the Git repository, and also includes instructions for executing the Cluster Processor.
+
+\section{Folder Structure}
+There are a number of folders in the root of the project. Details of each folder, as well as execution instructions, are included below:
+
+\begin{itemize}
+	\item \texttt{kubernetes}: this folder contains .yaml files required for initialising the Kubernetes cluster and creating resources like the orchestrator, workers and Cassandra cluster within it.
+	\item \texttt{protos}: this folder contains protobuf definition files, which are used by both the python client, and the orchestrator and worker nodes.
+	\item \texttt{python\textunderscore client}: this folder contains all code related to the Python frontend, and performance testing code.
+	\item \texttt{report}: this folder contains the full project report, along with all source LaTeX files and images used for generating the report.
+	\item \texttt{server}: this folder contains three submodules.
+	\begin{itemize}
+		\item \texttt{core}: this folder contains a Scala project with the core code shared by the worker and the orchestrator modules.
+		\item \texttt{orchestrator}: this folder contains a Scala project with orchestrator-specific code, but it depends on the core module.
+		\item \texttt{worker}: this folder contains a Scala project with worker-specific code, but it depends on the core module.
+	\end{itemize}
+\end{itemize}
+
+\section{Execution Instructions}
+There are two main ways of executing this project:
+\begin{itemize}
+	\item Kubernetes: this is best for use in a production environment.
+	\item Local: this is best for use in testing, but is restricted to execution on a single machine.
+\end{itemize}
+
+These instructions are also included in the \texttt{README} files of the project directory, with direct file links to any files referenced in the instructions.
+
+\subsection{Kubernetes Execution}
+Testing on Kubernetes was performed using Azure Kubernetes Service \cite{azurekubernetesservice}, and as such all yaml files in the repository are provided with this in mind. Changes will need to be made for alternative cloud providers.
+
+\begin{enumerate}
+	\item Create an instance of Azure Kubernetes Service.
+	\begin{itemize}
+		\item NOTE: each node should have at least 2 vCores and 8GB RAM available.
+	\end{itemize}
+	\item Run create\textunderscore azure\textunderscore cluster.sh. The number of Cassandra nodes in the cluster can be customised in demo-cluster.yaml, line 24.
+	\begin{itemize}
+		\item These files can be found in \texttt{/kubernetes/azure/}.
+		\item NOTE: there should be as many Kubernetes nodes as the number of Cassandra nodes, and each node should have 4GB RAM free for Cassandra.
+	\end{itemize}
+	\item Build docker images for the python\textunderscore client, and the orchestrator and worker nodes.
+	\begin{itemize}
+		\item The python\textunderscore client folder contains a docker file, which can be built normally.
+		\item The orchestrator and worker folders must be built using \texttt{sbt docker:publishLocal}, which will build and publish to the local docker engine.
+	\end{itemize}
+	\item Store the built docker images in a container registry which the Kubernetes service can access. Azure Container Registry can be configured to allow access from the Kubernetes service.
+	\item Edit the yaml file for the worker (\texttt{kubernetes/configs/worker.yaml}):
+	\begin{itemize}
+		\item Change the number of replicas (line 8) to the desired amount - 1 worker per node is the recommended.
+		\item Change the image (line 20) to point to the chosen container registry.
+		\item Change the resource requests and limits to the chosen amount - generally, the more CPU and memory available, the better.
+		\item \textit{Required only if changes were made to demo-cluster.yaml.} Change the following variables to match the configuration of demo-cluster.yaml:
+		\begin{itemize}
+			\item Datacenter Name (line 37)
+			\item Cassandra All Pods Service Base URL (line 43): \\ \texttt{\{cluster-name\}-\{datacenter-name\}-all-pods-service}
+			\item Number of Cassandra Nodes (line 45)
+			\item Cassandra Node Name (line 47): \texttt{\{cluster-name\}-\{datacenter-name\}-default-sts}
+			\item Cassandra Authentication Secret (line 54): \texttt{\{cluster-name\}-superuser}
+			\item Pod Affinity Cluster (line 70): \texttt{\{cluster-name\}}
+			\item Pod Affinity Datacenter (line 75): \texttt{\{datacenter-name\}}
+		\end{itemize}
+	\end{itemize}
+	\item Edit the yaml file for the orchestrator (\texttt{kubernetes/configs/orchestrator.yaml}):
+	\begin{itemize}
+		\item Change the image (line 19) to point to the chosen container registry.
+		\item Change the number of workers to the number of configured replicas (line 40)
+		\item \textit{Required only if changes were made to demo-cluster.yaml}. Change the following variables to match the configuration of demo-cluster.yaml:
+		\begin{itemize}
+			\item Cassandra Service URL (line 27): \texttt{\{cluster-name\}-\{datacenter-name\}-service}
+			\item Datacenter Name (line 29)
+			\item Cassandra Authentication Secret (line 44): \texttt{\{cluster-name\}-superuser}
+		\end{itemize}
+	\end{itemize}
+	\item Create the orchestrator and worker configurations using \texttt{kubectl}:
+	\begin{itemize}
+		\item \texttt{kubectl apply -f orchestrator.yaml}
+		\item \texttt{kubectl apply -f worker.yaml}
+	\end{itemize}
+	\item Kubernetes will create the appropriate pods, and the orchestrator will be available at orchestrator-service inside the cluster. 
+\end{enumerate}
+
+The instructions below can be used create an interactive pod to execute Python DSL commands in. The following command will start bash in an interactive container containing the python code.
+
+\texttt{kubectl run python-shell --rm -i --tty --image oliverlittle.azurecr.io/python\textunderscore client -- bash}
+
+Replace \texttt{oliverlittle.azurecr.io} with your chosen container registry. From here, you can generate new data and import it into the server.
+
+To run inserts, you will need access to the Cassandra username and password:
+\begin{itemize}
+	\item This command will get the username, although it's likely that this will be \texttt{demo-superuser}:
+	\begin{itemize}
+		\item \texttt{kubectl get secrets/demo-superuser --template="\{\{.data.username\}\}" | base64 -d}
+	\end{itemize}
+	\item This command will get the password (randomised per cluster):
+	\begin{itemize}
+		\item \texttt{kubectl get secrets/demo-superuser --template="\{\{.data.password\}\}" | base64 -d}
+	\end{itemize}
+\end{itemize}
+
+Python can be started from the entrypoint of the interactive container as follows:
+\begin{itemize}
+	\item \texttt{python -i main.py}
+\end{itemize}
+
+From there, create a CassandraConnector:
+\begin{itemize}
+	\item \texttt{connector = CassandraConnector("demo-dc1-service", 9042, {username}, {password})}
+\end{itemize}
+
+Run an insert:
+\begin{itemize}
+	\item \texttt{CassandraUploadHandler(connector).create\textunderscore from\textunderscore csv("/path/to/file.csv", "keyspace", "table", ["partition", "keys])}
+\end{itemize}
+
+Query the cluster:
+\begin{itemize}
+	\item \texttt{ClusterManager("orchestrator-service").cassandra\textunderscore table("keyspace", "table").evaluate()}
+\end{itemize}
+
+\subsection{Local Execution}
+Local execution requires the following to be installed:
+\begin{itemize}
+	\item Docker Desktop
+	\item sbt, with Java 8 or 11.
+\end{itemize}
+
+
+Instructions to setup the cluster locally are included below:
+
+\begin{enumerate}
+	\item Start Cassandra on docker, with port 9042 exposed to the local machine using the following command:
+	\begin{itemize}
+		\item \texttt{docker run -d --name cassandra -p 9042:9042 cassandra}
+	\end{itemize}
+	\item Set the paths to each of the workers in line 10 of application.conf, and save the file. As this is running locally, each worker will be running on localhost, and each will have to bind to a different port.
+	\begin{itemize}
+		\item application.conf can be found in \texttt{server/core/src/main/resources}.
+	\end{itemize}
+	\item Run the orchestrator node using \texttt{sbt run} from the orchestrator directory: \texttt{/server/orchestrator}.
+	\item Run each of the worker nodes in a separate terminal instance from the worker directory: \texttt{/server/worker}. Ensure the ports defined in application.conf match the ports the workers are created with.
+	\begin{itemize}
+		\item For example, if a worker needs to be assigned to port 50051, use the command \texttt{sbt "run 50051"}
+	\end{itemize}
+	\item Finally, in a separate terminal instance, start an interactive Python shell using \texttt{python -i main.py} from the python\textunderscore client directory: \texttt{/python\textunderscore client/}.
+	\begin{itemize}
+		\item Connect to the orchestrator using \texttt{ClusterManager("localhost")}
+		\item Create a CassandraConnector to insert data using \\ \texttt{connector = CassandraConnector("localhost", 9042)}
+	\end{itemize}
+\end{enumerate}

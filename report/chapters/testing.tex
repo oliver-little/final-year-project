@@ -39,10 +39,10 @@ To aid performance testing, fake data is created to test the different operation
 \end{figure}
 
 \section{SQL vs Cluster Solution}
-This section will compare the performance of an instance of Microsoft SQL Server, against the completed solution, referred to as the Cluster Processor in this testing. 
+This section will compare the performance of an instance of Microsoft SQL Server, against the completed solution, referred to as the Cluster Processor. 
 
 \paragraph{Test Plan}
-Tests are conducted for the three types of query that the Cluster Processor supports: Select, Filter and Group By. Within each type of query, a simple, and a complex version is tested. See Appendix \ref{cha:testing-figs} for the full SQL and Cluster Processor queries.
+Tests are conducted for the three types of query that the Cluster Processor supports: Select, Filter and Group By. Within each type of query, a simple, and a complex version is tested. See Appendix \ref{sec:testing-figs} for the full SQL and Cluster Processor queries.
 
 Figure \ref{fig:sql-cluster-data-volumes} shows the data volumes of the tables the queries will be executed on. SQL has two larger tables to provide further context of how it scales at larger data volumes; the Cluster Processor was unable to test these tables due to time and cost constraints.
 
@@ -63,23 +63,12 @@ Figure \ref{fig:sql-cluster-data-volumes} shows the data volumes of the tables t
 	\label{fig:sql-cluster-data-volumes}
 \end{figure}
 
-To reduce the effect of random error, each test is run 5 times, and the results averaged across all tests. This is particularly important when running on a cloud environment, as there is less control over the hardware running the tests, so averaging a number of results should reduce any impact this has.
+To reduce the effect of random error, each test is run 5 times, and the results are averaged. This is particularly important for a cloud environment, as there is less control over the hardware running the tests.
 
-In all of these tests, Microsoft SQL Server was running on an instance of Azure SQL Database \cite{azuresqldatabase}. The Cluster Processor was running on Azure Kubernetes Service, with a pool of three nodes, each having 4 vCores, and 16GB memory available \cite{azurekubernetesservice}. The CPU and memory available to each worker is controlled by Kubernetes.
+Microsoft SQL Server was running on an instance of Azure SQL Database for these tests \cite{azuresqldatabase}. The Cluster Processor was running on Azure Kubernetes Service with a pool of three nodes, each having 4 vCores, and 16GB memory available \cite{azurekubernetesservice}. The CPU and memory available to each worker is controlled by Kubernetes.
 
 \subsection{Controls}
-A number of variables must be considered which could have an impact on the results of this test. The testing attempts to mitigate the effects of these variables in order to make the results as comparable as possible.
-
-\paragraph{CPU and Memory}
-At larger data volumes, CPU and Memory is the biggest contributing factor that will affect how quickly the computation is performed, both on SQL and the Cluster Processor. Ensuring these are comparable is essential for producing reliable test results. For Azure SQL Database, a slider can be used to set the maximum number of vCores available, and a set amount of memory is assigned based on the number of cores. In this case, a maximum of 6 vCores were used, which results in of 18GB memory accessible to the database.
-
-As the Cluster Processor is running on Kubernetes, granular control over the number of vCores and amount of memory available to each node is possible using resource limits \cite{k8sapi}. Workers were configured to have a maximum of 2 vCores, and 6GB memory available to each, with 3 workers in total. As a result, the cluster as a whole has 6 vCores and 18GB memory available, the same as the SQL database.
-
-\paragraph{Network Latency}
-Controlling network latency is particularly important for small data volumes which resolve quickly. For a request that takes 0.5s to complete, 100ms of latency will make the completion 20\% slower. Testing was always performed on an instance of Azure Cloud Shell, which is a terminal running inside the same Azure datacenter as the test environment \cite{azurecloudshell}. This ensures the network latency is minimised and comparable between environments, with 16ms average round-trip time for a TCP ping to both SQL server, and the Cluster Processor.
-
-\paragraph{Warm-Up}
-Both SQL and Cluster Processor have a warm-up periods when they are first started. Azure SQL Database is run using a serverless computation style, which means the server is scaled to 0 resources when it is unused. This has the disadvantage that when a query is first run, there is a short delay while the resources are provisioned again. Cluster Processor has a similar warm-up when it is first started, because the gRPC connections between the orchestrator and workers are not actually created until the first request is made. To overcome both of these warm-up periods, a number of queries are run just before testing begins, and the time taken to run these is not tracked.
+A number of variables must be considered which can impact the test results, including available CPU and memory, network latency and database warm-up periods. These variables are controlled so they are comparable between SQL and the Cluster Processor. Full details are provided in Appendix \ref{sec:test-controls}.
 
 \subsection{Select Query}
 The first query is a pure select, essentially testing how fast both solutions can send results over the network. 
@@ -89,9 +78,9 @@ The second select query is more complex, with conversion operations to determine
 
 \paragraph{Results} The results for this query are shown in Figure \ref{fig:select-graph}. Data is only available for Cluster Processor up to 100,000 rows because of a memory issue when passing data from the workers to the orchestrator. This is analysed further in Chapter \ref{cha:evaluation}. Therefore, the graph is filtered to exclude the SQL results for 50 and 100 million rows.
 
-However, the data that is available shows that the Cluster Processor is more than 10x slower at performing Select queries than SQL. This is most likely related to the format used to send the result data. See Section \ref{subsec:sql-cluster-processor-analysis} for further analysis. 
+The results show that the Cluster Processor is more than 10x slower than SQL. This is most likely related to the format used to send the result data. See Section \ref{subsec:sql-cluster-processor-analysis} for further analysis. 
 
-For both SQL and the Cluster Processor, there is no significant difference between the raw Select, and the Select with operations. The largest difference is at 100k rows for Cluster Processor, where there is a 0.3s increase in the complex select.
+For both SQL and the Cluster Processor, there is no significant difference between the simple and complex Select, which shows that the overhead for the operations in this query is insignificant.
 
 \begin{figure}[htp]
 	\centering
@@ -107,11 +96,11 @@ The second filter is more complex, testing both boolean operators.
 %Figures \ref{fig:sql-filter-complex} and \ref{fig:cluster-filter-complex} show the queries.
 
 \paragraph{Results}
-The results for this query are shown in Figure \ref{fig:filter-graph}. The results show that SQL is around 15-20x faster in this test case. This is likely to be partially caused by the transmission format, as with the Select queries. However, it is also likely that SQL is able to exploit caching more extensively over repeated tests when compared to the Cluster Processor, particularly with the smaller tables which can be held in memory permanently. This is because the Cluster Processor fetches fresh data from Cassandra every time the query is called.
+The results for this query are shown in Figure \ref{fig:filter-graph}. SQL is around 15-20x faster in this test case, which is likely to be partially caused by the transmission format, as with the Select test. However, SQL is likely able to exploit caching more extensively over repeated tests when compared to the Cluster Processor, particularly with smaller tables that can be held in-memory permanently. Conversely, the Cluster Processor fetches fresh data from Cassandra every time the query is called.
 
-Another relevant insight from this data is that the complex filter reliably executes faster than the simple filter across all results in both environments.
+The complex Filter reliably executes faster than the simple Filter across all results in both environments.
 %For the Cluster Processor, it is nearly 2 seconds faster on average at 10 million rows, and for SQL it is almost 6 seconds faster at 100 million rows. 
-This is expected, since the complex filter is more restrictive in the results that it returns, resulting in less data to transfer over the network.
+This is expected, since the complex filter is more restrictive in the results that it returns, resulting in less data transferred over the network.
 
 \begin{figure}[htp]
 	\centering
@@ -127,7 +116,7 @@ The first query is a simple group by, essentially performing a \texttt{DISTINCT}
 The second group by is more complex, featuring a number of aggregations. %Figures \ref{fig:sql-group-by-complex} and \ref{fig:cluster-group-by-complex} show the queries. 
 
 \paragraph{Results}
-The results for this query are shown in Figure \ref{fig:group-by-graph}, where again testing was performed for the full range of datasets in both solutions. SQL is significantly faster, and scales much better as the data sizes increase. For the Cluster Processor, the aggregate group by is over twice as fast on average than the simple version at 10 million records. The testing was performed sequentially, with no break between tests, so it is unclear why this result is faster. Furthermore, the same difference in computation time is not present at smaller data volumes. This could be caused by the less controlled cloud environment, meaning perhaps some unexpected load was present during the simple test, resulting in slower computation. Another round of testing would need to be performed to determine if this was the case.
+The results for this query are shown in Figure \ref{fig:group-by-graph}. SQL is significantly faster, and scales much better as the data sizes increase. For the Cluster Processor, the aggregate group by is over twice as fast on average than the simple version at 10 million records. The testing was performed sequentially, with no break between tests, so it is unclear why this result is faster. Furthermore, the same difference in computation time is not present at smaller data volumes. This could be caused by the less controlled cloud environment, meaning perhaps some unexpected load was present during the simple test, resulting in slower computation. Another round of testing would need to be performed to determine if this was the case.
 
 Despite this unexpected difference, there is still a significant performance drop-off compared to the results at 1 million records. Analysing the outputs from the workers, the results could not be stored entirely in-memory, resulting in a large amount of computation time being spent swapping partial results to and from disk. Group By operations suffer from memory shortages worse than other types of queries, as around twice the normal data volume is stored at one time: the source data for the Group By, data for the new hashes, and the newly computed group by partitions are all kept in the data store at the same time.
 
@@ -141,19 +130,19 @@ Despite this unexpected difference, there is still a significant performance dro
 \subsection{Analysis}\label{subsec:sql-cluster-processor-analysis}
 As the raw performance testing results show, a significant amount of optimisation would be required for the Cluster Processor solution to truly compete with SQL with regards to computation speed. The system appears to be weakest at transmitting raw data quickly across the network, and computing Group Bys.
 
-One way to optimise the transmission format for results is to reduce the size of the serialised row data. Currently, every serialised table cell stores value and type information, but the type has already been sent within the header. Therefore, the system could reduce the serialised size by only sending values, using the header to perform a conversion when the row is received. 
+One way to optimise the transmission format for results is to reduce the size of the serialised row data. Currently, every serialised table cell stores value and type information, but types are already sent within the header. Therefore, the system could reduce the serialised size by only sending values, and using the header to perform type casts.
 
 % What's the impact of the calculations, and what's the impact of the network on the results?
-The main inefficiency that causes the poor Group By performance is the workers holding onto more data than necessary. Currently for simplicity, the workers hash a copy of all rows in the data before cross-communication occurs. It should be possible to partially perform the Group By operation for each partition on each worker, then finalise those partial results when the partition is computed, significantly reducing the amount of stored and transferred data. As testing has already established that the transmission format is suboptimal, by sending more data than is required, the network inefficiencies have an increased impact on performance. 
+The main inefficiency causing the poor Group By performance is the workers holding onto more data than necessary. Currently, the hashing process stores a copy of the entire result before cross-communication occurs. It should be possible to partially perform the Group By operation for each partition on each worker, then finalise the partial results when the partition is computed, significantly reducing the amount of stored and transferred data. As testing has already established that the transmission format is suboptimal, by sending more data than is required, the network inefficiencies have an increased impact on performance. 
 
-Furthermore, when computing Group Bys at 10 million rows, the workers ran low on free memory, and began spilling data to disk, which is significantly slower than in-memory storage. By reducing the amount of stored data, spilling would occur at larger data volumes, improving the overall performance.
+Furthermore, when computing Group Bys at 10 million rows, the workers ran low on memory, and began spilling data to disk, which is significantly slower than in-memory storage. By storing less data, spilling would occur at larger data volumes, improving the overall performance.
 
 
 
 \section{Level of Parallelisation}\label{sec:parallelisation-test}
-This section will compare the performance of the Cluster Processor when the number of workers is varied, but the overall performance in terms of available resources is the same. The aim is to determine how changing the level of parallelisation in the cluster impacts the computation speed. 
+This section will compare the performance of the Cluster Processor when the number of workers is changed, but the overall available resources is the same. The aim is to determine how changing the level of parallelisation in the cluster impacts the computation speed. 
 
-In these tests the simple versions of each query type were executed, with different data volumes depending on the test. See Appendix \ref{cha:testing-figs} for query details. 
+In these tests the simple versions of each query type were executed, with different data volumes depending on the test. See Appendix \ref{sec:testing-figs} for query details. 
 
 Figure \ref{fig:parallelisation-test-workers} shows the cluster layouts for each test case; the number of workers, and the resources available to each worker. As shown, the overall number of vCores and GB of memory available to the cluster is the same in each case. 
 
@@ -175,11 +164,11 @@ Throughout all of these tests, the number of Cassandra nodes in the cluster rema
 \end{figure}
 
 \subsection{Select Query}
-The results of this test are shown in Figure \ref{fig:select-simple-parallelisation-test}. Due to the same memory issue as in the SQL test, only 1000 to 100000 row tables were tested. The cluster layout with 3 nodes appears to execute around twice as fast across all data volumes compared to the other layouts, which all have similar execution times on average. Ultimately, this test is checking how fast each layout can pull data from Cassandra, and send it to the Orchestrator. It is likely that the extra overhead introduced by the higher levels of parallelisation slowed down data transfer, and there was no computation to perform which would benefit the increased number of nodes. 
+The results of this test are shown in Figure \ref{fig:select-simple-parallelisation-test}. Due to the same memory issue as in the SQL test, only 1000 to 100000 row tables were tested. The cluster layout with 3 nodes appears to execute around twice as fast across all data volumes compared to the other layouts, which all have similar execution times on average. It is likely that the extra overhead introduced by the increased parallelisation slowed down data transfer, and there was no computation to perform which would benefit the increased number of nodes. 
 
 However, at 100,000 rows the 9 node cluster ran marginally faster than the other slower layouts. These are still tightly clustered with all results within 0.4s of one another, suggesting this is likely caused by random variation, rather than the 9 node cluster being specifically faster. Further testing, particularly at higher data volumes, would be required to confirm any trends here. 
 
-Interestingly, the 2 node cluster performed slower than the 3 node cluster. This is likely because this layout has one less worker node than Cassandra node, which adds latency to retrieve data from the Cassandra node without a co-located worker. 
+Interestingly, the 2 node cluster performed slower than the 3 node cluster, likely because this layout has less workers than Cassandra nodes. This adds latency when importing data from the Cassandra node without a co-located worker. 
 
 \begin{figure}[ht]
 	\centering
@@ -208,9 +197,9 @@ To investigate this trend further, the test was also run for all cluster layouts
 \end{figure}
 
 \subsection{Group By Query}
-The results of this test are shown in Figure \ref{fig:group-by-simple-parallelisation-test}. They again suggest that there is a balancing point for the level of parallelisation. The 3 node cluster is consistently faster than all other layouts. The larger clusters are likely to be slower because increasing the level of parallelisation increases the amount of cross-communication, and network transfer is a weak area, as identified in the SQL test. 
+The results of this test are shown in Figure \ref{fig:group-by-simple-parallelisation-test}. They again suggest that there is a balancing point for the level of parallelisation. The 3 node cluster is consistently faster than all other layouts. The larger layouts may be slower because the increased parallelisation introduces more cross-communication, which is slower than local execution.
 
-Interestingly, the 2 node cluster is second fastest until 1 million rows, when its performance significantly reduces. This is likely to be because the increased memory demands on each node resulted in some data being spilled to disk, which reduced the overall performance.
+Interestingly, the 2 node cluster is second fastest until 1 million rows, when its performance significantly reduces. This is likely to be because the increased memory demands on each worker resulted in some results being spilled.
 
 \begin{figure}[ht]
 	\centering
@@ -227,7 +216,7 @@ The best solution depends on the queries and data volumes being calculated. This
 \section{Autoscaling}
 This section will compare computation speed of the Cluster Processor when reducing the overall performance, motivated by the autoscaling feature present in many cloud services, including Azure Kubernetes Service. It continually analyses the load of the Kubernetes cluster, changing the number of physical nodes based on current demand \cite{aksautoscaling}. By doing this, applications with fluctating demand can save costs by reducing the number of machines they pay for when demand is low.
 
-While the Cluster Processor would not currently support autoscaling, this test aims to identify the effectiveness of autoscaling on this solution. In these tests the simple versions of each query type were executed, with different data volumes depending on the test. See Appendix \ref{cha:testing-figs} for query details. 
+While the Cluster Processor would not currently support autoscaling, this test aims to identify the effectiveness of autoscaling on this solution. In these tests the simple versions of each query type were executed, with different data volumes depending on the test. See Appendix \ref{sec:testing-figs} for query details. 
 
 Figure \ref{fig:autoscale-test-workers} shows the cluster layouts for each test case. Each layout has one less worker, and 33\% less resources.
 
