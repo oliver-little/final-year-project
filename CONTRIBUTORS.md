@@ -29,6 +29,6 @@ DataStax Python Driver: [GitHub]()
 
 Pandas: [pandas.pydata.org](https://pandas.pydata.org)
 
-gRPC: (GitHub)[https://github.com/grpc/grpc]
+gRPC: [GitHub](https://github.com/grpc/grpc)
 
 pytest: [pytest.org](https://docs.pytest.org/en/7.2.x/)
