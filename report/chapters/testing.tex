@@ -38,6 +38,7 @@ To aid performance testing, fake data is created to test the different operation
 	\label{fig:fake-loan-data}
 \end{figure}
 
+\pagebreak
 \section{SQL vs Cluster Solution}
 This section will compare the performance of an instance of Microsoft SQL Server, against the completed solution, referred to as the Cluster Processor. 
 
@@ -67,6 +68,7 @@ To reduce the effect of random error, each test is run 5 times, and the results 
 
 Microsoft SQL Server was running on an instance of Azure SQL Database for these tests \cite{azuresqldatabase}. The Cluster Processor was running on Azure Kubernetes Service with a pool of three nodes, each having 4 vCores, and 16GB memory available \cite{azurekubernetesservice}. The CPU and memory available to each worker is controlled by Kubernetes.
 
+\pagebreak
 \subsection{Controls}
 A number of variables must be considered which can impact the test results, including available CPU and memory, network latency and database warm-up periods. These variables are controlled so they are comparable between SQL and the Cluster Processor. Full details are provided in Appendix \ref{sec:test-controls}.
 
@@ -89,6 +91,7 @@ For both SQL and the Cluster Processor, there is no significant difference betwe
 	\label{fig:select-graph}
 \end{figure}
 
+\pagebreak
 \subsection{Filter Query}
 The first query is a simple filter, with no AND/OR combinations. 
 %Figures \ref{fig:sql-filter-simple} and \ref{fig:cluster-filter-simple} show the queries. 
@@ -108,7 +111,6 @@ This is expected, since the complex filter is more restrictive in the results th
 	\caption{SQL vs Cluster Processor - Filter Query Results} 
 	\label{fig:filter-graph}
 \end{figure}
-
 
 \subsection{Group By Query}
 The first query is a simple group by, essentially performing a \texttt{DISTINCT} operation. 
@@ -163,6 +165,7 @@ Throughout all of these tests, the number of Cassandra nodes in the cluster rema
 	\label{fig:parallelisation-test-workers}
 \end{figure}
 
+\pagebreak
 \subsection{Select Query}
 The results of this test are shown in Figure \ref{fig:select-simple-parallelisation-test}. Due to the same memory issue as in the SQL test, only 1000 to 100000 row tables were tested. The cluster layout with 3 nodes appears to execute around twice as fast across all data volumes compared to the other layouts, which all have similar execution times on average. It is likely that the extra overhead introduced by the increased parallelisation slowed down data transfer, and there was no computation to perform which would benefit the increased number of nodes. 
 
@@ -177,6 +180,7 @@ Interestingly, the 2 node cluster performed slower than the 3 node cluster, like
 	\label{fig:select-simple-parallelisation-test}
 \end{figure}
 
+\pagebreak
 \subsection{Filter Query}
 The results of this test are shown in Figure \ref{fig:filter-simple-parallelisation-test}. The 3 node cluster is fastest until 100,000 rows, but is then overtaken by the 9 node cluster, showing an interesting trend.
 
@@ -196,6 +200,7 @@ To investigate this trend further, the test was also run for all cluster layouts
 	\label{fig:filter-simple-parallelisation-10m}
 \end{figure}
 
+\pagebreak
 \subsection{Group By Query}
 The results of this test are shown in Figure \ref{fig:group-by-simple-parallelisation-test}. They again suggest that there is a balancing point for the level of parallelisation. The 3 node cluster is consistently faster than all other layouts. The larger layouts may be slower because the increased parallelisation introduces more cross-communication, which is slower than local execution.
 
@@ -213,6 +218,7 @@ The outcomes of this test show that there is no clear solution to the level of p
 
 The best solution depends on the queries and data volumes being calculated. This presents an opportunity for further research designing a system that analyses the queries being executed, automatically adjusting the cluster layout to match the requirements of those queries.
 
+\pagebreak
 \section{Autoscaling}
 This section will compare computation speed of the Cluster Processor when reducing the overall performance, motivated by the autoscaling feature present in many cloud services, including Azure Kubernetes Service. It continually analyses the load of the Kubernetes cluster, changing the number of physical nodes based on current demand \cite{aksautoscaling}. By doing this, applications with fluctating demand can save costs by reducing the number of machines they pay for when demand is low.
 
@@ -240,7 +246,7 @@ The results of this test are shown in Figure \ref{fig:select-simple-autoscale-te
 
 \begin{figure}[ht]
 	\centering
-	\includegraphics[width=0.8\linewidth]{chapters/diagrams/testing/select-simple-autoscale-test}
+	\includegraphics[width=0.7\linewidth]{chapters/diagrams/testing/select-simple-autoscale-test}
 	\caption{Autoscaling - Select Query Results}
 	\label{fig:select-simple-autoscale-test}
 \end{figure}
@@ -255,6 +261,7 @@ The results of this test are shown in Figure \ref{fig:filter-simple-autoscale-te
 	\label{fig:filter-simple-autoscale-test}
 \end{figure}
 
+\pagebreak
 \subsection{Group By Query}
 The results of this test are shown in Figure \ref{fig:group-by-simple-autoscale-test}. At the two smallest volumes, there is almost no difference between the three layouts, and at 100,000 rows the 1 node cluster is fastest. This suggests that, at very small data volumes, it is faster to perform all of the computation on a single node, as it prevents the need for worker cross-communication.
 
