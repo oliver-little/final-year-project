@@ -23,6 +23,8 @@ Spark Size Estimator:
 
 scalatest: [scalatest.org](https://www.scalatest.org/)
 
+slf4j: [slf4j.org](https://www.slf4j.org/)
+
 ## Python
 
 DataStax Python Driver: [GitHub]()

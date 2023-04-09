@@ -322,3 +322,35 @@ Instructions to setup the cluster locally are included below:
 		\item Create a CassandraConnector to insert data using \\ \texttt{connector = CassandraConnector("localhost", 9042)}
 	\end{itemize}
 \end{enumerate}
+
+\chapter{Dependency Code}
+
+This appendix describes which parts of the code are executed using dependency code from other projects. Most dependencies are listed in the build.sbt file for scala, and requirements.txt for python. Therefore, the actual code for these dependencies is not in the project directory, but is available to import. 
+
+For Scala, this includes:
+\begin{itemize}
+	\item DataStax Java Driver
+	\item scalapb and its gRPC implementation 
+	\item Akka Actors
+	\item scalatest
+	\item slf4j
+\end{itemize}
+
+For Python, this includes:
+\begin{itemize}
+	\item DataStax Python Driver
+	\item pandas
+	\item gRPC (Python implementation)
+	\item pytest
+	\item tqdm
+\end{itemize}
+
+The file \texttt{SizeEstimator.scala}, from the Spark project, is also external code. This file was taken from the Spark repository, which is a Scala 2 project, and minor changes were made to adapt it for Scala 3. A standalone Scala 2 adaptation was also referenced to aid these changes.
+
+\begin{itemize}
+	\item The file in Spark repository can be found \href{https://github.com/apache/spark/blob/master/core/src/main/scala/org/apache/spark/util/SizeEstimator.scala
+	}{\underline{here}.}
+	\item The standalone Scala 2 adaptation can be found \href{https://github.com/phatak-dev/java-sizeof/blob/master/src/main/scala/com/madhukaraphatak/sizeof/SizeEstimator.scala}{\underline{here}.}
+	\item The LICENSE from Spark for this file (Apache 2.0) can be found \href{https://github.com/apache/spark/blob/master/LICENSE}{\underline{here}.}
+	\item The NOTICE from Spark for this file can be found \href{https://github.com/apache/spark/blob/master/NOTICE}{\underline{here}.}
+\end{itemize}
