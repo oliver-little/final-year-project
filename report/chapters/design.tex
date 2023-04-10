@@ -20,7 +20,7 @@ Before considering specific technologies and frameworks, a list of MoSCoW requir
 		
  		\multicolumn{3}{|c|}{Domain Specific Language - Expressions} \\ \hline
 		F & M & The language must support 5 data types: integers, floats, booleans, strings and date-time objects. \\ \hline
-		F & M & The language must be able to tolerate null values in the results of a dataset. \\ \hline
+		F & M & The language must be able to tolerate null values within a dataset. \\ \hline
 		F & M & The language must allow users to reference a field in the current dataset. \\ \hline
 		F & M & The language must allow users to reference a constant value, which can take one of the data types defined above. \\ \hline
 		F & M & The language must support arithmetic operations like add, subtract, multiply, division and modulo. \\ \hline
@@ -28,10 +28,10 @@ Before considering specific technologies and frameworks, a list of MoSCoW requir
 		F & S & The language should utilise polymorphism in add operations to apply string concatenation, or arithmetic addition depending on the data types of the arguments. \\ \hline
 		F & C & The language could be designed in such a way to allow the user to define their own functions. \\ \hline
 		NF & S & The language should be intuitive to use, with SQL-like syntax. \\ \hline
-		
+		\multicolumn{3}{|c|}{~} \\ \hline
 		\multicolumn{3}{|c|}{Domain Specific Language - Comparisons} \\ \hline
 		F & M & The user must be able to provide expressions as inputs to comparison operators. \\ \hline
-		F & M & The language must support equals, and not equals comparisons \\ \hline
+		F & M & The language must support equals, and not equals comparisons. \\ \hline
 		F & M & The language must support inequalities, using numerical ordering for number types, and lexicographic ordering for strings. \\ \hline
 		F & M & The language must support null and not null checks. \\ \hline
 		F & S & The language should support string comparisons, including case sensitive and insensitive versions of contains, starts with, and ends with. \\ \hline
@@ -40,7 +40,7 @@ Before considering specific technologies and frameworks, a list of MoSCoW requir
 		\multicolumn{3}{|c|}{Data Processing} \\ \hline
 		F & M & The system must allow users to apply Select operations on datasets, applying custom expressions to the input data. \\ \hline
 		F & M & The system must allow users to apply Filter operations on datasets, applying custom comparisons to the input data. \\ \hline
-		F & M & The system must allow users to apply Group By operations on datasets, which take a number of expressions as unique keys, and a number of aggregate. \\ \hline
+		F & M & The system must allow users to apply Group By operations on datasets, which take expressions as unique keys, and aggregate operations to compute over the unique keys. \\ \hline
 		F & M & The Group By operation must allow users to apply Minimum, Maximum, Sum and Count aggregate functions to Group By operations. \\ \hline
 		F & C & The system could allow users to apply Distinct Count, String Concatenation, and Distinct String Concatenation aggregate functions to Group By operations. \\ \hline
 		F & C & The system could allow users to join two datasets together according to custom criteria. \\ \hline

@@ -2,9 +2,9 @@
 %The abstract should, in 200-300 words, explain to the reader what 'problem' you have identified, the approach you took to solving this problem and what it produced, and evaluation of your efforts and some kind of conclusion about what all this means. Normally you're going to be limited to a few sentences on each. You don't need to convey everything in the abstract; focus on the high-level things. The abstract is almost a self-contained document of its own; it should be interpretable without the rest of the report.
 
 % High level of data processing from introduction
-The explosion in data volumes in the past 15 years has resulted in increasing demands for solutions to process and analyse this data. Existing single-system solutions like SQL struggle to cope with extremely large volumes of data, suffering from performance slowdowns and long execution times. 
+The explosion in data volumes in the past 15 years has resulted in increasing demands for solutions to perform data processing and analysis. Existing single-system solutions like SQL struggle to cope with extremely large volumes of data, suffering from performance slowdowns and long execution times. 
 
-While there is an upper limit to the performance of a single system, distributed systems do not face the same issues and can scale to as many nodes as required, therefore presenting an excellent alternative solution to this problem.
+Whilst there is an upper limit to the performance of a single system, distributed systems do not face the same issues and can scale to as many nodes as required, therefore presenting an excellent alternative solution to this problem.
 
 This report presents a distributed systems solution for performing various types of data processing tasks, designed around splitting the source data into manageable partitions which can be computed by any node in the cluster. By focusing on closely integrating the persistent storage and computation nodes, the solution is able to assign partitions of the source data to the closest node, thereby reducing the effect of network latency. 
 

@@ -1,5 +1,5 @@
 \chapter{Evaluation}\label{cha:evaluation}
-This section will discuss a high level evaluation of the solution, and the project as a whole.
+This section discusses a high level evaluation of the solution, and the project as a whole.
 
 \section{Limitations}
 The solution has limitations which could not be fixed due to time constraints, but further investigation into optimisations or alternative solutions may be able to improve or fix them. These are listed below.
@@ -10,11 +10,11 @@ As discussed in Chapter \ref{cha:testing}, the Group By operation, and the metho
 
 %The current implementations of Group Bys are computationally correct, but not as efficient as they could be. Currently, when partial data for a partition is communicated between workers, all rows from the source data are sent over the network. As the data transfer solution also has relatively poor performance, sending unnecessary data between workers exacerbates the issue. It should be possible to partially compute each group by during the hash calculation phase, then only send the partially computed result, which is then compiled by the worker that is responsible for the final partition. 
 
-Result data uses an extremely large amount of space when resident in memory. For example, a 100MB source data file can use up to 800MB of memory once stored. This is because of the container class described in Section \ref{sec:type-system}. However, this class is a core component of the DSL, as it ensures the type information is accessible at runtime.
+Result data uses an extremely large amount of space when residing in memory. For example, a 100MB source data file can use up to 800MB of memory once stored. This is because of the container class described in Section \ref{sec:type-system}. However, this class is a core component of the DSL, as it ensures the type information is accessible at runtime.
 
 The system's security is limited, which prevents its use in a production environment. The orchestrator has no authentication, and Cassandra only has basic username and password authentication.
 
-Finally, as discovered in Chapter \ref{cha:testing}, the result collation algorithm cannot return large amounts of results, typically more than 1 million rows. All workers send results to the orchestrator, which forwards them to the frontend. However, as there are more workers than the single orchestrator, data enters the orchestrator faster than it leaves, meaning that with a large enough dataset, the orchestrator will run out of memory and crash.
+Finally, as discovered in Chapter \ref{cha:testing}, the result collation algorithm cannot return large amounts of results, typically more than 1 million rows. All workers send results to the orchestrator, which forwards them to the frontend. However, as there are more workers than the single orchestrator, data enters the orchestrator faster than it leaves, meaning that with a large enough dataset, the orchestrator will run out of memory and crash. A solution like Akka Streams would be able to control the send rate of the workers to prevent this issue \cite{akkastreams}.
 
 \section{Further Work}
 The nature of this project means that there is a large scope for future work and improvements. As discussed in Section \ref{sec:parallelisation-test}, different cluster layouts are more optimised for different kinds of queries. 

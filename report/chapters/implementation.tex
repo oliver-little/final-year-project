@@ -56,6 +56,7 @@ Scala provides a feature known as \textit{ClassTags} \cite{scalaclasstags}. Thes
 	\label{fig:type-system-hierarchy}
 \end{figure}
 
+\pagebreak
 \subsection{Supported Types}\label{subsec:supported-types}
 The type system supports a subset of Scala, Python, and Cassandra's types, shown in Figure \ref{fig:datatypes}. These types were selected to ensure they could be represented in all parts of the system, including when serialising to protobuf format.
 
@@ -89,6 +90,7 @@ The hierarchy of classes and supported types provide everything needed to define
 	\label{fig:example-table-result}
 \end{figure}
 
+\pagebreak
 \section{Domain Specific Language}
 The user interacts with the framework through the Domain Specific Language (DSL), which is modelled with SQL-like syntax. Users can define expressions, then use these in computations like Select, Filter and Group By. Figure \ref{fig:dsl-high-level-example} shows an annotated DSL query, with links to the sections where each part is discussed further.
 
@@ -131,6 +133,7 @@ ClusterManager("orchestrator-url")
 	\label{fig:dsl-high-level-example}
 \end{figure}
 
+\pagebreak
 \subsection{FieldExpressions}\label{subsec:fieldexpressions}
 \textit{FieldExpressions} allow the user to define arbitrary row-level calculations. They are defined as an interface, with three subclasses:
 
@@ -164,7 +167,7 @@ Function.Left(Function.ToString(F("field1")), 10)
 	\label{fig:field-expressions-examples}
 \end{figure}
 
-Many basic functions have been implemented, including arithmetic, string and cast operations. However, the function system is designed to be extensible. A number of helper classes and interfaces are provided to do this, and the main constraint is that functions can only take the 5 primitive types as arguments.
+Many basic functions have been implemented, including arithmetic, string and cast operations. However, the function system is designed to be extensible. A number of helper classes and interfaces are provided to do this, with the main constraint being that functions can only take the 5 primitive types as arguments.
 
 \paragraph{Type Resolution} 
 Type Resolution is performed in two stages: resolution, and evaluation. The resolution step takes in type information from the input result header, and verifies that the \textit{FieldExpression} is well-typed with regards to that result by comparing \textit{ClassTags}; see Section \ref{sec:type-system} for details. The evaluation step performs the computation on a \textit{TableResult} row without any type checking. Unchecked casts are used here instead, demonstrated for a binary function in Figure \ref{fig:fieldexpression-unchecked-casts}. 
@@ -176,6 +179,7 @@ Type Resolution is performed in two stages: resolution, and evaluation. The reso
 	\label{fig:fieldexpression-unchecked-casts}
 \end{figure}
 
+\pagebreak
 The resolution step catches two key types of invalid expression. Firstly, a Field reference is invalid if the field name is not present in the table header, shown in Figure \ref{fig:field-type-resolution}. Secondly, a Function call is invalid if an argument returns an invalid type, shown in Figure \ref{fig:function-type-resolution}.
 
 \begin{figure}[htp]
@@ -197,7 +201,7 @@ The resolution step catches two key types of invalid expression. Firstly, a Fiel
 	\label{fig:field-type-resolution}
 \end{figure}
 
-\begin{figure}[htp]
+\begin{figure}[h]
 	Valid - both arguments to \textit{Concat} are strings:
 	\begin{python}
 Function.Concat(V("hello"), V("Alice"))
@@ -229,6 +233,7 @@ F("creation_date")
 	\label{fig:namedfieldexpression-examples}
 \end{figure}
 
+\pagebreak
 \subsection{FieldComparisons}\label{subsec:fieldcomparisons}
 \textit{FieldComparisons} allow the user to define arbitrary row-level comparisons. They are defined as an interface, supporting a number of comparison types including null, equality, numerical and string comparisons. Examples of each are shown in Figure \ref{fig:field-comparisons-examples}.
 
@@ -278,6 +283,7 @@ The user can combine multiple \textit{FieldComparisons} using AND/OR operators, 
 	\label{fig:field-comparisons-combiners}
 \end{figure}
 
+\pagebreak
 \subsection{Aggregate Expressions}\label{subsec:aggregateexpressions}
 \textit{AggregateExpressions} are only used in Group Bys, taking a \textit{NamedFieldExpression} as an argument, and aggregating any number of input result rows into a single result using \textit{reduce}. Figure \ref{fig:aggregate-expressions-all} demonstrates all supported operations.
 
@@ -326,7 +332,7 @@ Python allows developers to override common operators with custom definitions. T
 Furthermore, as discussed in \ref{subsec:frontend-design}, pandas is widely used for Python data analysis \cite{reback2020pandas}. The frontend is able to convert query results from protobuf to a pandas DataFrame to aid further analysis.
 
 
-
+\pagebreak
 \section{Data Model}\label{subsec:data-model}
 % This section should be clear and understandable, as much of the rest refers to partial and full versions
 The data model is split into two key components: \textit{DataSource} and \textit{Table}. 
@@ -406,7 +412,7 @@ Figure \ref{fig:bytes-over-memory-threshold} shows how the amount of bytes over 
 	\label{fig:bytes-over-memory-threshold}
 \end{figure}
 
-To perform the spill, the data store will follow the decision tree shown in Figure \ref{fig:spill-to-disk-process}.
+To perform the spill, the data store follows the decision tree shown in Figure \ref{fig:spill-to-disk-process}.
 
 \begin{figure}[h]
 	\centering
@@ -441,6 +447,7 @@ A table size estimate can be used to derive a token range size estimate using th
 	\label{fig:token-range-estimation}
 \end{figure}
 
+\pagebreak
 Using this equation, the token ranges which each node is responsible for storing are collected. Then, the orchestrator performs a joining and splitting process over each node, depending on the size of the token ranges. The set of token ranges produced by this process are the partitions used during the computation. Figure \ref{fig:cassandra-partitioning-decision-tree} shows the full process for generating the output partitions.
 
 \begin{figure}[h]
@@ -502,13 +509,13 @@ The first step is to compute the number of output partitions for the Group By, w
 \end{figure}
 
 
-
+\pagebreak
 \paragraph{Hashing} 
 A unique partition is defined as a tuple, shown in Figure \ref{fig:group-by-unique-partition}. Hashing, combined with the modulo operation, is used to assign rows of data to partitions. In particular, Murmur3Hash is used as the hashing algorithm, used in Cassandra and provided natively by Scala \cite{murmur3hash}. Figure \ref{fig:group-by-partition-assign} shows the high level equation for assigning rows to partitions. This equation maps all rows with the same combination of unique keys to the same partition.
 
 \begin{figure}[h]
 	\centering
-	\[ (\text{Total Number of Partitions}, \text{Partition Number for this Partition}) \]
+	\[ (\text{Total Number of Partitions}, \text{Assigned Partition Number}) \]
 	\caption{Group By - Unique Partition Definition}
 	\label{fig:group-by-unique-partition}
 \end{figure} 
@@ -537,14 +544,14 @@ Once partitions have been delegated to the workers, performing the computation i
 This operation takes any number of \textit{NamedFieldExpressions}. To compute a result, each \textit{NamedFieldExpression} is mapped over each input result row. 
 
 \subsection{Filter}\label{subsec:filter-computation}
-This operation takes a single \textit{FieldComparison}, or \textit{FieldComparisons} combined using boolean operators. To compute, each comparison is applied to each row of the input result, removing any rows where the comparison returns \texttt{false}.
+This operation takes a \textit{FieldComparison}, or a combined comparison. To compute, the comparison is mapped over each input result row, removing any rows where the comparison returns \texttt{false}.
 
 
 
 \section{Query Plan}
 Query Plans are the process through which the orchestrator can compute a user-defined query, to get a result. They are a sequence of \textit{QueryPlanItems}, which define a single step. Each \textit{QueryPlanItem} has an \textit{execute} method, which will make some change to the state of all workers in the cluster when called. Both \textit{DataSource} and \textit{Table} have a function that generates the full Query Plan to compute their output, and a second Query Plan to clear the data store of their output. 
 
-Figure \ref{fig:filter-group-by-query-plan} shows the query plans for the Filter and Select query (\ref{fig:filter-select-query}) and Group By Query (\ref{fig:group-by-query}).
+Figure \ref{fig:filter-group-by-query-plan} shows the query plans for the Filter and Select query (Section \ref{fig:filter-select-query}) and Group By Query (Section \ref{fig:group-by-query}).
 
 \begin{figure}[h]
 	\centering
@@ -567,6 +574,7 @@ If the \textit{DataSource} has no dependencies, for example when pulling data fr
 	\label{fig:get-partition-no-dependencies}
 \end{figure}
 
+\pagebreak
 If the \textit{DataSource} has dependencies, then Figure \ref{fig:get-partition-dependencies} shows the process for this item. These steps are the same as when calculating a Group By (Section \ref{subsec:group-by}). First, the partitions and optimal assignments are generated, then the dependency data is hashed based on the number of partitions to generate. Both of these steps are implementation-specific, and are therefore abstracted behind the \textit{DataSource} interface. 
 
 The work assignment algorithm is then run to delegate partitions to the workers, followed by deleting the hashed dependency data. These steps do not change based on the \textit{DataSource}, so are handled exclusively by \textit{GetPartition}.
@@ -609,7 +617,7 @@ After all the steps of a query are completed, the final results are stored acros
 \section{Deployment}
 As discussed in Chapter \ref{cha:design}, Kubernetes was chosen to manage all nodes in the cluster. One feature that makes it useful for the system is scheduling rules, which provide Kubernetes with information about how containers should be assigned to physical nodes.
 
-As previously described in \ref{subsec:colocation}, workers determine their closest Cassandra node automatically based on latency. To make the best use of the cluster, workers should be distributed evenly across all nodes that have a Cassandra node. This is implemented by these scheduling rules:
+As previously described in Section \ref{subsec:colocation}, workers determine their closest Cassandra node automatically based on latency. To make the best use of the cluster, workers should be distributed evenly across all nodes that have a Cassandra node. This is implemented by these scheduling rules:
 \begin{enumerate}
 	\item If possible, workers should be placed on the same Kubernetes node as a Cassandra node.
 	\item Workers should not be placed on the same node as other workers.

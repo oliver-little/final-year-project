@@ -11,7 +11,7 @@ As discussed in Chapter \ref{cha:intro}, the main objective is to improve the sp
 \section{Unit Tests}
 Thorough unit testing is important for any software engineering focused project. By writing tests throughout development, the expected behaviour of individual components in the system can be validated. Through the use of continuous integration/continuous deployment (CI/CD) pipelines, this behaviour can continue to be validated as other parts of the system are improved, to ensure changes do not break the behaviour of the component. 
 
-Scalatest was chosen as the unit test framework \cite{scalatestuserguide}. Furthermore, both gRPC and Akka Actors provide classes for writing unit tests around the frameworks, and this is combined with Mockito to mock any dependencies that cannot be run during testing like the Cassandra Driver \cite{scalatestplusmockito, datastaxjavadriver}. Using these tools and frameworks, unit tests have been written for the majority of core code, including the DSL, query model and partitioning code. In total, more than 350 individual tests were written for this project, split across the Python frontend, core code, orchestrator and worker code.
+Scalatest was chosen as the unit test framework, being the most widely supported option \cite{scalatestuserguide}. Furthermore, both gRPC and Akka Actors provide classes for writing unit tests around the frameworks, and this is combined with Mockito to mock any dependencies that cannot be run during testing like the Cassandra Driver \cite{scalatestplusmockito, datastaxjavadriver}. Using these tools and frameworks, unit tests have been written for the majority of core code, including the DSL, query model and partitioning code. In total, more than 350 individual tests were written for this project, split across the Python frontend, core code, orchestrator and worker code.
 
 
 
@@ -38,6 +38,7 @@ To aid performance testing, fake data is created to test the different operation
 	\label{fig:fake-loan-data}
 \end{figure}
 
+
 \pagebreak
 \section{SQL vs Cluster Solution}
 This section will compare the performance of an instance of Microsoft SQL Server, against the completed solution, referred to as the Cluster Processor. 
@@ -45,7 +46,7 @@ This section will compare the performance of an instance of Microsoft SQL Server
 \paragraph{Test Plan}
 Tests are conducted for the three types of query that the Cluster Processor supports: Select, Filter and Group By. Within each type of query, a simple, and a complex version is tested. See Appendix \ref{sec:testing-figs} for the full SQL and Cluster Processor queries.
 
-Figure \ref{fig:sql-cluster-data-volumes} shows the data volumes of the tables the queries will be executed on. SQL has two larger tables to provide further context of how it scales at larger data volumes; the Cluster Processor was unable to test these tables due to time and cost constraints.
+Figure \ref{fig:sql-cluster-data-volumes} shows the data volumes of the tables the queries will be executed on. SQL has two larger tables (50 and 100 million) to provide further context of how it scales at larger data volumes; the Cluster Processor was unable to test these tables due to time and cost constraints.
 
 \begin{figure}[ht]
 	\centering
@@ -242,7 +243,7 @@ Throughout all of these tests, the number of Cassandra nodes in the cluster rema
 \end{figure}
 
 \subsection{Select Query}
-The results of this test are shown in Figure \ref{fig:select-simple-autoscale-test}. As expected, the query performance decreases as the number of workers decreases. However, at 1000 rows the difference between 3 workers and 1 worker is around 0.3s, and at 10000 rows it is 0.9s.
+The results of this test are shown in Figure \ref{fig:select-simple-autoscale-test}. As expected, the query performance decreases as the number of workers decreases. At 1000 rows the difference between 3 workers and 1 worker is around 0.3s, and at 10000 rows it is 0.9s.
 
 \begin{figure}[ht]
 	\centering
