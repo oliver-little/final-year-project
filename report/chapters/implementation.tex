@@ -1,6 +1,6 @@
 \chapter{Implementation}\label{cha:implementation}
 
-A number of components were created to implement the proposed architecture. This chapter will provide a high level overview of the solution, then examine each component in further detail.
+A number of components were created to implement the proposed architecture. This chapter will provide a high-level overview of the solution, then examine each component in further detail.
 
 \section{Overall Solution}
 \begin{figure}[h]
@@ -144,21 +144,21 @@ ClusterManager("orchestrator-url")
 \end{itemize}
 
 Figure \ref{fig:field-expressions-examples} provides examples for each type of \textit{FieldExpression}.
-% texttt the values in the notes of this figure
+
 \begin{figure}[htp]
-	Values (from left to right): string "a", integer 1, double 1.5, boolean True, date 31/12/2021.
+	Values (from left to right): string \texttt{"a"}, integer \texttt{1}, double \texttt{1.5}, boolean \texttt{True}, date \texttt{31/12/2021}.
 	\begin{python}
 V("a") , V(1), V(1.5), V(True), V(datetime.date(2021, 12, 31))
 	\end{python}
 
-	Fields (from left to right): fieldName, duration, id, creationDate.
+	Fields (from left to right): \texttt{fieldName}, \texttt{duration}, \texttt{id}, \texttt{creationDate}.
 	\begin{python}
 F("fieldName"), F("duration"), F("id"), F("creationDate")
 	\end{python}
 
-	Top Function: convert 'field1' to a string, then take the left 10 characters of each row.
+	Top Function: convert \texttt{field1} to a string, then take the left 10 characters of each row.
 	
-	Bottom Function: multiply 'field2' by 2, then divide by "field3"
+	Bottom Function: multiply \texttt{field2} by 2, then divide by \texttt{field3}
 	\begin{python}
 Function.Left(Function.ToString(F("field1")), 10)
 (F("field2") * 2) / F("field3")
@@ -376,7 +376,7 @@ ClusterManager("orchestrator-service")
 	\label{fig:group-by-query}
 \end{figure}
 
-A \textit{Table} or \textit{DataSource} cannot be computed directly, but must first be split into partitions, which are provided by the \textit{DataSource}. These partitions are represented by the interface \textit{PartialDataSource}, with the partitioning method being specific to each implementation. The \textit{Table} class has a similar partial form, \textit{PartialTable}, which references a \textit{PartialDataSource} and can be computed directly. To demonstrate how to produce a final result from a set of partitions, Figure \ref{fig:partial-filter-select-query} shows a high level example of one possible way of partitioning and computing the previous Filter and Select query.
+A \textit{Table} or \textit{DataSource} cannot be computed directly, but must first be split into partitions, which are provided by the \textit{DataSource}. These partitions are represented by the interface \textit{PartialDataSource}, with the partitioning method being specific to each implementation. The \textit{Table} class has a similar partial form, \textit{PartialTable}, which references a \textit{PartialDataSource} and can be computed directly. To demonstrate how to produce a final result from a set of partitions, Figure \ref{fig:partial-filter-select-query} shows a high-level example of one possible way of partitioning and computing the previous Filter and Select query.
 
 \begin{figure}[htp]
 	\centering
@@ -395,7 +395,7 @@ The approach taken to solve this uses the actor model, first introduced in 1973 
 The data store is an actor which stores results as key-value pairs. Three kinds of data can be used as keys for storage: \textit{Table} computation results, \textit{DataSource} computation results and hashed data results, which are used when computing Group Bys. It uses a two-stage lookup, internally implemented using nested HashMaps. First, the full version of the data (\textit{Table} or \textit{DataSource}) is looked up, then the partial version (\textit{PartialTable} or \textit{PartialDataSource}). Partial forms always contain a reference to the full version, but not the other way around. Therefore, this design does not increase the insert time significantly, but it is particularly useful when reading or deleting a \textit{Table} or \textit{DataSource}. Otherwise, these operations would require searching the entire HashMap, turning the O(1) lookup time into O(n).
 
 \subsection{Spill to Memory}
-When operating on very large datasets, the dataset will be larger than the available memory of the workers. In this case, the JVM will run out of heap space, causing a crash when it tries to allocate more memory. Therefore, the data store has a module designed to move in-memory data onto disk to free up heap space, operating transparently from the perspective of other worker components. 
+When operating on very large datasets, the dataset may be larger than the available memory of the workers. In this case, the JVM will run out of heap space, causing a crash when it tries to allocate more memory. Therefore, the data store has a module designed to move in-memory data onto disk to free up heap space, operating transparently from the perspective of other worker components. 
 
 \paragraph{Storage Interface}
 To implement the spill process, an interface, \textit{StoredTableResult}, is defined. This interface holds a key which corresponds to a result, and a \textit{get} operation to retrieve the result data. There are two subclasses with implementations: \textit{InMemoryTableResult} and \textit{ProtobufTableResult}. \textit{InMemoryTableResult} holds the result in-memory, and has a \textit{spillToDisk} method which moves the data to disk. \textit{ProtobufTableResult} holds a pointer to the data on-disk, reading the data from there when the \textit{get} operation is called.
@@ -403,7 +403,7 @@ To implement the spill process, an interface, \textit{StoredTableResult}, is def
 \paragraph{Spill Process}
 The data store is responsible for managing in-memory and on-disk data. Before almost every operation, it checks current memory utilisation, which is calculated using Java's \textit{Runtime} class \cite{javaruntimeclass}. If the utilisation is over a given threshold, the data store attempts to spill data to get below the threshold.
 
-Figure \ref{fig:bytes-over-memory-threshold} shows how the amount of bytes over a percentage threshold is calculated. The division calculates the current memory utilisation percentage, then the threshold is subtracted to get the percentage amount over the threshold. This is multiplied by the total number of bytes to get the result.
+Figure \ref{fig:bytes-over-memory-threshold} shows how the number of bytes over a percentage threshold is calculated. The division calculates the current memory utilisation percentage, then the threshold is subtracted to get the percentage amount over the threshold. This is multiplied by the total number of bytes to get the result.
 
 \begin{figure}[h]
 	\centering
@@ -511,7 +511,7 @@ The first step is to compute the number of output partitions for the Group By, w
 
 \pagebreak
 \paragraph{Hashing} 
-A unique partition is defined as a tuple, shown in Figure \ref{fig:group-by-unique-partition}. Hashing, combined with the modulo operation, is used to assign rows of data to partitions. In particular, Murmur3Hash is used as the hashing algorithm, used in Cassandra and provided natively by Scala \cite{murmur3hash}. Figure \ref{fig:group-by-partition-assign} shows the high level equation for assigning rows to partitions. This equation maps all rows with the same combination of unique keys to the same partition.
+A unique partition is defined as a tuple, shown in Figure \ref{fig:group-by-unique-partition}. Hashing, combined with the modulo operation, is used to assign rows of data to partitions. In particular, Murmur3Hash is used as the hashing algorithm, used in Cassandra and provided natively by Scala \cite{murmur3hash}. Figure \ref{fig:group-by-partition-assign} shows the high-level equation for assigning rows to partitions. This equation maps all rows with the same combination of unique keys to the same partition.
 
 \begin{figure}[h]
 	\centering

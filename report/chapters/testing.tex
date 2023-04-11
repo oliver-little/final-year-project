@@ -11,12 +11,12 @@ As discussed in Chapter \ref{cha:intro}, the main objective is to improve the sp
 \section{Unit Tests}
 Thorough unit testing is important for any software engineering focused project. By writing tests throughout development, the expected behaviour of individual components in the system can be validated. Through the use of continuous integration/continuous deployment (CI/CD) pipelines, this behaviour can continue to be validated as other parts of the system are improved, to ensure changes do not break the behaviour of the component. 
 
-Scalatest was chosen as the unit test framework, being the most widely supported option \cite{scalatestuserguide}. Furthermore, both gRPC and Akka Actors provide classes for writing unit tests around the frameworks, and this is combined with Mockito to mock any dependencies that cannot be run during testing like the Cassandra Driver \cite{scalatestplusmockito, datastaxjavadriver}. Using these tools and frameworks, unit tests have been written for the majority of core code, including the DSL, query model and partitioning code. In total, more than 350 individual tests were written for this project, split across the Python frontend, core code, orchestrator and worker code.
+Unit tests were written in both Python and Scala using pytest and ScalaTest, respectively \cite{pytest, scalatestuserguide}. Furthermore, both gRPC and Akka Actors provide classes for writing unit tests around the frameworks, and this is combined with Mockito to mock any dependencies that cannot be run during testing like the Cassandra Driver \cite{scalatestplusmockito, datastaxjavadriver}. Using these tools and frameworks, unit tests have been written for the majority of core code, including the DSL, query model and partitioning code. In total, more than 350 individual tests were written for this project, split across the Python frontend, core code, orchestrator and worker code.
 
 
 
 \section{Test Data}
-To aid performance testing, fake data is created to test the different operations of the system, produced based on discussions with potential users of the system. The intended users have a financial background, as they work within Audit at PwC, so loan origination (creation) data was selected for testing. A short Python script generates this data by randomising a number of fields between specified bounds. Figure \ref{fig:fake-loan-data} shows ten example records of the data.
+To aid performance testing and to test the system's operations, fake data is created based on discussions with potential users of the system. These users have a financial background, as they work within Audit at PwC, so loan origination (creation) data was selected for testing. A short Python script generates this data by randomising a number of fields between specified bounds. Figure \ref{fig:fake-loan-data} shows ten example records of the data.
 
 \begin{figure}[ht]
 	\centering
