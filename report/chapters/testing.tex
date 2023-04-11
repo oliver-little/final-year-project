@@ -16,7 +16,7 @@ Unit tests were written in both Python and Scala using pytest and ScalaTest, res
 
 
 \section{Test Data}
-To aid performance testing and to test the system's operations, fake data is created based on discussions with potential users of the system. These users have a financial background, as they work within Audit at PwC, so loan origination (creation) data was selected for testing. A short Python script generates this data by randomising a number of fields between specified bounds. Figure \ref{fig:fake-loan-data} shows ten example records of the data.
+Based on discussions with potential users of the system, fake data is created to aid performance testing and test the system's operations. These users have a financial background, as they work within Audit at PwC, so loan origination (creation) data was selected for testing. A short Python script generates this data by randomising a number of fields between specified bounds. Figure \ref{fig:fake-loan-data} shows ten example records of the data.
 
 \begin{figure}[ht]
 	\centering
@@ -65,7 +65,7 @@ Figure \ref{fig:sql-cluster-data-volumes} shows the data volumes of the tables t
 	\label{fig:sql-cluster-data-volumes}
 \end{figure}
 
-To reduce the effect of random error, each test is run 5 times, and the results are averaged. This is particularly important for a cloud environment, as there is less control over the hardware running the tests.
+To reduce the effect of random error, each test is run 5 times and the results are averaged. This is particularly important for a cloud environment, as there is less control over the hardware running the tests.
 
 Microsoft SQL Server was running on an instance of Azure SQL Database for these tests \cite{azuresqldatabase}. The Cluster Processor was running on Azure Kubernetes Service with a pool of three nodes, each having 4 vCores, and 16GB memory available \cite{azurekubernetesservice}. The CPU and memory available to each worker is controlled by Kubernetes.
 

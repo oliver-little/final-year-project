@@ -220,11 +220,10 @@ A two-step process has a number of benefits. The resolution step enables a form 
 \paragraph{Named Expressions}
 When performing a Select operation, the output fields must be named to so operations can reference fields from the previous input. Figure \ref{fig:namedfieldexpression-examples} shows the two ways of naming a field: \textit{FieldExpressions} can be assigned a name, and single Field references will keep their previous name.
 
-% texttt the values in the notes of this figure
 \begin{figure}[htp]
-	Top Expression Name: 'twice\textunderscore duration'
+	Top Expression Name: \texttt{twice\textunderscore duration}
 	
-	Bottom Expression Name: 'creation\textunderscore date'
+	Bottom Expression Name: \texttt{creation\textunderscore date}
 	\begin{python}
 (F("duration") * 2).as_name("twice_duration")
 F("creation_date")
@@ -390,7 +389,7 @@ A \textit{Table} or \textit{DataSource} cannot be computed directly, but must fi
 \section{Data Store}
 The data store allows the workers to store partially computed data, which can be reused in later parts of the query execution. In particular when workers are communicating with one another, it is likely that the data store will receive multiple simultaneous requests, presenting issues with handling concurrency and synchronisation.
 
-The approach taken to solve this uses the actor model, first introduced in 1973 by Carl Hewitt \cite{hewitt1973session}. Specifically, the Akka Actors framework was chosen for a Scala actor model implementation \cite{akkaactors}. It abstracts away the complexity of synchronisation and thread management, modelling components of the system as actors. Each actor defines a set of accepted messages, and the response to each. The framework then guarantees that an actor will only ever process one message at a time.
+The approach taken to solve this uses the actor model, first introduced in 1973 by Carl Hewitt \cite{hewitt1973session}. Specifically, the Akka Actors framework was chosen for a Scala actor model implementation \cite{akkaactors}. It abstracts away the complexity of synchronisation and thread management, modelling components of the system as actors. Each actor defines a set of accepted messages, and the response to each message. The framework then guarantees that an actor will only ever process one message at a time.
 
 The data store is an actor which stores results as key-value pairs. Three kinds of data can be used as keys for storage: \textit{Table} computation results, \textit{DataSource} computation results and hashed data results, which are used when computing Group Bys. It uses a two-stage lookup, internally implemented using nested HashMaps. First, the full version of the data (\textit{Table} or \textit{DataSource}) is looked up, then the partial version (\textit{PartialTable} or \textit{PartialDataSource}). Partial forms always contain a reference to the full version, but not the other way around. Therefore, this design does not increase the insert time significantly, but it is particularly useful when reading or deleting a \textit{Table} or \textit{DataSource}. Otherwise, these operations would require searching the entire HashMap, turning the O(1) lookup time into O(n).
 
@@ -522,13 +521,13 @@ A unique partition is defined as a tuple, shown in Figure \ref{fig:group-by-uniq
 
 \begin{figure}[h]
 	\centering
-	\[ Murmur3Hash(\text{Unique Key Data}) \; \%  \; \text{Total Number of Partitions} \]
+	\[ \text{Assigned Partition Number} \; = \; Murmur3Hash(\text{Unique Key Data}) \; \%  \; \text{Total Number of Partitions} \]
 	\caption{Group By - Row Partition Assignment}
 	\label{fig:group-by-partition-assign}
 \end{figure} 
 
 \paragraph{Computation}
-After the hashes are computed and a worker is assigned a particular partition, it must cross-communicate with all other workers to fetch any data relating to that partition to ensure that the partition data is complete. To do this, the worker makes requests to all other workers, and they stream the header and rows of their partial data back to the worker. When a Group By is being computed, a worker will likely be simultaneously receiving data from another worker, and sending a different set of data to it. This makes the actor system driving the data store in each worker particularly valuable, as it provides thread-safe concurrent access to the data store.
+After the hashes are computed and a worker is assigned a particular partition, it must cross-communicate with all other workers to fetch any data relating to that partition to ensure that the partition data is complete. To do this, the worker makes requests to all other workers, and they stream the header and rows of their partial data back. When a Group By is being computed, a worker will likely be simultaneously receiving data from another worker, and sending a different set of data to it. This makes the actor system driving the data store in each worker particularly valuable, as it provides thread-safe concurrent access to the data store.
 
 Once a worker has collected all partition data, the groups are computed using a built-in Scala operation, and the \textit{AggregateExpressions} are evaluated for each group.
 
