@@ -1,30 +1,33 @@
 # Final Year Project
-This is the code repository for my final year project - a query processing engine over a distributed cluster of nodes. This project was developed between October 2022 and April 2023.
+This is the code repository for my final year project - a query processing engine implemented over a distributed cluster of nodes. This project was developed between October 2022 and April 2023. Due to University requirements, the entire project is contained in this git repository, but each folder essentially acts as a standalone submodule.
+
+The project consists of a frontend and domain specific language implemented in Python, and a backend implemented in Scala, which is all backed by a Cassandra database for persistent storage. The backend extensively uses gRPC and Akka Actors to provide thread-safe concurrent communication between workers in the cluster.
 
 ## Contents
 
 There are a number of folders, each relating to a separate part of the project. Details of each folder, as well as execution instructions, are included below:
+
+### Python Client
+This module contains all code related to the client-side implementation of the framework. This includes the domain specific language and result parsing code.
+
+A README file with further details of the contents of this folder can be found [here.](/python_client/README.md)
+
+### Server
+This module contains all code related to the server-side implementation of the framework The folder contains 3 projects: a core code project, and then implementations of the worker and orchestrator servers.
+
+A README file with further details of the contents of this folder can be found [here.](/server/README.md)
+
+### Protos
+This folder contains protobuf definition files, which are used by both the python client, and the orchestrator and worker nodes.
 
 ### Kubernetes
 This folder contains .yaml files required for initialising the Kubernetes cluster.
 
 A README file with further details of the contents of this folder can be found [here.](/kubernetes/README.md)
 
-### Protos
-This folder contains protobuf definition files, which are used by both the python client, and the orchestrator and worker nodes.
-
-### Python Client
-This module contains all code related to the client-side implementation of the framework.
-
-A README file with further details of the contents of this folder can be found [here.](/python_client/README.md)
-
 ### Report
 This folder contains the full project report, along with all source LaTeX files and images used for generating the report.
 
-### Server
-This module contains all code related to the server-side implementation of the framework, including core code, and orchestrator and worker server implementations.
-
-A README file with further details of the contents of this folder can be found [here.](/server/README.md)
 
 ## Execution
 
